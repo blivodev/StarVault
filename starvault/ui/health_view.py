@@ -322,29 +322,41 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             ai_header,
-            text="🤖 AI Security & Hygiene Advisor (Optional)",
+            text="🧠 Neural & AI Security Advisor",
             font=get_font(13, "bold"),
             text_color=ACCENT_INDIGO,
         ).pack(side="left")
 
         ctk.CTkLabel(
             ai_header,
-            text="Zero-knowledge: NEVER sends unencrypted passwords",
+            text="100% Offline Zero-Knowledge Neural Engine • Optional Cloud LLM",
             font=get_font(11),
             text_color=TEXT_MUTED,
         ).pack(side="left", padx=12)
 
         self.ai_expand_btn = ctk.CTkButton(
             ai_header,
-            text="▼ Configure & Scan",
-            width=140,
+            text="⚙️ Cloud AI Providers",
+            width=150,
             height=30,
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             command=self._toggle_ai_panel,
         )
-        self.ai_expand_btn.pack(side="right")
+        self.ai_expand_btn.pack(side="right", padx=(8, 0))
+
+        self.neural_quick_btn = ctk.CTkButton(
+            ai_header,
+            text="🧠 Run Neural Scan",
+            width=150,
+            height=30,
+            font=get_font(11, "bold"),
+            fg_color=ACCENT_INDIGO,
+            hover_color=ACCENT_HOVER,
+            command=self._handle_run_neural_scan,
+        )
+        self.neural_quick_btn.pack(side="right")
 
         # Collapsible content
         self.ai_body = ctk.CTkFrame(self.ai_card, fg_color="transparent")
@@ -369,7 +381,8 @@ class HealthView(ctk.CTkFrame):
             height=34,
             font=get_font(11),
         )
-        self.ai_provider_combo.set("Ollama (Local)")
+        default_pname = AI_PROVIDERS["neural"]["name"]
+        self.ai_provider_combo.set(default_pname)
         self.ai_provider_combo.pack(fill="x", pady=(3, 0))
 
         # Model Input
@@ -534,7 +547,7 @@ class HealthView(ctk.CTkFrame):
                         command=lambda eid=act.entry_id: self.on_review_entry(eid),
                     ).pack(side="right", padx=6)
 
-                if act.action_type in ("set_category", "update_tags", "normalize_title", "merge_duplicate", "purge_ghost"):
+                if act.action_type in ("set_category", "update_tags", "normalize_title", "merge_duplicate", "purge_ghost", "assign_groups", "assign_services"):
                     ctk.CTkButton(
                         act_row,
                         text="⚡ Apply",
@@ -546,6 +559,16 @@ class HealthView(ctk.CTkFrame):
                         text_color="#000000",
                         command=lambda a=act: self._handle_apply_ai_action(a),
                     ).pack(side="right", padx=4)
+
+    def _handle_run_neural_scan(self) -> None:
+        """Executes instant 100% offline neural network security and hygiene audit."""
+        self.status_banner.configure(text="🧠 Running local neural security inference...", text_color=ACCENT_INDIGO)
+        entries = self.database.get_all_entries(self.encryption_key)
+        advisor = AIAdvisor(provider="neural")
+        result = advisor.analyze_neural(entries)
+        self.ai_result = result
+        self.status_banner.configure(text="✓ Neural Security Audit complete (100% offline)!", text_color=COLOR_SUCCESS)
+        self._render_ai_results(result)
 
     def refresh(self) -> None:
         """Performs in-memory audit of all decrypted entries and updates UI."""
@@ -620,6 +643,43 @@ class HealthView(ctk.CTkFrame):
         self._create_metric_pill(stats_row, "Stale Pwds (>180d)", report.stale_passwords_count, COLOR_WARNING if report.stale_passwords_count > 0 else TEXT_MUTED)
         self._create_metric_pill(stats_row, "Expiring Keys", report.expiring_keys_count, COLOR_DANGER if report.expiring_keys_count > 0 else TEXT_MUTED)
         self._create_metric_pill(stats_row, "Name Clones", report.duplicate_names_count, TEXT_MUTED)
+
+        # Right-hand side: Internal Neural Network Safety Gauge
+        neural_audit = getattr(report, "neural_audit", None)
+        if neural_audit:
+            n_badge = ctk.CTkFrame(
+                self.score_container,
+                fg_color=BG_INPUT,
+                corner_radius=10,
+                border_width=2,
+                border_color=ACCENT_INDIGO,
+                width=170,
+                height=90,
+            )
+            n_badge.pack(side="right", padx=(16, 0), pady=4)
+            n_badge.pack_propagate(False)
+
+            ctk.CTkLabel(
+                n_badge,
+                text="🧠 NEURAL SAFETY",
+                font=get_font(9, "bold"),
+                text_color=ACCENT_INDIGO,
+            ).pack(pady=(10, 0))
+
+            n_score_color = COLOR_SUCCESS if neural_audit.safety_index >= 80 else (COLOR_WARNING if neural_audit.safety_index >= 60 else COLOR_DANGER)
+            ctk.CTkLabel(
+                n_badge,
+                text=f"{neural_audit.safety_index} / 100",
+                font=get_font(20, "bold"),
+                text_color=n_score_color,
+            ).pack()
+
+            ctk.CTkLabel(
+                n_badge,
+                text=f"Grade {neural_audit.letter_grade} • {neural_audit.execution_time_ms}ms (Offline)",
+                font=get_font(9),
+                text_color=TEXT_MUTED,
+            ).pack()
 
         # 2. Expiry alert banner
         if report.expiring_keys_count > 0:

@@ -20,6 +20,13 @@ from starvault.models import VaultEntry
 
 
 AI_PROVIDERS = {
+    "neural": {
+        "name": "🧠 Internal Neural Network (Local & Offline - Zero-Knowledge)",
+        "default_endpoint": "local://neural-net",
+        "default_model": "StarVault-MLP-v2.4",
+        "models": ["StarVault-MLP-v2.4"],
+        "requires_key": False,
+    },
     "openai": {
         "name": "OpenAI",
         "default_endpoint": "https://api.openai.com/v1/chat/completions",
@@ -104,16 +111,20 @@ class AIAdvisor:
 
     def __init__(
         self,
-        provider: str = "ollama",
+        provider: str = "neural",
         api_key: str = "",
         model: str = "",
         endpoint: str = "",
     ) -> None:
-        self.provider = provider if provider in AI_PROVIDERS else "ollama"
+        self.provider = provider if provider in AI_PROVIDERS else "neural"
         meta = AI_PROVIDERS[self.provider]
         self.api_key = api_key.strip()
         self.model = model.strip() or meta["default_model"]
         self.endpoint = endpoint.strip() or meta["default_endpoint"]
+
+    @property
+    def current_provider(self) -> str:
+        return self.provider
 
     def build_sanitized_metadata(self, entries: List[VaultEntry]) -> List[Dict[str, Any]]:
         """Extracts strictly non-sensitive structural metadata for AI analysis."""
@@ -158,6 +169,55 @@ class AIAdvisor:
             sanitized.append(item)
         return sanitized
 
+    def analyze_neural(self, entries: List[VaultEntry]) -> AIAnalysisResult:
+        """Executes full internal neural network audit (100% offline, zero-knowledge)."""
+        from starvault.neural_health import audit_vault_neural
+        neural_audit = audit_vault_neural(entries)
+        findings: List[str] = []
+        actions: List[AIRemediationAction] = []
+
+        findings.append(f"🧠 Neural Safety Index: {neural_audit.safety_index}/100 (Grade {neural_audit.letter_grade})")
+        findings.append(f"⚡ Analyzed {neural_audit.total_entries_evaluated} entries in {neural_audit.execution_time_ms}ms with 100% offline zero-knowledge inference.")
+        if neural_audit.anomalies_flagged_count > 0:
+            findings.append(f"⚠️ Flagged {neural_audit.anomalies_flagged_count} security anomalies requiring attention.")
+
+        for vuln in neural_audit.top_vulnerabilities:
+            for rec in vuln.get("recommendations", []):
+                findings.append(f"[{vuln['title']}] {rec}")
+
+        for assessment in neural_audit.entry_assessments:
+            if assessment.auto_fix_action:
+                actions.append(AIRemediationAction(
+                    action_type=assessment.auto_fix_action,
+                    entry_id=assessment.entry_id,
+                    entry_title=assessment.entry_title,
+                    reason=assessment.recommendations[0] if assessment.recommendations else f"Neural Risk: {assessment.risk_score}% ({assessment.predicted_class})",
+                    suggested_value="Auto-generated high entropy credential" if assessment.auto_fix_action == "generate_password" else None,
+                ))
+            if assessment.anomalies:
+                for anom in assessment.anomalies:
+                    if "Unorganized" in anom:
+                        actions.append(AIRemediationAction(
+                            action_type="assign_groups",
+                            entry_id=assessment.entry_id,
+                            entry_title=assessment.entry_title,
+                            reason="Neural engine detected missing group assignments",
+                            suggested_value=", ".join(assessment.recommended_groups),
+                        ))
+
+        summary = (
+            f"StarVault Neural Network Audit: Safety Index {neural_audit.safety_index}/100 "
+            f"(Grade {neural_audit.letter_grade}). Evaluated {len(entries)} items offline. "
+            f"{neural_audit.high_risk_entries_count} high-risk entries identified."
+        )
+
+        return AIAnalysisResult(
+            summary=summary,
+            findings=findings,
+            actions=actions,
+            raw_response=f"StarVault Neural Engine v2.4 (Local MLP • {neural_audit.execution_time_ms}ms)",
+        )
+
     def analyze_vault(self, entries: List[VaultEntry]) -> AIAnalysisResult:
         """Sends sanitized metadata to AI provider and parses structured recommendations."""
         if not entries:
@@ -166,6 +226,10 @@ class AIAdvisor:
                 findings=[],
                 actions=[],
             )
+
+        # Route to internal neural network directly when selected (Default)
+        if self.provider == "neural":
+            return self.analyze_neural(entries)
 
         metadata = self.build_sanitized_metadata(entries)
 
@@ -194,8 +258,8 @@ class AIAdvisor:
             response_text = self._call_llm(system_prompt, user_prompt)
             return self._parse_response(response_text, entries)
         except Exception:
-            # Fallback to local heuristic security and organization analysis
-            return self.analyze_local_heuristics(entries)
+            # Fallback to local neural network and heuristic security and organization analysis
+            return self.analyze_neural(entries)
 
     def analyze_local_heuristics(self, entries: List[VaultEntry]) -> AIAnalysisResult:
         """Fast offline heuristic analysis for immediate security and organization recommendations."""

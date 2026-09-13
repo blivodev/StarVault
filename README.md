@@ -58,7 +58,22 @@ Built with **Python**, **CustomTkinter**, **Argon2id**, **AES-256-GCM**, and **S
 - **In-Memory Protection**: Cryptographic key bytes in memory are zeroed upon lock or exit.
 - **100% Offline & Portable**: Single standalone SQLite database (`starvault.db`).
 
-### 🩺 Vault Health & Remediation Advisor
+### 🧠 Internal Neural Network Security Engine & Hybrid AI Health Advisor
+- **100% Offline & Zero-Knowledge by Default**: Analyzes multi-dimensional credential telemetry entirely in memory using a dedicated local 2-layer perceptron ($12 \to 16 \to 8$) with LeakyReLU activations without transmitting a single byte to external servers.
+- **Sub-Millisecond Inference (< 0.5ms)**: Pure vectorized matrix arithmetic evaluates your entire vault in < 1ms with zero heavy GPU/PyTorch dependencies.
+- **12-Dimensional Security Vector Analysis**:
+  - `length_norm`, `entropy_norm`, `char_variety`, `pattern_cleanliness`, `age_stale_factor`, `expiry_urgency`, `exposure_surface`, `mfa_protection`, `reuse_count_norm`, `group_breadth`, `metadata_completeness`, `key_algorithm_strength`.
+- **Tri-Head Neural Outputs**:
+  - **Compromise Risk Score (0-100)**: Sigmoid-activated probability of credential vulnerability.
+  - **Anomaly Score (0-100)**: Detects anomalous configurations (e.g. unencrypted HTTP with admin privileges and missing 2FA).
+  - **6-Class Softmax Classification**: `SECURE_OPTIMAL`, `CRITICAL_EXPIRING`, `WEAK_ENTROPY`, `REUSED_CREDENTIAL`, `STALE_UNROTATED`, `UNPROTECTED_EXPOSURE`.
+- **Hybrid AI Architecture**:
+  - **Internal Neural Network** is the default, primary security advisor.
+  - Optional cloud/local LLM integrations (OpenAI, Anthropic Claude, Google Gemini, Ollama, OpenRouter) can be enabled on demand for natural language prose advice and architectural suggestions.
+- **1-Click Neural Scan & Auto-Fix**: Run neural health audits in 1-click and immediately auto-rotate weak passwords, renew expiring tokens, or auto-assign missing groups and services.
+- **Full Ecosystem Parity**: Exposed seamlessly across Desktop GUI, Chromium Extension (`/api/neural_health`, `/api/neural_analyze_entry`), and Model Context Protocol (MCP) server.
+
+### 🩺 Traditional Rule-Based Vault Health Scanners
 - **Comprehensive Audit**: Calculates an overall vault health score (0–100) and security grade (A through F).
 - **Vulnerability Scanners**:
   - Reused / duplicate passwords across servers and services.
@@ -188,7 +203,7 @@ python run.py
 
 ## 🧪 Testing
 
-StarVault includes a comprehensive automated test suite with **100% pass rate** (58 test cases):
+StarVault includes a comprehensive automated test suite with **100% pass rate** (66 test cases):
 
 ```powershell
 .\.venv\Scripts\pytest tests/ -v
