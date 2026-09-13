@@ -21,6 +21,8 @@ class VaultEntry:
     entry_type: str = "server"  # 'server', 'service', 'keypair'
     title: str = ""
     category: str = "General"
+    groups: List[str] = field(default_factory=list)
+    services: List[str] = field(default_factory=list)
     tags: List[str] = field(default_factory=list)
     is_favorite: bool = False
     created_at: str = field(default_factory=utc_now_iso)
@@ -72,6 +74,18 @@ class VaultEntry:
     # Common rich content
     notes: str = ""  # encrypted
 
+    def __post_init__(self):
+        # Guarantee groups has at least category
+        if not self.groups and self.category:
+            self.groups = [self.category]
+        elif self.groups and not self.category:
+            self.category = self.groups[0]
+        # Guarantee services has at least app_name if entry is a service
+        if not self.services and self.app_name:
+            self.services = [self.app_name]
+        elif self.services and not self.app_name:
+            self.app_name = self.services[0]
+
     def duplicate(self) -> "VaultEntry":
         """Creates an independent clone of this entry with '- Copy' title."""
         return VaultEntry(
@@ -79,6 +93,8 @@ class VaultEntry:
             entry_type=self.entry_type,
             title=f"{self.title} - Copy" if self.title else "Untitled - Copy",
             category=self.category,
+            groups=list(self.groups),
+            services=list(self.services),
             tags=list(self.tags),
             is_favorite=False,
             created_at=utc_now_iso(),
@@ -115,6 +131,36 @@ class VaultEntry:
             notes=self.notes,
         )
 
+    def get_groups_display(self) -> str:
+        """Returns comma-separated groups string."""
+        if self.groups:
+            return ", ".join(self.groups)
+        return self.category or "General"
+
+    def set_groups_from_str(self, groups_str: str) -> None:
+        """Parses comma-separated groups string into clean list."""
+        if not groups_str:
+            self.groups = []
+        else:
+            self.groups = [g.strip() for g in groups_str.split(",") if g.strip()]
+        if self.groups:
+            self.category = self.groups[0]
+
+    def get_services_display(self) -> str:
+        """Returns comma-separated services string."""
+        if self.services:
+            return ", ".join(self.services)
+        return self.app_name or ""
+
+    def set_services_from_str(self, services_str: str) -> None:
+        """Parses comma-separated services string into clean list."""
+        if not services_str:
+            self.services = []
+        else:
+            self.services = [s.strip() for s in services_str.split(",") if s.strip()]
+        if self.services and not self.app_name:
+            self.app_name = self.services[0]
+
     def get_tags_display(self) -> str:
         """Returns comma-separated tags string."""
         return ", ".join(self.tags)
@@ -138,6 +184,8 @@ class VaultEntry:
             "notes": self.notes,
             "custom_fields": self.custom_fields,
             "parent_server_id": self.parent_server_id,
+            "groups": self.groups,
+            "services": self.services,
             # Extra fields bundled inside payload
             "hostname": self.hostname,
             "port": self.port,
@@ -204,6 +252,18 @@ class VaultEntry:
         self.scopes = data.get("scopes", self.scopes)
         self.totp_secret = data.get("totp_secret", self.totp_secret)
 
+        loaded_groups = data.get("groups", None)
+        if loaded_groups is not None and isinstance(loaded_groups, list):
+            self.groups = [g for g in loaded_groups if g]
+        if not self.groups and self.category:
+            self.groups = [self.category]
+
+        loaded_services = data.get("services", None)
+        if loaded_services is not None and isinstance(loaded_services, list):
+            self.services = [s for s in loaded_services if s]
+        if not self.services and self.app_name:
+            self.services = [self.app_name]
+
     @classmethod
     def create_server(
         cls,
@@ -218,11 +278,15 @@ class VaultEntry:
         notes: str = "",
         os_distro: str = "",
         category: str = "Infrastructure",
+        groups: Optional[List[str]] = None,
+        services: Optional[List[str]] = None,
     ) -> "VaultEntry":
         return cls(
             entry_type="server",
             title=title or hostname,
             category=category,
+            groups=groups or ([category] if category else []),
+            services=services or [],
             tags=tags or [],
             hostname=hostname,
             port=port,
@@ -249,11 +313,15 @@ class VaultEntry:
         tags: Optional[List[str]] = None,
         notes: str = "",
         category: str = "Services",
+        groups: Optional[List[str]] = None,
+        services: Optional[List[str]] = None,
     ) -> "VaultEntry":
         return cls(
             entry_type="service",
             title=title or app_name,
             category=category,
+            groups=groups or ([category] if category else []),
+            services=services or ([app_name] if app_name else []),
             tags=tags or [],
             app_name=app_name,
             url=url,
@@ -279,11 +347,15 @@ class VaultEntry:
         tags: Optional[List[str]] = None,
         notes: str = "",
         category: str = "Keys",
+        groups: Optional[List[str]] = None,
+        services: Optional[List[str]] = None,
     ) -> "VaultEntry":
         return cls(
             entry_type="keypair",
             title=title or key_name,
             category=category,
+            groups=groups or ([category] if category else []),
+            services=services or [],
             tags=tags or [],
             key_name=key_name,
             key_type=key_type,
@@ -309,11 +381,15 @@ class VaultEntry:
         notes: str = "",
         category: str = "API Keys",
         parent_server_id: Optional[str] = None,
+        groups: Optional[List[str]] = None,
+        services: Optional[List[str]] = None,
     ) -> "VaultEntry":
         return cls(
             entry_type="apikey",
             title=title or f"{provider} API Key" if provider else "API Key",
             category=category,
+            groups=groups or ([category] if category else []),
+            services=services or ([provider] if provider else []),
             tags=tags or [],
             api_token=api_token,
             provider=provider,

@@ -1,7 +1,9 @@
 """Main Dashboard View for StarVault with card list and detail inspector."""
 
 from datetime import datetime, timezone, timedelta
-from typing import Callable, List, Optional
+from tkinter import messagebox
+from typing import Callable, List, Optional, Set
+import uuid
 import customtkinter as ctk
 
 from starvault.autolock import AutoLockManager
@@ -43,9 +45,12 @@ from starvault.ui.theme import (
     TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
+    cycle_next_theme,
+    get_current_theme,
     get_font,
     get_mono_font,
 )
+from starvault.ui.widgets import add_password_toggle
 
 
 class DashboardView(ctk.CTkFrame):
@@ -82,6 +87,9 @@ class DashboardView(ctk.CTkFrame):
         self._search_job = None
         self._card_widgets = {}
         self._rendered_limit = 35
+        self.selected_entry_ids: Set[str] = set()
+        self.last_clicked_id: Optional[str] = None
+        self.inspector_visible: bool = True
 
         self._build_ui()
         self.clipboard_mgr.set_status_callback(self._on_clipboard_status)
@@ -99,6 +107,8 @@ class DashboardView(ctk.CTkFrame):
             self.groups_view.session_key = new_key
         if hasattr(self, "totp_view"):
             self.totp_view.session_key = new_key
+        if hasattr(self, "crypto_tools_view"):
+            self.crypto_tools_view.update_session_key(new_key)
 
     def _build_ui(self):
         # 1. Top Global Navigation & Search Bar
@@ -126,11 +136,11 @@ class DashboardView(ctk.CTkFrame):
         self._render_inspector_empty()
 
         # Center Entries Cards List
-        center_container = ctk.CTkFrame(self.body_frame, fg_color=BG_ROOT)
-        center_container.pack(side="left", fill="both", expand=True)
+        self.center_container = ctk.CTkFrame(self.body_frame, fg_color=BG_ROOT)
+        self.center_container.pack(side="left", fill="both", expand=True)
 
         # Filter bar header
-        self.filter_header = ctk.CTkFrame(center_container, fg_color="transparent", height=36)
+        self.filter_header = ctk.CTkFrame(self.center_container, fg_color="transparent", height=36)
         self.filter_header.pack(fill="x", padx=16, pady=(10, 2))
 
         self.filter_title_lbl = ctk.CTkLabel(
@@ -148,6 +158,19 @@ class DashboardView(ctk.CTkFrame):
             text_color=TEXT_MUTED,
         )
         self.count_badge.pack(side="left", padx=8)
+
+        self.inspector_toggle_btn = ctk.CTkButton(
+            self.filter_header,
+            text="◀ Inspector",
+            width=90,
+            height=28,
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            command=self._toggle_inspector,
+        )
+        self.inspector_toggle_btn.pack(side="left", padx=8)
 
         # Sort Dropdown & Direction Toggle in header
         sort_frame = ctk.CTkFrame(self.filter_header, fg_color="transparent")
@@ -191,7 +214,7 @@ class DashboardView(ctk.CTkFrame):
         self.sort_dir_btn.pack(side="left")
 
         # Quick Filter Row (Type Pills & Status Chips)
-        self.quick_filter_bar = ctk.CTkFrame(center_container, fg_color="transparent")
+        self.quick_filter_bar = ctk.CTkFrame(self.center_container, fg_color="transparent")
         self.quick_filter_bar.pack(fill="x", padx=16, pady=(2, 6))
 
         # Type Pills Segmented Button
@@ -205,7 +228,7 @@ class DashboardView(ctk.CTkFrame):
             selected_hover_color=ACCENT_HOVER,
             unselected_color=BG_INPUT,
             unselected_hover_color=BORDER_COLOR,
-            text_color="#000000",
+            text_color=TEXT_PRIMARY,
             height=26,
             command=self._on_type_filter_changed,
         )
@@ -262,8 +285,11 @@ class DashboardView(ctk.CTkFrame):
         )
         self.clear_filters_btn.pack(side="right")
 
+        # Bulk Actions Floating/Docked Toolbar
+        self._build_bulk_toolbar()
+
         # Scrollable Cards Area
-        self.cards_scroll = ctk.CTkScrollableFrame(center_container, fg_color=BG_ROOT)
+        self.cards_scroll = ctk.CTkScrollableFrame(self.center_container, fg_color=BG_ROOT)
         self.cards_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
         # 3. Vault Views (Health, Files, Groups, 2FA/QR - hidden by default)
@@ -295,6 +321,9 @@ class DashboardView(ctk.CTkFrame):
         self.crypto_tools_view = CryptoToolsView(
             self,
             clipboard_mgr=self.clipboard_mgr,
+            database=self.database,
+            session_key=self.session_key,
+            on_save_to_vault=self.reload_entries,
         )
 
     def _build_top_navbar(self):
@@ -331,7 +360,7 @@ class DashboardView(ctk.CTkFrame):
             selected_hover_color=ACCENT_HOVER,
             unselected_color=BG_INPUT,
             unselected_hover_color=BORDER_COLOR,
-            text_color="#000000",
+            text_color=TEXT_PRIMARY,
             height=34,
         )
         self.tab_selector.pack(side="left", padx=10, pady=14)
@@ -436,6 +465,18 @@ class DashboardView(ctk.CTkFrame):
             text_color=TEXT_SECONDARY,
             command=self._open_settings,
         ).pack(side="left", padx=4)
+
+        self.theme_btn = ctk.CTkButton(
+            actions_frame,
+            text=f"🎨 {get_current_theme()}",
+            font=get_font(11, "bold"),
+            height=34,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            command=self._on_cycle_theme_clicked,
+        )
+        self.theme_btn.pack(side="left", padx=4)
 
         ctk.CTkButton(
             actions_frame,
@@ -595,6 +636,17 @@ class DashboardView(ctk.CTkFrame):
         self.nav_var.set("🛡️ Vault Health")
         self.tab_selector.set("🛡️ Vault Health")
         self._on_nav_tab_changed("🛡️ Vault Health")
+
+    def _on_cycle_theme_clicked(self):
+        new_theme = cycle_next_theme()
+        if hasattr(self, "theme_btn"):
+            self.theme_btn.configure(text=f"🎨 {new_theme}")
+        self.reload_entries()
+
+    def on_theme_changed(self, theme_name: str):
+        if hasattr(self, "theme_btn"):
+            self.theme_btn.configure(text=f"🎨 {theme_name}")
+        self.reload_entries()
 
     def _on_search_query_change(self):
         self.autolock_mgr.record_activity()
@@ -761,30 +813,45 @@ class DashboardView(ctk.CTkFrame):
         self._render_cards()
 
     def _render_entry_card(self, entry: VaultEntry):
-        is_selected = self.selected_entry and self.selected_entry.id == entry.id
+        is_selected = entry.id in self.selected_entry_ids
         card_bg = BG_CARD_HOVER if is_selected else BG_CARD
 
         card = ctk.CTkFrame(
             self.cards_scroll,
             fg_color=card_bg,
             corner_radius=10,
-            border_width=1,
+            border_width=2 if is_selected else 1,
             border_color=ACCENT_PRIMARY if is_selected else BORDER_COLOR,
         )
         card.pack(fill="x", pady=4, padx=4)
         self._card_widgets[entry.id] = card
 
-        # Click card to select & show in inspector
-        card.bind("<Button-1>", lambda e, ent=entry: self._select_entry(ent))
+        # Click card to select & show in inspector (supports Ctrl+Click and Shift+Click)
+        card.bind("<Button-1>", lambda e, ent=entry: self._on_card_clicked(e, ent))
 
         inner = ctk.CTkFrame(card, fg_color="transparent")
-        inner.pack(fill="x", padx=14, pady=10)
-        inner.bind("<Button-1>", lambda e, ent=entry: self._select_entry(ent))
+        inner.pack(fill="x", padx=12, pady=10)
+        inner.bind("<Button-1>", lambda e, ent=entry: self._on_card_clicked(e, ent))
 
-        # Top row: Star Fav + Type Badge + Title + Tags
+        # Top row: Checkbox + Star Fav + Type Badge + Title + Tags
         top_row = ctk.CTkFrame(inner, fg_color="transparent")
         top_row.pack(fill="x")
-        top_row.bind("<Button-1>", lambda e, ent=entry: self._select_entry(ent))
+        top_row.bind("<Button-1>", lambda e, ent=entry: self._on_card_clicked(e, ent))
+
+        # Explicit multi-selection checkbox
+        chk_var = ctk.BooleanVar(value=is_selected)
+        chk = ctk.CTkCheckBox(
+            top_row,
+            text="",
+            width=22,
+            height=22,
+            checkbox_width=18,
+            checkbox_height=18,
+            corner_radius=4,
+            variable=chk_var,
+            command=lambda ent=entry: self._toggle_single_card_selection(ent),
+        )
+        chk.pack(side="left", padx=(0, 4))
 
         # Favorite Star Toggle Button
         star_icon = "★" if entry.is_favorite else "☆"
@@ -834,10 +901,10 @@ class DashboardView(ctk.CTkFrame):
             text_color=TEXT_PRIMARY,
         )
         title_lbl.pack(side="left")
-        title_lbl.bind("<Button-1>", lambda e, ent=entry: self._select_entry(ent))
+        title_lbl.bind("<Button-1>", lambda e, ent=entry: self._on_card_clicked(e, ent))
 
         # Tag chips
-        for tag in entry.tags[:4]:
+        for tag in entry.tags[:3]:
             ctk.CTkLabel(
                 top_row,
                 text=f"#{tag}",
@@ -847,12 +914,40 @@ class DashboardView(ctk.CTkFrame):
                 corner_radius=4,
                 padx=5,
                 pady=1,
-            ).pack(side="left", padx=3)
+            ).pack(side="left", padx=2)
+
+        # Group chips
+        if getattr(entry, "groups", None):
+            for grp in entry.groups[:2]:
+                ctk.CTkLabel(
+                    top_row,
+                    text=f"📁 {grp}",
+                    font=get_font(9),
+                    text_color=ACCENT_INDIGO,
+                    fg_color=BG_INPUT,
+                    corner_radius=4,
+                    padx=4,
+                    pady=1,
+                ).pack(side="left", padx=2)
+
+        # Service chips
+        if getattr(entry, "services", None):
+            for srv in entry.services[:2]:
+                ctk.CTkLabel(
+                    top_row,
+                    text=f"🌐 {srv}",
+                    font=get_font(9),
+                    text_color=ACCENT_PRIMARY,
+                    fg_color=BG_INPUT,
+                    corner_radius=4,
+                    padx=4,
+                    pady=1,
+                ).pack(side="left", padx=2)
 
         # Middle row: Subtitle Info Preview
         mid_row = ctk.CTkFrame(inner, fg_color="transparent")
         mid_row.pack(fill="x", pady=(4, 6))
-        mid_row.bind("<Button-1>", lambda e, ent=entry: self._select_entry(ent))
+        mid_row.bind("<Button-1>", lambda e, ent=entry: self._on_card_clicked(e, ent))
 
         preview_str = ""
         if entry.entry_type == "server":
@@ -879,7 +974,7 @@ class DashboardView(ctk.CTkFrame):
             anchor="w",
         )
         sub_lbl.pack(fill="x")
-        sub_lbl.bind("<Button-1>", lambda e, ent=entry: self._select_entry(ent))
+        sub_lbl.bind("<Button-1>", lambda e, ent=entry: self._on_card_clicked(e, ent))
 
         # Bottom row: One-Click Quick-Copy Action Buttons right on card!
         btn_row = ctk.CTkFrame(inner, fg_color="transparent")
@@ -1040,25 +1135,279 @@ class DashboardView(ctk.CTkFrame):
                 ).pack(side="left", padx=4)
 
     def _select_entry(self, entry: VaultEntry):
-        prev_entry = self.selected_entry
         self.selected_entry = entry
         self.autolock_mgr.record_activity()
-
-        if prev_entry and prev_entry.id in self._card_widgets:
-            try:
-                card_w = self._card_widgets[prev_entry.id]
-                card_w.configure(fg_color=BG_CARD, border_color=BORDER_COLOR)
-            except Exception:
-                pass
-
-        if entry.id in self._card_widgets:
-            try:
-                card_w = self._card_widgets[entry.id]
-                card_w.configure(fg_color=BG_CARD_HOVER, border_color=ACCENT_PRIMARY)
-            except Exception:
-                pass
-
+        if not self.inspector_visible:
+            self._toggle_inspector()
+        self._refresh_card_highlights()
         self._render_inspector()
+
+    def _toggle_inspector(self):
+        self.inspector_visible = not self.inspector_visible
+        if self.inspector_visible:
+            self.inspector_panel.pack(side="right", fill="both")
+            self.inspector_toggle_btn.configure(text="◀ Inspector")
+        else:
+            self.inspector_panel.pack_forget()
+            self.inspector_toggle_btn.configure(text="▶ Inspector")
+
+    def _build_bulk_toolbar(self):
+        self.bulk_toolbar = ctk.CTkFrame(
+            self.center_container,
+            fg_color=BG_CARD,
+            height=44,
+            corner_radius=8,
+            border_width=1,
+            border_color=ACCENT_PRIMARY,
+        )
+        self.bulk_inner = ctk.CTkFrame(self.bulk_toolbar, fg_color="transparent")
+        self.bulk_inner.pack(fill="x", padx=12, pady=6)
+
+        self.bulk_count_lbl = ctk.CTkLabel(
+            self.bulk_inner,
+            text="Selected: 0 items",
+            font=get_font(11, "bold"),
+            text_color=ACCENT_PRIMARY,
+        )
+        self.bulk_count_lbl.pack(side="left", padx=(0, 10))
+
+        # Copy Usernames
+        ctk.CTkButton(
+            self.bulk_inner,
+            text="👤 Copy Users",
+            font=get_font(11),
+            height=28,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            command=self._bulk_copy_usernames,
+        ).pack(side="left", padx=3)
+
+        # Copy Passwords
+        ctk.CTkButton(
+            self.bulk_inner,
+            text="🔑 Copy Passwords",
+            font=get_font(11),
+            height=28,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=COLOR_WARNING,
+            command=self._bulk_copy_passwords,
+        ).pack(side="left", padx=3)
+
+        # Clone Selected
+        ctk.CTkButton(
+            self.bulk_inner,
+            text="📑 Clone All",
+            font=get_font(11),
+            height=28,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            command=self._bulk_clone_selected,
+        ).pack(side="left", padx=3)
+
+        # Bulk Tag
+        ctk.CTkButton(
+            self.bulk_inner,
+            text="🏷️ Add Tag",
+            font=get_font(11),
+            height=28,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            command=self._bulk_add_tag,
+        ).pack(side="left", padx=3)
+
+        # Bulk Delete
+        ctk.CTkButton(
+            self.bulk_inner,
+            text="🗑️ Delete All",
+            font=get_font(11, "bold"),
+            height=28,
+            fg_color=COLOR_DANGER,
+            hover_color=BORDER_COLOR,
+            text_color="#ffffff",
+            command=self._bulk_delete_selected,
+        ).pack(side="left", padx=3)
+
+        # Deselect All
+        ctk.CTkButton(
+            self.bulk_inner,
+            text="✕ Deselect",
+            font=get_font(11),
+            height=28,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_MUTED,
+            command=self._deselect_all,
+        ).pack(side="right", padx=3)
+
+    def _update_bulk_toolbar(self):
+        cnt = len(self.selected_entry_ids)
+        if cnt > 0:
+            if hasattr(self, "bulk_count_lbl"):
+                self.bulk_count_lbl.configure(text=f"Selected: {cnt} items")
+            if hasattr(self, "bulk_toolbar") and not self.bulk_toolbar.winfo_ismapped():
+                self.bulk_toolbar.pack(fill="x", padx=12, pady=(0, 6), before=self.cards_scroll)
+        else:
+            if hasattr(self, "bulk_toolbar") and self.bulk_toolbar.winfo_ismapped():
+                self.bulk_toolbar.pack_forget()
+
+    def _on_card_clicked(self, event, entry: VaultEntry):
+        self.autolock_mgr.record_activity()
+        is_ctrl = bool(event.state & 0x0004) or (hasattr(event, "keysym") and "Control" in event.keysym)
+        is_shift = bool(event.state & 0x0001) or (hasattr(event, "keysym") and "Shift" in event.keysym)
+
+        if is_shift and self.last_clicked_id:
+            all_ids = [e.id for e in self.filtered_entries]
+            if self.last_clicked_id in all_ids and entry.id in all_ids:
+                idx1 = all_ids.index(self.last_clicked_id)
+                idx2 = all_ids.index(entry.id)
+                start_i, end_i = min(idx1, idx2), max(idx1, idx2)
+                for i in range(start_i, end_i + 1):
+                    self.selected_entry_ids.add(all_ids[i])
+            else:
+                self.selected_entry_ids.add(entry.id)
+            self.last_clicked_id = entry.id
+            self.selected_entry = entry
+            self._render_inspector()
+        elif is_ctrl:
+            if entry.id in self.selected_entry_ids:
+                self.selected_entry_ids.remove(entry.id)
+            else:
+                self.selected_entry_ids.add(entry.id)
+            self.last_clicked_id = entry.id
+            self.selected_entry = entry
+            self._render_inspector()
+        else:
+            self.selected_entry_ids = {entry.id}
+            self.last_clicked_id = entry.id
+            self._select_entry(entry)
+
+        self._update_bulk_toolbar()
+        self._refresh_card_highlights()
+
+    def _toggle_single_card_selection(self, entry: VaultEntry):
+        if entry.id in self.selected_entry_ids:
+            self.selected_entry_ids.remove(entry.id)
+        else:
+            self.selected_entry_ids.add(entry.id)
+            self.selected_entry = entry
+            self._render_inspector()
+        self.last_clicked_id = entry.id
+        self._update_bulk_toolbar()
+        self._refresh_card_highlights()
+
+    def _refresh_card_highlights(self):
+        for eid, widget in self._card_widgets.items():
+            is_sel = eid in self.selected_entry_ids
+            try:
+                widget.configure(
+                    fg_color=BG_CARD_HOVER if is_sel else BG_CARD,
+                    border_color=ACCENT_PRIMARY if is_sel else BORDER_COLOR,
+                    border_width=2 if is_sel else 1,
+                )
+            except Exception:
+                pass
+
+    def _bulk_copy_usernames(self):
+        selected = [e for e in self.entries if e.id in self.selected_entry_ids]
+        users = [getattr(e, "username", "") for e in selected if getattr(e, "username", "")]
+        if users:
+            text = "\n".join(users)
+            self.clipboard_mgr.copy(text, f"Copied {len(users)} usernames")
+        else:
+            self.clipboard_mgr.copy("", "No usernames found in selected items")
+
+    def _bulk_copy_passwords(self):
+        selected = [e for e in self.entries if e.id in self.selected_entry_ids]
+        pwds = [getattr(e, "password", "") for e in selected if getattr(e, "password", "")]
+        if pwds:
+            text = "\n".join(pwds)
+            self.clipboard_mgr.copy(text, f"Copied {len(pwds)} passwords (30s wipe)", is_sensitive=True)
+        else:
+            self.clipboard_mgr.copy("", "No passwords found in selected items")
+
+    def _bulk_clone_selected(self):
+        selected = [e for e in self.entries if e.id in self.selected_entry_ids]
+        if not selected:
+            return
+        cloned_count = 0
+        now_iso = datetime.now(timezone.utc).isoformat()
+        for e in selected:
+            new_e = VaultEntry(
+                id=str(uuid.uuid4()),
+                entry_type=e.entry_type,
+                title=f"{e.title} (Copy)",
+                category=e.category,
+                tags=list(e.tags) + ["cloned"],
+                is_favorite=False,
+                created_at=now_iso,
+                updated_at=now_iso,
+                username=e.username,
+                password=e.password,
+                hostname=e.hostname,
+                port=e.port,
+                sudo_password=e.sudo_password,
+                ssh_key=e.ssh_key,
+                os_distro=e.os_distro,
+                url=e.url,
+                app_name=e.app_name,
+                database_name=e.database_name,
+                api_token=e.api_token,
+                provider=e.provider,
+                environment=e.environment,
+                api_key_format=e.api_key_format,
+                secret_key=e.secret_key,
+                scopes=list(e.scopes) if e.scopes else [],
+                key_type=e.key_type,
+                public_key=e.public_key,
+                private_key=e.private_key,
+                passphrase=e.passphrase,
+                fingerprint=e.fingerprint,
+                notes=e.notes,
+                totp_secret=e.totp_secret,
+                expires_at=e.expires_at,
+                custom_fields=list(e.custom_fields) if e.custom_fields else [],
+            )
+            self.database.save_entry(new_e, self.session_key)
+            cloned_count += 1
+        self.reload_entries()
+        messagebox.showinfo("Cloned", f"Successfully cloned {cloned_count} entries.")
+
+    def _bulk_add_tag(self):
+        selected = [e for e in self.entries if e.id in self.selected_entry_ids]
+        if not selected:
+            return
+        tag = ctk.CTkInputDialog(text="Enter tag to add to selected entries:", title="Bulk Add Tag").get_input()
+        if tag and tag.strip():
+            clean_tag = tag.strip().lstrip("#").lower()
+            for e in selected:
+                if clean_tag not in e.tags:
+                    e.tags.append(clean_tag)
+                    self.database.save_entry(e, self.session_key)
+            self.reload_entries()
+
+    def _bulk_delete_selected(self):
+        count = len(self.selected_entry_ids)
+        if count == 0:
+            return
+        ans = messagebox.askyesno("Confirm Bulk Deletion", f"Permanently delete {count} selected entries?\n\nThis cannot be undone.")
+        if ans:
+            for eid in list(self.selected_entry_ids):
+                self.database.delete_entry(eid)
+            self.selected_entry_ids.clear()
+            self.selected_entry = None
+            self._update_bulk_toolbar()
+            self.reload_entries()
+            self._render_inspector()
+
+    def _deselect_all(self):
+        self.selected_entry_ids.clear()
+        self.last_clicked_id = None
+        self._update_bulk_toolbar()
+        self._render_cards()
 
     def _render_inspector_empty(self):
         for child in self.inspector_panel.winfo_children():
@@ -1128,7 +1477,7 @@ class DashboardView(ctk.CTkFrame):
 
         # Category & Tags
         meta_row = ctk.CTkFrame(self.inspector_panel, fg_color="transparent")
-        meta_row.pack(fill="x", padx=12, pady=(0, 10))
+        meta_row.pack(fill="x", padx=12, pady=(0, 6))
 
         ctk.CTkLabel(
             meta_row,
@@ -1136,6 +1485,35 @@ class DashboardView(ctk.CTkFrame):
             font=get_font(11),
             text_color=TEXT_MUTED,
         ).pack(side="left")
+
+        # Assigned groups and services chips
+        entry_groups = getattr(entry, "groups", []) or []
+        entry_services = getattr(entry, "services", []) or []
+        if entry_groups or entry_services:
+            pill_row = ctk.CTkFrame(self.inspector_panel, fg_color="transparent")
+            pill_row.pack(fill="x", padx=12, pady=(0, 8))
+            for grp in entry_groups:
+                ctk.CTkLabel(
+                    pill_row,
+                    text=f"📁 {grp}",
+                    font=get_font(10),
+                    text_color=ACCENT_INDIGO,
+                    fg_color=BG_INPUT,
+                    corner_radius=4,
+                    padx=6,
+                    pady=2,
+                ).pack(side="left", padx=(0, 4))
+            for srv in entry_services:
+                ctk.CTkLabel(
+                    pill_row,
+                    text=f"🌐 {srv}",
+                    font=get_font(10),
+                    text_color=ACCENT_PRIMARY,
+                    fg_color=BG_INPUT,
+                    corner_radius=4,
+                    padx=6,
+                    pady=2,
+                ).pack(side="left", padx=(0, 4))
 
         # Details Box
         self._build_inspector_details(entry)
@@ -1695,11 +2073,11 @@ class DashboardView(ctk.CTkFrame):
 
     def _open_key_studio(self):
         self.autolock_mgr.record_activity()
-        KeyStudioDialog(
-            self,
-            clipboard_mgr=self.clipboard_mgr,
-            on_save_to_vault=self._on_entry_saved,
-        )
+        self.nav_var.set("⚡ Crypto Tools")
+        self.tab_selector.set("⚡ Crypto Tools")
+        self._on_nav_tab_changed("⚡ Crypto Tools")
+        if hasattr(self.crypto_tools_view, "switch_to_subtab"):
+            self.crypto_tools_view.switch_to_subtab("⚡ Key Generator")
 
     def _open_settings(self):
         self.autolock_mgr.record_activity()

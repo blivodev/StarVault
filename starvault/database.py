@@ -95,6 +95,10 @@ class Database:
         columns = [row[1] for row in cursor.fetchall()]
         if "parent_server_id" not in columns:
             conn.execute("ALTER TABLE vault_entries ADD COLUMN parent_server_id TEXT DEFAULT NULL")
+        if "groups_json" not in columns:
+            conn.execute("ALTER TABLE vault_entries ADD COLUMN groups_json TEXT DEFAULT NULL")
+        if "services_json" not in columns:
+            conn.execute("ALTER TABLE vault_entries ADD COLUMN services_json TEXT DEFAULT NULL")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_entries_parent ON vault_entries(parent_server_id)")
 
         # Migration 2: Create vault_files table if missing
@@ -439,14 +443,16 @@ class Database:
         """Inserts or updates an entry, encrypting sensitive fields."""
         payload = entry.to_encrypted_payload(key)
         tags_json = json.dumps(entry.tags)
+        groups_json = json.dumps(entry.groups)
+        services_json = json.dumps(entry.services)
         entry.updated_at = utc_now_iso()
 
         with self._get_connection() as conn:
             conn.execute(
                 """
                 INSERT INTO vault_entries 
-                (id, entry_type, title, category, tags_json, is_favorite, created_at, updated_at, encrypted_payload, parent_server_id)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, entry_type, title, category, tags_json, is_favorite, created_at, updated_at, encrypted_payload, parent_server_id, groups_json, services_json)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     entry_type = excluded.entry_type,
                     title = excluded.title,
@@ -455,7 +461,9 @@ class Database:
                     is_favorite = excluded.is_favorite,
                     updated_at = excluded.updated_at,
                     encrypted_payload = excluded.encrypted_payload,
-                    parent_server_id = excluded.parent_server_id
+                    parent_server_id = excluded.parent_server_id,
+                    groups_json = excluded.groups_json,
+                    services_json = excluded.services_json
                 """,
                 (
                     entry.id,
@@ -468,6 +476,8 @@ class Database:
                     entry.updated_at,
                     payload,
                     entry.parent_server_id,
+                    groups_json,
+                    services_json,
                 ),
             )
         self.trigger_backup()
@@ -558,11 +568,27 @@ class Database:
         if "parent_server_id" in row.keys():
             parent_id = row["parent_server_id"]
 
+        groups = []
+        if "groups_json" in row.keys() and row["groups_json"]:
+            try:
+                groups = json.loads(row["groups_json"])
+            except Exception:
+                groups = []
+
+        services = []
+        if "services_json" in row.keys() and row["services_json"]:
+            try:
+                services = json.loads(row["services_json"])
+            except Exception:
+                services = []
+
         entry = VaultEntry(
             id=row["id"],
             entry_type=row["entry_type"],
             title=row["title"],
             category=row["category"],
+            groups=groups,
+            services=services,
             tags=json.loads(row["tags_json"]) if row["tags_json"] else [],
             is_favorite=bool(row["is_favorite"]),
             created_at=row["created_at"],

@@ -9,7 +9,7 @@ from dataclasses import dataclass
 import hashlib
 import hmac
 import struct
-from typing import Optional, Tuple
+from typing import Any, Dict, List, Optional, Tuple, Union
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
 import pgpy
@@ -281,3 +281,171 @@ def generate_age_key_result() -> GeneratedKeyResult:
         comment="Age Recipient Key",
         format_notes="Modern age-keygen compatible X25519 keypair for encrypting files and backups.",
     )
+
+
+def parse_and_import_key(
+    raw_content: Union[str, bytes],
+    key_name: str = "",
+    category: str = "Keys & Certificates",
+):
+    """Parses arbitrary key or certificate text (PGP, SSH, PEM, X.509, WireGuard, Age) and creates a VaultEntry."""
+    from starvault.models import VaultEntry
+    from cryptography import x509
+
+    if isinstance(raw_content, bytes):
+        try:
+            text = raw_content.decode("utf-8")
+        except UnicodeDecodeError:
+            text = raw_content.decode("latin1")
+    else:
+        text = str(raw_content)
+
+    clean_text = text.strip()
+    title = key_name.strip()
+    kt = "keypair"
+    algo_name = "Key"
+    pub_key = ""
+    priv_key = ""
+    fingerprint = ""
+    expires_at = ""
+    tags = ["imported", "key"]
+
+    # 1. OpenPGP / GPG Armored Key
+    if "BEGIN PGP" in clean_text:
+        try:
+            pgp_key, _ = pgpy.PGPKey.from_blob(clean_text)
+            kt = "gpg"
+            algo_name = f"OpenPGP ({pgp_key.pubkey_algorithm.name})"
+            fp_raw = str(pgp_key.fingerprint)
+            fingerprint = " ".join(fp_raw[i : i + 4] for i in range(0, len(fp_raw), 4))
+            uid_str = str(list(pgp_key.userids)[0]) if getattr(pgp_key, "userids", None) else ""
+            if not title:
+                title = uid_str or f"Imported PGP Key ({fp_raw[:8]})"
+            pub_key = str(pgp_key.pubkey)
+            if not pgp_key.is_public:
+                priv_key = str(pgp_key)
+            tags.extend(["gpg", "pgp", "email-encrypt"])
+        except Exception:
+            pub_key = clean_text
+
+    # 2. X.509 TLS/SSL Certificate
+    elif "BEGIN CERTIFICATE" in clean_text:
+        try:
+            cert = x509.load_pem_x509_certificate(clean_text.encode("utf-8"))
+            kt = "tls_cert"
+            algo_name = f"X.509 Certificate ({cert.signature_algorithm_oid._name})"
+            cn = ""
+            for attr in cert.subject:
+                if attr.oid.dotted_string == "2.5.4.3":  # Common Name
+                    cn = str(attr.value)
+                    break
+            if not title:
+                title = f"TLS Cert: {cn}" if cn else f"TLS Cert ({cert.serial_number})"
+            pub_key = clean_text
+            sha256_fp = hashlib.sha256(cert.public_bytes(serialization.Encoding.DER)).hexdigest()[:32]
+            fingerprint = "SHA256:" + " ".join(sha256_fp[i : i + 4] for i in range(0, len(sha256_fp), 4))
+            if hasattr(cert, "not_valid_after_utc"):
+                expires_at = cert.not_valid_after_utc.strftime("%Y-%m-%d")
+            tags.extend(["tls", "x509", "certificate", "ssl"])
+        except Exception:
+            pub_key = clean_text
+
+    # 3. OpenSSH Public Key
+    elif clean_text.startswith(("ssh-ed25519 ", "ssh-rsa ", "ecdsa-sha2-", "sk-ssh-")):
+        parts = clean_text.split()
+        key_type_str = parts[0]
+        kt = "ed25519" if "ed25519" in key_type_str else "rsa4096"
+        algo_name = f"OpenSSH ({key_type_str})"
+        pub_key = clean_text
+        comment = parts[2] if len(parts) >= 3 else ""
+        if not title:
+            title = comment or f"SSH Key ({key_type_str})"
+        try:
+            raw_blob = base64.b64decode(parts[1])
+            sha_fp = base64.b64encode(hashlib.sha256(raw_blob).digest()).decode("ascii").rstrip("=")
+            fingerprint = f"SHA256:{sha_fp}"
+        except Exception:
+            fingerprint = ""
+        tags.extend(["ssh", "public-key"])
+
+    # 4. OpenSSH / PEM Private Key
+    elif "BEGIN" in clean_text and "PRIVATE KEY" in clean_text:
+        priv_key = clean_text
+        kt = "rsa4096"
+        if "ED25519" in clean_text:
+            kt = "ed25519"
+        elif "EC" in clean_text:
+            kt = "ecdsa"
+        algo_name = f"Private Key ({kt.upper()})"
+        if not title:
+            title = f"Imported {kt.upper()} Private Key"
+        try:
+            loaded_priv = serialization.load_pem_private_key(clean_text.encode("utf-8"), password=None)
+            loaded_pub = loaded_priv.public_key()
+            pub_key = loaded_pub.public_bytes(
+                encoding=serialization.Encoding.OpenSSH,
+                format=serialization.PublicFormat.OpenSSH,
+            ).decode("ascii")
+        except Exception:
+            pass
+        tags.extend(["ssh", "private-key", "pem"])
+
+    # 5. Age Recipient / Key
+    elif clean_text.startswith("age1") or clean_text.startswith("AGE-SECRET-KEY-1"):
+        kt = "age"
+        algo_name = "Age Encryption Key (X25519)"
+        if clean_text.startswith("age1"):
+            pub_key = clean_text
+            if not title:
+                title = f"Age Recipient ({clean_text[:14]}...)"
+        else:
+            priv_key = clean_text
+            if not title:
+                title = "Age Secret Key"
+        fingerprint = clean_text[:24] + "..."
+        tags.extend(["age", "encryption"])
+
+    # 6. WireGuard base64 key
+    elif len(clean_text) == 44 and clean_text.endswith("="):
+        kt = "wireguard"
+        algo_name = "WireGuard Key (Curve25519)"
+        pub_key = clean_text
+        fingerprint = f"WG:{hashlib.sha256(clean_text.encode('utf-8')).hexdigest()[:16]}"
+        if not title:
+            title = f"WireGuard Key ({fingerprint})"
+        tags.extend(["wireguard", "vpn"])
+
+    else:
+        pub_key = clean_text
+        if not title:
+            title = "Imported Generic Key"
+
+    entry = VaultEntry.create_keypair(
+        title=title or "Imported Keypair",
+        key_name=title or "imported_key",
+        key_type=kt,
+        public_key=pub_key,
+        private_key=priv_key,
+        fingerprint=fingerprint,
+        tags=sorted(list(set(tags))),
+        category=category,
+    )
+    if expires_at:
+        entry.expires_at = expires_at
+    return entry
+
+
+def export_key_armored(entry, which: str = "public") -> str:
+    """Returns armored text string for public key, private key, or full bundle."""
+    w = which.lower().strip()
+    if w in ("priv", "private", "secret"):
+        return entry.private_key or ""
+    elif w in ("bundle", "all", "pair"):
+        parts = []
+        if entry.public_key:
+            parts.append(f"# Public Key / Certificate\n{entry.public_key}")
+        if entry.private_key:
+            parts.append(f"# Private Key\n{entry.private_key}")
+        return "\n\n".join(parts)
+    else:
+        return entry.public_key or ""

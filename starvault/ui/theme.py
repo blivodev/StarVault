@@ -28,9 +28,10 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
         "COLOR_DANGER_HOVER": "#dc2626",
         "COLOR_FAVORITE": "#fbbf24",
         "TEXT_PRIMARY": "#f8fafc",
-        "TEXT_SECONDARY": "#94a3b8",
-        "TEXT_MUTED": "#64748b",
+        "TEXT_SECONDARY": "#cbd5e1",
+        "TEXT_MUTED": "#94a3b8",
         "TEXT_ACCENT": "#38bdf8",
+        "TEXT_ON_ACCENT": "#000000",
     },
     "Light": {
         "mode": "Light",
@@ -179,6 +180,7 @@ TEXT_PRIMARY = THEME_PALETTES["Dark"]["TEXT_PRIMARY"]
 TEXT_SECONDARY = THEME_PALETTES["Dark"]["TEXT_SECONDARY"]
 TEXT_MUTED = THEME_PALETTES["Dark"]["TEXT_MUTED"]
 TEXT_ACCENT = THEME_PALETTES["Dark"]["TEXT_ACCENT"]
+TEXT_ON_ACCENT = THEME_PALETTES["Dark"].get("TEXT_ON_ACCENT", "#000000")
 
 TYPE_COLORS = {
     "server": {"bg": "#1e293b", "text": "#38bdf8", "border": "#38bdf8"},
@@ -214,7 +216,7 @@ def apply_theme(theme_name: str, save_to_config: bool = True) -> None:
     global CURRENT_THEME, BG_ROOT, BG_SIDEBAR, BG_CARD, BG_CARD_HOVER, BG_INPUT, BG_SUBTLE
     global BORDER_COLOR, BORDER_FOCUS, ACCENT_PRIMARY, ACCENT_HOVER, ACCENT_INDIGO, ACCENT_PURPLE
     global COLOR_SUCCESS, COLOR_WARNING, COLOR_DANGER, COLOR_DANGER_HOVER, COLOR_FAVORITE
-    global TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_ACCENT
+    global TEXT_PRIMARY, TEXT_SECONDARY, TEXT_MUTED, TEXT_ACCENT, TEXT_ON_ACCENT
 
     if theme_name not in THEME_PALETTES:
         theme_name = "Dark"
@@ -247,6 +249,7 @@ def apply_theme(theme_name: str, save_to_config: bool = True) -> None:
     TEXT_SECONDARY = palette["TEXT_SECONDARY"]
     TEXT_MUTED = palette["TEXT_MUTED"]
     TEXT_ACCENT = palette["TEXT_ACCENT"]
+    TEXT_ON_ACCENT = palette.get("TEXT_ON_ACCENT", "#000000" if palette.get("mode") == "Dark" else "#ffffff")
 
     if save_to_config:
         try:
@@ -262,6 +265,16 @@ def apply_theme(theme_name: str, save_to_config: bool = True) -> None:
             listener(theme_name)
         except Exception:
             pass
+
+
+def cycle_next_theme() -> str:
+    """Cycles to the next available theme and applies it."""
+    themes = get_available_themes()
+    curr = get_current_theme()
+    idx = (themes.index(curr) + 1) % len(themes) if curr in themes else 0
+    next_t = themes[idx]
+    apply_theme(next_t, save_to_config=True)
+    return next_t
 
 
 def apply_global_theme() -> None:

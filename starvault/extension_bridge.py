@@ -227,6 +227,8 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                     "hostname": e.hostname,
                     "port": e.port,
                     "category": e.category or "General",
+                    "groups": getattr(e, "groups", []),
+                    "services": getattr(e, "services", []),
                     "tags": e.tags or [],
                     "is_favorite": bool(e.is_favorite),
                     "has_password": bool(e.password),
@@ -269,6 +271,9 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 "private_key": entry.private_key,
                 "totp_code": totp_code,
                 "url": entry.url or entry.hostname,
+                "category": entry.category,
+                "groups": getattr(entry, "groups", []),
+                "services": getattr(entry, "services", []),
             }).encode("utf-8"))
             return
 
@@ -280,6 +285,22 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             password = data.get("password", "")
             category = data.get("category", "")
             tags = data.get("tags", [])
+            raw_groups = data.get("groups", [])
+            raw_services = data.get("services", [])
+
+            if isinstance(raw_groups, str):
+                groups_list = [g.strip() for g in raw_groups.split(",") if g.strip()]
+            elif isinstance(raw_groups, list):
+                groups_list = [str(g).strip() for g in raw_groups if str(g).strip()]
+            else:
+                groups_list = []
+
+            if isinstance(raw_services, str):
+                services_list = [s.strip() for s in raw_services.split(",") if s.strip()]
+            elif isinstance(raw_services, list):
+                services_list = [str(s).strip() for s in raw_services if str(s).strip()]
+            else:
+                services_list = []
 
             if not title:
                 parsed_u = urlparse(url if "://" in url else f"https://{url}")
@@ -294,6 +315,11 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 category=category or "Work & Productivity",
                 tags=tags or ["browser-extension"],
             )
+            if groups_list:
+                new_entry.groups = groups_list
+            if services_list:
+                new_entry.services = services_list
+
             db.save_entry(new_entry, session_key)
             self._send_cors_headers(201)
             self.wfile.write(json.dumps({"success": True, "id": new_entry.id, "title": new_entry.title}).encode("utf-8"))

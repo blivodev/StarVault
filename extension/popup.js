@@ -132,6 +132,29 @@ function setupEventListeners() {
 
   // Save Login Drawer
   setupSaveDrawer();
+
+  // Eye Password Toggles
+  setupPasswordEyeToggles();
+}
+
+function setupPasswordEyeToggles() {
+  const pairs = [
+    { inputId: "savePassInput", btnId: "toggleSavePassBtn" },
+    { inputId: "exportMasterPassword", btnId: "toggleExportPassBtn" },
+    { inputId: "exportKeyfileToken", btnId: "toggleExportKeyfileBtn" },
+    { inputId: "cryptoKeyInput", btnId: "toggleCryptoKeyBtn" },
+  ];
+
+  pairs.forEach(({ inputId, btnId }) => {
+    const input = document.getElementById(inputId);
+    const btn = document.getElementById(btnId);
+    if (!input || !btn) return;
+    btn.addEventListener("click", () => {
+      const isPassword = input.type === "password";
+      input.type = isPassword ? "text" : "password";
+      btn.textContent = isPassword ? "🔒" : "👁";
+    });
+  });
 }
 
 // =============================================================================
@@ -248,7 +271,7 @@ function setupCryptoDrawer() {
   const cryptoDrawer = document.getElementById("cryptoDrawer");
   const closeCryptoBtn = document.getElementById("closeCryptoBtn");
   const cryptoOpSelect = document.getElementById("cryptoOpSelect");
-  const cryptoKeyInput = document.getElementById("cryptoKeyInput");
+  const cryptoKeyWrapper = document.getElementById("cryptoKeyWrapper");
   const tlsOptions = document.getElementById("tlsOptions");
 
   openCryptoBtn.addEventListener("click", () => {
@@ -259,14 +282,14 @@ function setupCryptoDrawer() {
 
   cryptoOpSelect.addEventListener("change", () => {
     const op = cryptoOpSelect.value;
-    if (op === "encrypt" || op === "decrypt" || op === "hmac") {
-      cryptoKeyInput.classList.remove("hidden");
+    if (op === "encrypt" || op === "decrypt" || op === "chacha20_enc" || op === "chacha20_dec" || op === "hmac") {
+      cryptoKeyWrapper.classList.remove("hidden");
       tlsOptions.classList.add("hidden");
     } else if (op === "tls_cert") {
-      cryptoKeyInput.classList.add("hidden");
+      cryptoKeyWrapper.classList.add("hidden");
       tlsOptions.classList.remove("hidden");
     } else {
-      cryptoKeyInput.classList.add("hidden");
+      cryptoKeyWrapper.classList.add("hidden");
       tlsOptions.classList.add("hidden");
     }
   });
@@ -586,14 +609,19 @@ function renderLogins(items) {
         </span>
         <span class="card-category">${escapeHtml(item.category || "")}</span>
       </div>
+      <div class="card-groups-services-row">
+        ${(item.groups && item.groups.length > 0) ? item.groups.map(g => `<span class="chip-group">📁 ${escapeHtml(g)}</span>`).join("") : ""}
+        ${(item.services && item.services.length > 0) ? item.services.map(s => `<span class="chip-service">🌐 ${escapeHtml(s)}</span>`).join("") : ""}
+      </div>
       <div class="login-actions">
         ${item.username ? '<button class="btn-action btn-copy-user" title="Copy Username">👤 User</button>' : ""}
-        ${item.has_password ? '<button class="btn-action btn-copy-pass" title="Copy Password">🔑 Pass</button>' : ""}
+        ${item.has_password ? '<button class="btn-action btn-copy-pass" title="Copy Password">🔑 Pass</button><button class="btn-action btn-reveal-pass" title="Show/Hide Password">👁</button>' : ""}
         ${item.type === "apikey" ? '<button class="btn-action btn-copy-key" title="Copy API Key">🎟️ Key</button>' : ""}
         ${item.type === "keypair" ? '<button class="btn-action btn-copy-pub" title="Copy Public Key">📋 Pub</button>' : ""}
         ${item.has_totp ? '<button class="btn-action btn-copy-totp" title="Copy 2FA TOTP Code">⏱️ 2FA</button>' : ""}
         <button class="btn-action btn-fill" title="Auto-fill login fields">⚡ Fill</button>
       </div>
+      <div class="revealed-pass-box hidden"></div>
     `;
 
     // Bind Favorite Click
@@ -614,6 +642,44 @@ function renderLogins(items) {
     if (pubBtn) pubBtn.addEventListener("click", () => copyCredential(item.id, "public_key"));
     const totpBtn = card.querySelector(".btn-copy-totp");
     if (totpBtn) totpBtn.addEventListener("click", () => copyCredential(item.id, "totp"));
+
+    const revealBtn = card.querySelector(".btn-reveal-pass");
+    if (revealBtn) {
+      let hideTimer = null;
+      revealBtn.addEventListener("click", async () => {
+        const box = card.querySelector(".revealed-pass-box");
+        if (!box.classList.contains("hidden")) {
+          box.classList.add("hidden");
+          box.textContent = "";
+          revealBtn.textContent = "👁";
+          if (hideTimer) clearTimeout(hideTimer);
+          return;
+        }
+        try {
+          const res = await fetch(`${BRIDGE_URL}/api/get_credentials`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entry_id: item.id }),
+          });
+          if (!res.ok) return;
+          const creds = await res.json();
+          if (creds.password) {
+            box.textContent = `Password: ${creds.password}`;
+            box.classList.remove("hidden");
+            revealBtn.textContent = "🔒";
+            hideTimer = setTimeout(() => {
+              box.classList.add("hidden");
+              box.textContent = "";
+              revealBtn.textContent = "👁";
+            }, 15000);
+          } else {
+            showToast("No password stored");
+          }
+        } catch (e) {
+          showToast("Failed to fetch password");
+        }
+      });
+    }
 
     loginsView.appendChild(card);
   });
@@ -810,7 +876,14 @@ async function runCryptoTool() {
     let algo = "SHA-256";
 
     if (op === "hash512") { operation = "hash"; algo = "SHA-512"; }
+    else if (op === "sha384") { operation = "hash"; algo = "SHA-384"; }
+    else if (op === "sha3_256") { operation = "hash"; algo = "sha3_256"; }
+    else if (op === "blake2b") { operation = "hash"; algo = "blake2b"; }
     else if (op === "md5") { operation = "hash"; algo = "MD5"; }
+    else if (op === "encrypt") { operation = "encrypt"; algo = "AES-256-GCM"; }
+    else if (op === "decrypt") { operation = "decrypt"; algo = "AES-256-GCM"; }
+    else if (op === "chacha20_enc") { operation = "encrypt"; algo = "CHACHA20-POLY1305"; }
+    else if (op === "chacha20_dec") { operation = "decrypt"; algo = "CHACHA20-POLY1305"; }
     else if (op.startsWith("encode_")) { operation = "encode"; algo = op.replace("encode_", ""); }
     else if (op.startsWith("decode_")) { operation = "decode"; algo = op.replace("decode_", ""); }
 
@@ -842,6 +915,10 @@ async function saveNewLogin() {
   const category = document.getElementById("saveCategorySelect").value;
   const tagsStr = document.getElementById("saveTagsInput").value.trim();
   const tags = tagsStr ? tagsStr.split(",").map((t) => t.trim()).filter(Boolean) : ["extension"];
+  const groupsStr = document.getElementById("saveGroupsInput") ? document.getElementById("saveGroupsInput").value.trim() : "";
+  const servicesStr = document.getElementById("saveServicesInput") ? document.getElementById("saveServicesInput").value.trim() : "";
+  const groups = groupsStr ? groupsStr.split(",").map((g) => g.trim()).filter(Boolean) : [];
+  const services = servicesStr ? servicesStr.split(",").map((s) => s.trim()).filter(Boolean) : [];
 
   if (!username && !password) {
     showToast("Please enter username or password");
@@ -852,13 +929,15 @@ async function saveNewLogin() {
     const res = await fetch(`${BRIDGE_URL}/api/save_entry`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, url, username, password, category, tags }),
+      body: JSON.stringify({ title, url, username, password, category, tags, groups, services }),
     });
     if (!res.ok) throw new Error("Save failed");
     showToast("Saved to StarVault!");
     document.getElementById("saveDrawer").classList.add("hidden");
     document.getElementById("saveUserInput").value = "";
     document.getElementById("savePassInput").value = "";
+    if (document.getElementById("saveGroupsInput")) document.getElementById("saveGroupsInput").value = "";
+    if (document.getElementById("saveServicesInput")) document.getElementById("saveServicesInput").value = "";
     triggerSearch();
   } catch (e) {
     showToast("Failed to save login");

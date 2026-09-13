@@ -33,6 +33,12 @@ def main():
         help="Run as a Model Context Protocol (MCP) JSON-RPC stdio server for AI agents",
     )
 
+    parser.add_argument(
+        "--minimized",
+        action="store_true",
+        help="Launch StarVault minimized to the system tray",
+    )
+
     args = parser.parse_args()
 
     if args.db:
@@ -48,7 +54,7 @@ def main():
         server.run()
         return
 
-    app = StarVaultApp(db_path=db_path)
+    app = StarVaultApp(db_path=db_path, start_minimized=args.minimized)
     app.mainloop()
 
 

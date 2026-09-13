@@ -30,6 +30,7 @@ from starvault.ui.theme import (
     get_font,
     get_mono_font,
 )
+from starvault.ui.widgets import add_password_toggle
 
 
 class SettingsDialog(ctk.CTkToplevel):
@@ -184,15 +185,21 @@ class SettingsDialog(ctk.CTkToplevel):
         p_row1 = ctk.CTkFrame(pwd_card, fg_color="transparent")
         p_row1.pack(fill="x", padx=16, pady=4)
         ctk.CTkLabel(p_row1, text="New Master Password", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
-        self.new_pwd_entry = ctk.CTkEntry(p_row1, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
-        self.new_pwd_entry.pack(fill="x", pady=(4, 0))
+        p1_box = ctk.CTkFrame(p_row1, fg_color="transparent")
+        p1_box.pack(fill="x", pady=(4, 0))
+        self.new_pwd_entry = ctk.CTkEntry(p1_box, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.new_pwd_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(p1_box, self.new_pwd_entry)
 
         # Confirm New Password
         p_row2 = ctk.CTkFrame(pwd_card, fg_color="transparent")
         p_row2.pack(fill="x", padx=16, pady=4)
         ctk.CTkLabel(p_row2, text="Confirm New Password", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
-        self.confirm_pwd_entry = ctk.CTkEntry(p_row2, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
-        self.confirm_pwd_entry.pack(fill="x", pady=(4, 0))
+        p2_box = ctk.CTkFrame(p_row2, fg_color="transparent")
+        p2_box.pack(fill="x", pady=(4, 0))
+        self.confirm_pwd_entry = ctk.CTkEntry(p2_box, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.confirm_pwd_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(p2_box, self.confirm_pwd_entry)
 
         self.pwd_status_label = ctk.CTkLabel(pwd_card, text="", font=get_font(12))
         self.pwd_status_label.pack(padx=16, pady=2)
@@ -638,12 +645,17 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _on_theme_selected(self, theme_name: str):
         apply_theme(theme_name)
+        if hasattr(self, "database") and self.database:
+            try:
+                self.database.update_settings({"theme": theme_name})
+            except Exception:
+                pass
 
     def _prompt_master_password(self, on_authenticated: Callable[[str, Optional[str]], None]):
         """Prompts user for master password authentication before performing sensitive exports."""
         modal = ctk.CTkToplevel(self)
         modal.title("Authenticate Master Password")
-        modal.geometry("450x260")
+        modal.geometry("450x270")
         modal.transient(self)
         modal.grab_set()
 
@@ -661,32 +673,37 @@ class SettingsDialog(ctk.CTkToplevel):
             text_color=TEXT_MUTED,
         ).pack(pady=(0, 14))
 
+        p_row = ctk.CTkFrame(modal, fg_color="transparent")
+        p_row.pack(fill="x", padx=30, pady=4)
+
         pwd_entry = ctk.CTkEntry(
-            modal,
+            p_row,
             placeholder_text="Enter Master Password...",
             show="•",
             font=get_mono_font(12),
             fg_color=BG_INPUT,
             border_color=BORDER_COLOR,
-            width=360,
             height=36,
         )
-        pwd_entry.pack(pady=4)
+        pwd_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(p_row, pwd_entry)
         pwd_entry.focus_set()
 
         kf_entry = None
         if self.database.requires_2fa():
+            k_row = ctk.CTkFrame(modal, fg_color="transparent")
+            k_row.pack(fill="x", padx=30, pady=4)
             kf_entry = ctk.CTkEntry(
-                modal,
+                k_row,
                 placeholder_text="2FA Keyfile Token / Secret...",
                 show="•",
                 font=get_mono_font(12),
                 fg_color=BG_INPUT,
                 border_color=BORDER_COLOR,
-                width=360,
                 height=36,
             )
-            kf_entry.pack(pady=4)
+            kf_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+            add_password_toggle(k_row, kf_entry)
 
         err_label = ctk.CTkLabel(modal, text="", font=get_font(11), text_color=COLOR_DANGER)
         err_label.pack(pady=4)

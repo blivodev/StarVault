@@ -96,10 +96,10 @@ class GroupsView(ctk.CTkFrame):
         ).pack(anchor="w")
 
         # Grouping Mode Segmented Selector
-        self.mode_var = ctk.StringVar(value="By Category")
+        self.mode_var = ctk.StringVar(value="By Group / Category")
         self.mode_selector = ctk.CTkSegmentedButton(
             header,
-            values=["By Category", "By Tag", "By Server Hierarchy"],
+            values=["By Group / Category", "By Service", "By Tag", "By Server Hierarchy"],
             variable=self.mode_var,
             command=self._on_mode_changed,
             font=get_font(11, "bold"),
@@ -107,7 +107,7 @@ class GroupsView(ctk.CTkFrame):
             selected_hover_color=ACCENT_HOVER,
             unselected_color=BG_INPUT,
             unselected_hover_color=BORDER_COLOR,
-            text_color="#000000",
+            text_color=TEXT_PRIMARY,
             height=34,
         )
         self.mode_selector.pack(side="right", padx=24, pady=15)
@@ -173,9 +173,11 @@ class GroupsView(ctk.CTkFrame):
         self.reload()
 
     def _on_mode_changed(self, val: str) -> None:
-        if val == "By Category":
+        if "Group" in val or "Category" in val:
             self.group_mode = "category"
-        elif val == "By Tag":
+        elif "Service" in val:
+            self.group_mode = "service"
+        elif "Tag" in val:
             self.group_mode = "tag"
         else:
             self.group_mode = "hierarchy"
@@ -205,6 +207,8 @@ class GroupsView(ctk.CTkFrame):
                 match = (
                     q in e.title.lower()
                     or q in e.category.lower()
+                    or any(q in g.lower() for g in getattr(e, "groups", []))
+                    or any(q in s.lower() for s in getattr(e, "services", []))
                     or q in (e.hostname or "").lower()
                     or q in (e.url or "").lower()
                     or q in e.username.lower()
@@ -218,8 +222,25 @@ class GroupsView(ctk.CTkFrame):
 
         if self.group_mode == "category":
             for e in filtered:
-                cat = e.category or "General"
-                grouped.setdefault(cat, []).append(e)
+                entry_groups = getattr(e, "groups", [])
+                if not entry_groups:
+                    entry_groups = [e.category] if e.category else ["General"]
+                for grp in entry_groups:
+                    grouped.setdefault(grp, []).append(e)
+
+        elif self.group_mode == "service":
+            unassigned = []
+            for e in filtered:
+                entry_services = [s for s in getattr(e, "services", []) if s]
+                if not entry_services and getattr(e, "app_name", ""):
+                    entry_services = [e.app_name]
+                if not entry_services:
+                    unassigned.append(e)
+                else:
+                    for srv in entry_services:
+                        grouped.setdefault(f"🌐 Service: {srv}", []).append(e)
+            if unassigned:
+                grouped["(No Assigned Service)"] = unassigned
 
         elif self.group_mode == "tag":
             untagged = []

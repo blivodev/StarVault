@@ -40,6 +40,7 @@ def search_entries(
         elif (
             selected_category not in ("All", "Favorites", "Servers", "Services", "Keys", "API Keys", "APIs")
             and e.category != selected_category
+            and not any(selected_category.lower() == g.lower() for g in getattr(e, "groups", []))
         ):
             continue
 
@@ -108,6 +109,21 @@ def search_entries(
         # App name match
         if cleaned_query in app_lower:
             score = max(score, 80.0)
+
+        # Groups & Services match
+        for grp in getattr(entry, "groups", []):
+            g_lower = grp.lower()
+            if cleaned_query == g_lower:
+                score = max(score, 85.0)
+            elif cleaned_query in g_lower:
+                score = max(score, 70.0)
+
+        for srv in getattr(entry, "services", []):
+            s_lower = srv.lower()
+            if cleaned_query == s_lower:
+                score = max(score, 85.0)
+            elif cleaned_query in s_lower:
+                score = max(score, 70.0)
 
         # Entry type match
         if cleaned_query in type_lower:

@@ -37,6 +37,8 @@ CSV_HEADERS = [
     "Title",
     "Type",
     "Category",
+    "Groups",
+    "Services",
     "Tags",
     "Username",
     "Password",
@@ -81,10 +83,14 @@ def export_entries_to_csv_string(entries: List[VaultEntry]) -> str:
 
     for e in entries:
         tags_str = ", ".join(e.tags) if e.tags else ""
+        groups_str = e.get_groups_display()
+        services_str = e.get_services_display()
         row = [
             _sanitize_csv_cell(e.title),
             _sanitize_csv_cell(e.entry_type),
             _sanitize_csv_cell(e.category),
+            _sanitize_csv_cell(groups_str),
+            _sanitize_csv_cell(services_str),
             _sanitize_csv_cell(tags_str),
             _sanitize_csv_cell(e.username),
             _sanitize_csv_cell(e.password),

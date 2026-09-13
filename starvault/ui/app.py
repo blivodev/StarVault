@@ -26,7 +26,7 @@ from starvault.ui.unlock_view import UnlockView
 class StarVaultApp(ctk.CTk):
     """Root application window coordinating security sessions, dashboard, HUD, and tray."""
 
-    def __init__(self, db_path: Optional[Path] = None, **kwargs):
+    def __init__(self, db_path: Optional[Path] = None, start_minimized: bool = False, **kwargs):
         super().__init__(**kwargs)
         apply_global_theme()
 
@@ -102,6 +102,9 @@ class StarVaultApp(ctk.CTk):
 
         # Initial View
         self._show_initial_view()
+
+        if start_minimized:
+            self.withdraw()
 
     def _show_initial_view(self):
         """Displays UnlockView if locked or DashboardView if unlocked."""
@@ -242,6 +245,26 @@ class StarVaultApp(ctk.CTk):
         if isinstance(self.current_view, DashboardView):
             self.current_view.search_entry.focus_set()
             self.current_view.search_entry.select_range(0, "end")
+
+    def _on_theme_changed(self, theme_name: str) -> None:
+        """Handles theme change broadcast from theme manager and updates views and persistence."""
+        try:
+            from starvault.ui.theme import BG_ROOT
+            self.configure(fg_color=BG_ROOT)
+            if hasattr(self, "app_config") and self.app_config:
+                self.app_config.set_theme(theme_name)
+            if hasattr(self, "db") and self.db and hasattr(self, "session") and self.session.is_unlocked:
+                try:
+                    self.db.update_settings({"theme": theme_name})
+                except Exception:
+                    pass
+            if self.current_view:
+                if hasattr(self.current_view, "on_theme_changed"):
+                    self.current_view.on_theme_changed(theme_name)
+                elif hasattr(self.current_view, "_build_ui"):
+                    self.current_view._build_ui()
+        except Exception:
+            pass
 
     def open_key_studio_from_tray(self):
         if not self.session.is_unlocked:
