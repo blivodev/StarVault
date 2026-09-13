@@ -12,13 +12,14 @@ from starvault.clipboard import ClipboardManager
 from starvault.config import APP_NAME, APP_VERSION, get_default_db_path
 from starvault.crypto import VaultSession
 from starvault.database import Database
+from starvault.extension_bridge import ExtensionBridgeServer
 from starvault.tray import SystemTrayManager
 from starvault.ui.dashboard import DashboardView
 from starvault.ui.hud import QuickSearchHUD
 from starvault.ui.icons import generate_vault_icon_image
 from starvault.ui.key_studio import KeyStudioDialog
 from starvault.ui.migration_dialog import MigrationDialog
-from starvault.ui.theme import BG_ROOT, apply_global_theme
+from starvault.ui.theme import BG_ROOT, apply_global_theme, register_theme_listener
 from starvault.ui.unlock_view import UnlockView
 
 
@@ -74,6 +75,17 @@ class StarVaultApp(ctk.CTk):
             on_exit=lambda: self.after(0, self.quit_application),
         )
         self.tray.start()
+
+        # Chromium Extension Localhost Bridge (Chrome, Brave, Edge)
+        self.extension_bridge = ExtensionBridgeServer(
+            database=self.db,
+            get_session_key=lambda: self.session.key if self.session.is_unlocked else None,
+            on_lock=self.lock_vault,
+        )
+        self.extension_bridge.start()
+
+        # Register dynamic theme listener
+        register_theme_listener(self._on_theme_changed)
 
         # Window event bindings
         self.protocol("WM_DELETE_WINDOW", self._on_close_button_clicked)
@@ -138,7 +150,15 @@ class StarVaultApp(ctk.CTk):
         if self.session.is_unlocked:
             self.lock_vault()
         self.db = Database(new_path)
+        if hasattr(self, "extension_bridge") and self.extension_bridge:
+            self.extension_bridge.database = self.db
         self.app_config.record_opened_vault(new_path)
+        self._show_initial_view()
+
+    def _on_theme_changed(self, theme_name: str):
+        """Handles live theme switching and refreshes views with new color tokens."""
+        from starvault.ui.theme import BG_ROOT
+        self.configure(fg_color=BG_ROOT)
         self._show_initial_view()
 
     def on_unlock_success(self, key: bytes, master_password: Optional[str] = None):
@@ -234,6 +254,8 @@ class StarVaultApp(ctk.CTk):
     def quit_application(self):
         """Clean application shutdown."""
         self.lock_vault()
+        if hasattr(self, "extension_bridge") and self.extension_bridge:
+            self.extension_bridge.stop()
         self.tray.stop()
         self.destroy()
         sys.exit(0)

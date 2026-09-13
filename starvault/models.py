@@ -58,6 +58,17 @@ class VaultEntry:
     private_key: str = ""  # encrypted
     passphrase: str = ""  # encrypted
 
+    # API Key fields
+    provider: str = ""
+    api_key_format: str = "bearer"
+    api_key_secret: str = ""  # encrypted
+    environment: str = "Production"  # 'Production', 'Staging', 'Development', 'Test'
+    expires_at: str = ""  # 'YYYY-MM-DD'
+    scopes: str = ""
+
+    # TOTP / MFA secret (encrypted, RFC 6238 Base32)
+    totp_secret: str = ""  # encrypted
+
     # Common rich content
     notes: str = ""  # encrypted
 
@@ -94,6 +105,13 @@ class VaultEntry:
             public_key=self.public_key,
             private_key=self.private_key,
             passphrase=self.passphrase,
+            provider=self.provider,
+            api_key_format=self.api_key_format,
+            api_key_secret=self.api_key_secret,
+            environment=self.environment,
+            expires_at=self.expires_at,
+            scopes=self.scopes,
+            totp_secret=self.totp_secret,
             notes=self.notes,
         )
 
@@ -135,6 +153,14 @@ class VaultEntry:
             "key_type": self.key_type,
             "fingerprint": self.fingerprint,
             "public_key": self.public_key,
+            # API Key & TOTP fields
+            "provider": self.provider,
+            "api_key_format": self.api_key_format,
+            "api_key_secret": self.api_key_secret,
+            "environment": self.environment,
+            "expires_at": self.expires_at,
+            "scopes": self.scopes,
+            "totp_secret": self.totp_secret,
         }
         json_str = json.dumps(sensitive_data)
         return encrypt_field(json_str, key)
@@ -170,6 +196,13 @@ class VaultEntry:
         self.key_type = data.get("key_type", self.key_type)
         self.fingerprint = data.get("fingerprint", self.fingerprint)
         self.public_key = data.get("public_key", self.public_key)
+        self.provider = data.get("provider", self.provider)
+        self.api_key_format = data.get("api_key_format", self.api_key_format)
+        self.api_key_secret = data.get("api_key_secret", self.api_key_secret)
+        self.environment = data.get("environment", self.environment)
+        self.expires_at = data.get("expires_at", self.expires_at)
+        self.scopes = data.get("scopes", self.scopes)
+        self.totp_secret = data.get("totp_secret", self.totp_secret)
 
     @classmethod
     def create_server(
@@ -258,6 +291,38 @@ class VaultEntry:
             private_key=private_key,
             fingerprint=fingerprint,
             passphrase=passphrase,
+            notes=notes,
+        )
+
+    @classmethod
+    def create_api_key(
+        cls,
+        title: str,
+        api_token: str,
+        provider: str = "",
+        api_key_format: str = "bearer",
+        api_key_secret: str = "",
+        environment: str = "Production",
+        expires_at: str = "",
+        scopes: str = "",
+        tags: Optional[List[str]] = None,
+        notes: str = "",
+        category: str = "API Keys",
+        parent_server_id: Optional[str] = None,
+    ) -> "VaultEntry":
+        return cls(
+            entry_type="apikey",
+            title=title or f"{provider} API Key" if provider else "API Key",
+            category=category,
+            tags=tags or [],
+            api_token=api_token,
+            provider=provider,
+            api_key_format=api_key_format,
+            api_key_secret=api_key_secret,
+            environment=environment,
+            expires_at=expires_at,
+            scopes=scopes,
+            parent_server_id=parent_server_id,
             notes=notes,
         )
 

@@ -5,6 +5,8 @@ import string
 from typing import Callable, List, Optional
 import customtkinter as ctk
 
+from starvault.api_keys import SUPPORTED_KEY_FORMATS, generate_api_key
+from starvault.crypto import generate_secure_password
 from starvault.models import VaultEntry
 from starvault.ui.theme import (
     ACCENT_HOVER,
@@ -116,7 +118,7 @@ class EntryDialog(ctk.CTkToplevel):
         self.type_var = ctk.StringVar(value=self.default_type)
         self.type_segmented = ctk.CTkSegmentedButton(
             header_frame,
-            values=["server", "service", "keypair"],
+            values=["server", "service", "apikey", "keypair"],
             variable=self.type_var,
             command=self._on_type_changed,
             font=get_font(12, "bold"),
@@ -270,6 +272,8 @@ class EntryDialog(ctk.CTkToplevel):
             self._render_server_form(card)
         elif entry_type == "service":
             self._render_service_form(card)
+        elif entry_type == "apikey":
+            self._render_apikey_form(card)
         elif entry_type == "keypair":
             self._render_keypair_form(card)
 
@@ -317,6 +321,18 @@ class EntryDialog(ctk.CTkToplevel):
         pass_row.pack(fill="x", pady=(4, 0))
         self.server_pass = ctk.CTkEntry(pass_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
         self.server_pass.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        ctk.CTkButton(
+            pass_row,
+            text="⚡ Use New",
+            font=get_font(11, "bold"),
+            width=78,
+            height=36,
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            command=lambda: self._quick_fill_generated_password(self.server_pass),
+        ).pack(side="right", padx=(4, 0))
 
         ctk.CTkButton(
             pass_row,
@@ -440,6 +456,18 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             pass_row,
+            text="⚡ Use New",
+            font=get_font(11, "bold"),
+            width=78,
+            height=36,
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            command=lambda: self._quick_fill_generated_password(self.service_pass),
+        ).pack(side="right", padx=(4, 0))
+
+        ctk.CTkButton(
+            pass_row,
             text="🎲",
             width=36,
             height=36,
@@ -523,6 +551,123 @@ class EntryDialog(ctk.CTkToplevel):
         ctk.CTkLabel(priv_box, text="Private Key (Encrypted at rest)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
         self.key_priv_text = ctk.CTkTextbox(priv_box, height=90, fg_color=BG_INPUT, border_color=BORDER_COLOR, font=get_mono_font(11))
         self.key_priv_text.pack(fill="x", pady=(4, 0))
+
+    def _quick_fill_generated_password(self, target_entry: ctk.CTkEntry):
+        """Instant one-click password generation and direct placement."""
+        pwd = generate_secure_password(length=24)
+        target_entry.delete(0, "end")
+        target_entry.insert(0, pwd)
+
+    def _render_apikey_form(self, container):
+        ctk.CTkLabel(
+            container,
+            text="API KEY & TOKEN DETAILS",
+            font=get_font(11, "bold"),
+            text_color=ACCENT_INDIGO,
+        ).pack(anchor="w", padx=16, pady=(12, 6))
+
+        # Row 1: Provider / Service & Environment
+        row1 = ctk.CTkFrame(container, fg_color="transparent")
+        row1.pack(fill="x", padx=16, pady=4)
+
+        col_prov = ctk.CTkFrame(row1, fg_color="transparent")
+        col_prov.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_prov, text="Provider / Service *", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.apikey_provider = ctk.CTkEntry(col_prov, placeholder_text="OpenAI, Stripe, AWS, GitHub, Anthropic", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.apikey_provider.pack(fill="x", pady=(4, 0))
+
+        col_env = ctk.CTkFrame(row1, fg_color="transparent", width=180)
+        col_env.pack(side="right")
+        ctk.CTkLabel(col_env, text="Environment", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.apikey_env_combo = ctk.CTkComboBox(
+            col_env,
+            values=["Production", "Staging", "Development", "Test"],
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.apikey_env_combo.set("Production")
+        self.apikey_env_combo.pack(fill="x", pady=(4, 0))
+
+        # Row 2: Format & Expiry
+        row2 = ctk.CTkFrame(container, fg_color="transparent")
+        row2.pack(fill="x", padx=16, pady=4)
+
+        col_fmt = ctk.CTkFrame(row2, fg_color="transparent")
+        col_fmt.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_fmt, text="Key Format / Type", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.apikey_fmt_combo = ctk.CTkComboBox(
+            col_fmt,
+            values=["hex64", "hex32", "base64_64", "base64_32", "uuid", "openai", "stripe_live", "stripe_test", "github", "aws", "jwt", "custom_prefixed", "bearer"],
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.apikey_fmt_combo.set("hex64")
+        self.apikey_fmt_combo.pack(fill="x", pady=(4, 0))
+
+        col_exp = ctk.CTkFrame(row2, fg_color="transparent", width=180)
+        col_exp.pack(side="right")
+        ctk.CTkLabel(col_exp, text="Expires At (YYYY-MM-DD)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.apikey_expires = ctk.CTkEntry(col_exp, placeholder_text="2026-12-31", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.apikey_expires.pack(fill="x", pady=(4, 0))
+
+        # Row 3: Primary API Key / Token with 'Generate & Use' button
+        row3 = ctk.CTkFrame(container, fg_color="transparent")
+        row3.pack(fill="x", padx=16, pady=4)
+
+        ctk.CTkLabel(row3, text="API Key / Token Value * (Encrypted)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        token_input_row = ctk.CTkFrame(row3, fg_color="transparent")
+        token_input_row.pack(fill="x", pady=(4, 0))
+
+        self.apikey_token = ctk.CTkEntry(token_input_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.apikey_token.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        def generate_and_use_apikey():
+            fmt = self.apikey_fmt_combo.get().strip() or "hex64"
+            prov = self.apikey_provider.get().strip().lower() or "sv"
+            pkey, skey = generate_api_key(format_type=fmt, prefix=prov)
+            self.apikey_token.delete(0, "end")
+            self.apikey_token.insert(0, pkey)
+            if skey and hasattr(self, "apikey_secret"):
+                self.apikey_secret.delete(0, "end")
+                self.apikey_secret.insert(0, skey)
+
+        ctk.CTkButton(
+            token_input_row,
+            text="⚡ Generate & Use",
+            font=get_font(11, "bold"),
+            width=130,
+            height=36,
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            command=generate_and_use_apikey,
+        ).pack(side="right")
+
+        # Row 4: Secret Key (for paired key formats like AWS or Client Secrets)
+        row4 = ctk.CTkFrame(container, fg_color="transparent")
+        row4.pack(fill="x", padx=16, pady=4)
+
+        ctk.CTkLabel(row4, text="Secret Key / Secondary Token (Optional, Encrypted)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.apikey_secret = ctk.CTkEntry(row4, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.apikey_secret.pack(fill="x", pady=(4, 0))
+
+        # Row 5: Scopes / Permissions & 2FA Secret
+        row5 = ctk.CTkFrame(container, fg_color="transparent")
+        row5.pack(fill="x", padx=16, pady=(4, 14))
+
+        col_scope = ctk.CTkFrame(row5, fg_color="transparent")
+        col_scope.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_scope, text="Scopes / Permissions", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.apikey_scopes = ctk.CTkEntry(col_scope, placeholder_text="read:users, write:deploy, admin", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.apikey_scopes.pack(fill="x", pady=(4, 0))
+
+        col_totp = ctk.CTkFrame(row5, fg_color="transparent", width=180)
+        col_totp.pack(side="right")
+        ctk.CTkLabel(col_totp, text="2FA / TOTP Secret (Base32)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.apikey_totp = ctk.CTkEntry(col_totp, placeholder_text="JBSWY3DPEHPK3PXP", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.apikey_totp.pack(fill="x", pady=(4, 0))
 
     def _build_custom_fields_section(self):
         self.cf_card = ctk.CTkFrame(
@@ -715,8 +860,8 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_row,
-            text="Use Password",
-            width=140,
+            text="⚡ Use this password",
+            width=160,
             command=use_password,
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -763,6 +908,17 @@ class EntryDialog(ctk.CTkToplevel):
             self.service_db.insert(0, entry.db_name)
             self.service_token.insert(0, entry.api_token)
 
+        elif entry.entry_type == "apikey":
+            if hasattr(self, "apikey_provider"):
+                self.apikey_provider.insert(0, getattr(entry, "provider", ""))
+                self.apikey_env_combo.set(getattr(entry, "environment", "Production") or "Production")
+                self.apikey_fmt_combo.set(getattr(entry, "api_key_format", "hex64") or "hex64")
+                self.apikey_expires.insert(0, getattr(entry, "expires_at", ""))
+                self.apikey_token.insert(0, entry.api_token or entry.password or "")
+                self.apikey_secret.insert(0, getattr(entry, "api_key_secret", ""))
+                self.apikey_scopes.insert(0, getattr(entry, "scopes", ""))
+                self.apikey_totp.insert(0, getattr(entry, "totp_secret", ""))
+
         elif entry.entry_type == "keypair":
             self.key_name_entry.insert(0, entry.key_name)
             self.key_type_combo.set(entry.key_type)
@@ -788,6 +944,8 @@ class EntryDialog(ctk.CTkToplevel):
                 title = self.server_host.get().strip()
             elif etype == "service" and hasattr(self, "service_app") and self.service_app.get().strip():
                 title = self.service_app.get().strip()
+            elif etype == "apikey" and hasattr(self, "apikey_provider") and self.apikey_provider.get().strip():
+                title = f"{self.apikey_provider.get().strip()} API Key"
             elif etype == "keypair" and hasattr(self, "key_name_entry") and self.key_name_entry.get().strip():
                 title = self.key_name_entry.get().strip()
             else:
@@ -839,6 +997,18 @@ class EntryDialog(ctk.CTkToplevel):
             if hasattr(self, "parent_server_combo"):
                 selected_server_label = self.parent_server_combo.get()
                 entry.parent_server_id = self.server_id_map.get(selected_server_label, None)
+
+        elif etype == "apikey":
+            entry.provider = self.apikey_provider.get().strip()
+            entry.environment = self.apikey_env_combo.get().strip()
+            entry.api_key_format = self.apikey_fmt_combo.get().strip()
+            entry.expires_at = self.apikey_expires.get().strip()
+            entry.api_token = self.apikey_token.get().strip()
+            entry.password = entry.api_token  # mirror for quick-copy compatibility
+            entry.api_key_secret = self.apikey_secret.get().strip()
+            entry.scopes = self.apikey_scopes.get().strip()
+            entry.totp_secret = self.apikey_totp.get().strip()
+            entry.parent_server_id = None
 
         elif etype == "keypair":
             entry.key_name = self.key_name_entry.get().strip() or title

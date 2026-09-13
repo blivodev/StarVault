@@ -221,3 +221,63 @@ def generate_gpg_key(
         putty_ppk="",
         format_notes="Armored OpenPGP (RFC 4880) keypair for GPG email/file encryption and git commit signing.",
     )
+
+
+def generate_tls_cert_key(
+    common_name: str = "localhost",
+    san_list: Optional[list] = None,
+    organization: str = "StarVault Homelab",
+    validity_days: int = 365,
+    key_type: str = "RSA 2048",
+) -> GeneratedKeyResult:
+    """Generates a self-signed X.509 TLS/SSL certificate with SAN extensions."""
+    from starvault.cert_generator import generate_self_signed_cert
+    cert_pem, key_pem = generate_self_signed_cert(
+        common_name=common_name,
+        san_list=san_list,
+        organization=organization,
+        validity_days=validity_days,
+        key_type=key_type,
+    )
+    fp = hashlib.sha256(cert_pem.encode("utf-8")).hexdigest()[:32]
+    spaced_fp = " ".join(fp[i : i + 4] for i in range(0, len(fp), 4))
+    return GeneratedKeyResult(
+        key_type="tls_cert",
+        algorithm_name=f"X.509 TLS Certificate ({key_type})",
+        public_key=cert_pem,
+        private_key=key_pem,
+        fingerprint=f"SHA256:{spaced_fp}",
+        comment=f"CN={common_name}, Valid {validity_days} days",
+        format_notes="Self-signed TLS/SSL certificate with SAN extensions for HTTPS homelab and internal services.",
+    )
+
+
+def generate_wireguard_key_result() -> GeneratedKeyResult:
+    """Generates a WireGuard VPN Curve25519 keypair."""
+    from starvault.cert_generator import generate_wireguard_keypair
+    priv_b64, pub_b64 = generate_wireguard_keypair()
+    fp = hashlib.sha256(pub_b64.encode("utf-8")).hexdigest()[:24]
+    return GeneratedKeyResult(
+        key_type="wireguard",
+        algorithm_name="WireGuard VPN (Curve25519)",
+        public_key=pub_b64,
+        private_key=priv_b64,
+        fingerprint=f"WG:{fp}",
+        comment="WireGuard Interface Keypair",
+        format_notes="Standard Base64 Curve25519 keypair for WireGuard peer or interface configuration.",
+    )
+
+
+def generate_age_key_result() -> GeneratedKeyResult:
+    """Generates an Age encryption keypair."""
+    from starvault.cert_generator import generate_age_keypair
+    sec_key, recipient = generate_age_keypair()
+    return GeneratedKeyResult(
+        key_type="age",
+        algorithm_name="Age Encryption Key (X25519)",
+        public_key=recipient,
+        private_key=sec_key,
+        fingerprint=recipient[:24] + "...",
+        comment="Age Recipient Key",
+        format_notes="Modern age-keygen compatible X25519 keypair for encrypting files and backups.",
+    )
