@@ -480,3 +480,188 @@ def test_new_mcp_tools(tmp_path: Path):
     assert f_res["success"] is True
     assert enc_f.exists()
 
+
+def test_organizer_heuristics_category_and_tags():
+    """Verify auto-grouping and tag inference across different services."""
+    from starvault.organizer import infer_category, infer_tags, normalize_title
+
+    # 1. Category inference
+    e_aws = VaultEntry(title="AWS Production Root", hostname="ec2.us-east-1.amazonaws.com")
+    assert infer_category(e_aws) == "Cloud & Infrastructure"
+
+    e_gh = VaultEntry(title="GitHub Deploy Token", url="https://github.com/myorg/repo")
+    assert infer_category(e_gh) == "Dev & Repositories"
+
+    e_db = VaultEntry(title="Postgres Master DB", db_name="production_db", service_type="database")
+    assert infer_category(e_db) == "Databases & Storage"
+
+    e_ai = VaultEntry(title="OpenAI GPT-4o Key", provider="OpenAI", entry_type="apikey")
+    assert infer_category(e_ai) == "AI & LLM Services"
+
+    e_pay = VaultEntry(title="Stripe Webhook Secret", app_name="Stripe API")
+    assert infer_category(e_pay) == "Finance & Payments"
+
+    e_key = VaultEntry(title="Bastion Key", entry_type="keypair", key_type="ed25519")
+    assert infer_category(e_key) == "Keys & Certificates"
+
+    # 2. Tag inference
+    e_tags = VaultEntry(
+        title="Production Web Server",
+        url="https://admin.github.com/dashboard",
+        port=22,
+        entry_type="server",
+        totp_secret="JBSWY3DPEHPK3PXP",
+    )
+    inferred = infer_tags(e_tags)
+    assert "env:production" in inferred
+    assert "proto:ssh" in inferred
+    assert "has:totp" in inferred
+    assert "domain:github.com" in inferred
+
+    # 3. Title normalization
+    e_norm = VaultEntry(title="my_prod_aws_api_key")
+    norm_title = normalize_title(e_norm)
+    assert "AWS" in norm_title
+    assert "API" in norm_title
+
+
+def test_organizer_deduplication_and_merge(tmp_path: Path):
+    """Verify smart deduplication, clustering, and 1-click merging."""
+    from starvault.organizer import deduplicate_vault, find_duplicates, merge_entries
+
+    db = Database(tmp_path / "dedup.db")
+    key = db.initialize_vault("DedupPass123!")
+
+    # Add two duplicate entries
+    e1 = VaultEntry.create_service(
+        title="Acme Portal",
+        app_name="Acme",
+        url="https://portal.acme.com",
+        username="admin@acme.com",
+        password="OriginalPassword123!",
+        tags=["prod"],
+    )
+    e2 = VaultEntry.create_service(
+        title="Acme Portal - Old",
+        app_name="Acme",
+        url="https://portal.acme.com",
+        username="admin@acme.com",
+        password="NewerPassword456!",
+        tags=["legacy", "acme"],
+        notes="Important customer note.",
+    )
+    db.save_entry(e1, key)
+    db.save_entry(e2, key)
+
+    entries = db.get_all_entries(key)
+    dup_groups = find_duplicates(entries)
+    assert len(dup_groups) >= 1
+    assert dup_groups[0].similarity_score >= 0.9
+
+    # Execute deduplication and merge
+    res = deduplicate_vault(db, key, auto_merge=True)
+    assert res["merged_count"] == 1
+
+    remaining = db.get_all_entries(key)
+    assert len(remaining) == 1
+    merged = remaining[0]
+    assert "legacy" in merged.tags
+    assert "prod" in merged.tags
+    assert "Important customer note" in merged.notes
+
+
+def test_organizer_ghosts_files_and_sorting(tmp_path: Path):
+    """Verify ghost purging, File Vault auto-organization, and multi-dimensional sorting."""
+    from starvault.models import VaultFile
+    from starvault.organizer import (
+        auto_organize_files,
+        auto_organize_vault,
+        find_ghost_and_stale,
+        purge_ghost_entries,
+        sort_entries,
+    )
+
+    db = Database(tmp_path / "ghosts.db")
+    key = db.initialize_vault("GhostPass123!")
+
+    # 1. Create ghost and legitimate entries
+    ghost = VaultEntry(title="")  # Completely empty ghost
+    real1 = VaultEntry.create_server("Zebra VPS", "zebra.lan", username="root", password="ZebraPassword123!")
+    real2 = VaultEntry.create_server("Alpha Server", "alpha.lan", username="root", password="AlphaPassword123!")
+    real1.category = "General"
+    real2.category = "General"
+
+    db.save_entry(ghost, key)
+    db.save_entry(real1, key)
+    db.save_entry(real2, key)
+
+    findings = find_ghost_and_stale(db.get_all_entries(key))
+    assert len(findings["ghosts"]) == 1
+
+    purge_res = purge_ghost_entries(db, key)
+    assert purge_res["purged_ghosts"] == 1
+    assert len(db.get_all_entries(key)) == 2
+
+    # 2. Auto-organize vault
+    org_sum = auto_organize_vault(db, key)
+    assert org_sum.categories_updated >= 1
+
+    # 3. File Vault organization
+    vf = VaultFile(filename="server_cert.pem", file_size=1024)
+    db.save_file(vf, b"MOCK CERTIFICATE BYTES", key)
+    file_res = auto_organize_files(db, key)
+    assert file_res["files_updated"] >= 1
+
+    files = db.get_all_files(key)
+    assert any("folder:Keys & Certificates" in f.tags for f in files)
+
+    # 4. Multi-dimensional sorting
+    entries = db.get_all_entries(key)
+    sorted_asc = sort_entries(entries, sort_by="title_asc")
+    assert sorted_asc[0].title.startswith("Alpha")
+
+    sorted_desc = sort_entries(entries, sort_by="title_desc")
+    assert sorted_desc[0].title.startswith("Zebra")
+
+
+def test_organizer_mcp_tools(tmp_path: Path):
+    """Verify MCP tools for auto-organize, deduplication, ghosts, and sorting."""
+    db_file = tmp_path / "mcp_org.db"
+    db = Database(db_file)
+    master_pass = "MCPSecurePass123!"
+    key = db.initialize_vault(master_pass)
+
+    # Create unorganized and duplicate entries
+    e1 = VaultEntry.create_server("aws-prod-ec2", "ec2.aws.com", username="root", password="AwsPassword123!")
+    e1.category = "General"
+    e2 = VaultEntry.create_server("aws-prod-ec2 - Copy", "ec2.aws.com", username="root", password="AwsPassword123!")
+    e2.category = "General"
+    ghost = VaultEntry(title="")
+
+    db.save_entry(e1, key)
+    db.save_entry(e2, key)
+    db.save_entry(ghost, key)
+
+    mcp = StarVaultMCPServer(db_path=db_file)
+    mcp.execute_tool("starvault_unlock", {"master_password": master_pass})
+
+    # 1. Clean stale ghosts via MCP
+    clean_out = json.loads(mcp.execute_tool("starvault_clean_stale_ghosts", {"dry_run": False}))
+    assert clean_out["purged_ghosts"] == 1
+
+    # 2. Auto-organize vault via MCP
+    org_out = json.loads(mcp.execute_tool("starvault_auto_organize_vault", {"override_categories": False}))
+    assert org_out["success"] is True
+    assert org_out["categories_updated"] >= 1
+
+    # 3. Deduplicate entries via MCP
+    dedup_out = json.loads(mcp.execute_tool("starvault_deduplicate_entries", {"auto_merge": True}))
+    assert dedup_out["success"] is True
+    assert dedup_out["merged_count"] >= 1
+
+    # 4. Sort entries via MCP
+    sort_out = json.loads(mcp.execute_tool("starvault_sort_entries", {"sort_by": "category"}))
+    assert sort_out["success"] is True
+    assert sort_out["total_entries"] >= 1
+
+

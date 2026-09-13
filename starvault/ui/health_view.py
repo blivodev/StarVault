@@ -14,9 +14,21 @@ import threading
 from typing import Callable, Optional
 import customtkinter as ctk
 
-from starvault.ai_advisor import AI_PROVIDERS, AIAdvisor, AIAnalysisResult
+from starvault.ai_advisor import AI_PROVIDERS, AIAdvisor, AIAnalysisResult, AIRemediationAction
 from starvault.database import Database
 from starvault.health import HealthIssue, VaultHealthAdvisor, VaultHealthReport, fix_health_issue
+from starvault.organizer import (
+    auto_organize_files,
+    auto_organize_vault,
+    deduplicate_vault,
+    find_duplicates,
+    find_ghost_and_stale,
+    infer_category,
+    infer_tags,
+    normalize_title,
+    purge_ghost_entries,
+    sort_entries,
+)
 from starvault.ui.theme import (
     ACCENT_HOVER,
     ACCENT_INDIGO,
@@ -47,12 +59,14 @@ class HealthView(ctk.CTkFrame):
         database: Database,
         encryption_key: bytes,
         on_review_entry: Optional[Callable[[str], None]] = None,
+        on_vault_updated: Optional[Callable[[], None]] = None,
         **kwargs,
     ) -> None:
         super().__init__(parent, fg_color=BG_ROOT, **kwargs)
         self.database = database
         self.encryption_key = encryption_key
         self.on_review_entry = on_review_entry
+        self.on_vault_updated = on_vault_updated
         self.report: Optional[VaultHealthReport] = None
         self.ai_result: Optional[AIAnalysisResult] = None
         self._ai_scanning = False
@@ -141,6 +155,9 @@ class HealthView(ctk.CTkFrame):
         )
         self.expiry_alert_lbl.pack(side="left")
 
+        # Auto-Organize & Smart Vault Studio Section
+        self._build_auto_organize_section()
+
         # AI Advisor Section
         self._build_ai_advisor_section()
 
@@ -155,6 +172,138 @@ class HealthView(ctk.CTkFrame):
 
         self.issues_list_frame = ctk.CTkFrame(self.scroll_content, fg_color="transparent")
         self.issues_list_frame.pack(fill="both", expand=True)
+
+    def _build_auto_organize_section(self) -> None:
+        """Builds interactive Auto-Organize & Smart Vault Studio toolbar card."""
+        self.organize_card = ctk.CTkFrame(
+            self.scroll_content,
+            fg_color=BG_CARD,
+            corner_radius=10,
+            border_width=1,
+            border_color=BORDER_COLOR,
+        )
+        self.organize_card.pack(fill="x", pady=(0, 14))
+
+        org_header = ctk.CTkFrame(self.organize_card, fg_color="transparent")
+        org_header.pack(fill="x", padx=16, pady=(12, 4))
+
+        ctk.CTkLabel(
+            org_header,
+            text="🗂️ Auto-Organize & Smart Vault Studio",
+            font=get_font(13, "bold"),
+            text_color=ACCENT_PRIMARY,
+        ).pack(side="left")
+
+        ctk.CTkLabel(
+            org_header,
+            text="Automated grouping, smart tags, title cleanup, deduplication, and file sorting",
+            font=get_font(11),
+            text_color=TEXT_MUTED,
+        ).pack(side="left", padx=12)
+
+        # Main Action Buttons Row
+        row_btn = ctk.CTkFrame(self.organize_card, fg_color="transparent")
+        row_btn.pack(fill="x", padx=16, pady=(6, 8))
+
+        ctk.CTkButton(
+            row_btn,
+            text="⚡ Auto-Organize All",
+            font=get_font(11, "bold"),
+            height=32,
+            fg_color=COLOR_SUCCESS,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            command=self._handle_auto_organize_all,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            row_btn,
+            text="📁 Auto-Group",
+            font=get_font(11),
+            height=32,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=self._handle_auto_group,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            row_btn,
+            text="🏷️ Auto-Tag",
+            font=get_font(11),
+            height=32,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=self._handle_auto_tag,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            row_btn,
+            text="🧹 Merge Duplicates",
+            font=get_font(11),
+            height=32,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=self._handle_merge_duplicates,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            row_btn,
+            text="🗑️ Purge Ghosts",
+            font=get_font(11),
+            height=32,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=self._handle_purge_ghosts,
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            row_btn,
+            text="📂 Organize Files",
+            font=get_font(11),
+            height=32,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=self._handle_auto_organize_files,
+        ).pack(side="left")
+
+        # Sorting & Reorganization Controls Row
+        row_sort = ctk.CTkFrame(self.organize_card, fg_color="transparent")
+        row_sort.pack(fill="x", padx=16, pady=(0, 12))
+
+        ctk.CTkLabel(
+            row_sort,
+            text="Smart Re-Sort:",
+            font=get_font(11, "bold"),
+            text_color=TEXT_SECONDARY,
+        ).pack(side="left", padx=(0, 8))
+
+        self.sort_combo = ctk.CTkComboBox(
+            row_sort,
+            values=[
+                "Category (A-Z)",
+                "Title (A-Z)",
+                "Title (Z-A)",
+                "Security Risk (Weakest First)",
+                "Recency (Modified First)",
+                "Type (Servers -> Keys)",
+            ],
+            width=220,
+            height=30,
+            font=get_font(11),
+        )
+        self.sort_combo.set("Category (A-Z)")
+        self.sort_combo.pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            row_sort,
+            text="🔀 Apply Auto-Sort",
+            font=get_font(11, "bold"),
+            width=130,
+            height=30,
+            fg_color=ACCENT_INDIGO,
+            hover_color=ACCENT_HOVER,
+            command=self._handle_apply_sort,
+        ).pack(side="left")
 
     def _build_ai_advisor_section(self) -> None:
         """Builds expandable AI/LLM Security & Hygiene Advisor section."""
@@ -379,7 +528,20 @@ class HealthView(ctk.CTkFrame):
                         fg_color=BG_INPUT,
                         hover_color=BORDER_COLOR,
                         command=lambda eid=act.entry_id: self.on_review_entry(eid),
-                    ).pack(side="right", padx=10)
+                    ).pack(side="right", padx=6)
+
+                if act.action_type in ("set_category", "update_tags", "normalize_title", "merge_duplicate", "purge_ghost"):
+                    ctk.CTkButton(
+                        act_row,
+                        text="⚡ Apply",
+                        font=get_font(10, "bold"),
+                        width=70,
+                        height=24,
+                        fg_color=COLOR_SUCCESS,
+                        hover_color=ACCENT_HOVER,
+                        text_color="#000000",
+                        command=lambda a=act: self._handle_apply_ai_action(a),
+                    ).pack(side="right", padx=4)
 
     def refresh(self) -> None:
         """Performs in-memory audit of all decrypted entries and updates UI."""
@@ -610,7 +772,94 @@ class HealthView(ctk.CTkFrame):
     def _handle_auto_fix(self, issue: HealthIssue) -> None:
         success, msg = fix_health_issue(issue, self.database, self.encryption_key)
         if success:
-            self.status_banner.configure(text=f"✓ Auto-Fix Applied: {msg}", text_color=COLOR_SUCCESS)
-            self.refresh()
+            self._notify_update(f"✓ Auto-Fix Applied: {msg}")
         else:
             self.status_banner.configure(text=f"Auto-Fix Error: {msg}", text_color=COLOR_DANGER)
+
+    def _notify_update(self, message: str, is_error: bool = False) -> None:
+        color = COLOR_DANGER if is_error else COLOR_SUCCESS
+        self.status_banner.configure(text=message, text_color=color)
+        self.refresh()
+        if self.on_vault_updated:
+            try:
+                self.on_vault_updated()
+            except Exception:
+                pass
+
+    def _handle_auto_organize_all(self) -> None:
+        summary = auto_organize_vault(self.database, self.encryption_key, override_categories=False)
+        self._notify_update(
+            f"✓ Auto-Organized Vault: {summary.categories_updated} categories assigned, "
+            f"{summary.tags_added} tags enriched, {summary.titles_normalized} titles normalized."
+        )
+
+    def _handle_auto_group(self) -> None:
+        summary = auto_organize_vault(self.database, self.encryption_key, override_categories=True)
+        self._notify_update(f"✓ Auto-Group complete: {summary.categories_updated} categories assigned.")
+
+    def _handle_auto_tag(self) -> None:
+        summary = auto_organize_vault(self.database, self.encryption_key, override_categories=False)
+        self._notify_update(f"✓ Auto-Tag complete: {summary.tags_added} smart tags added across entries.")
+
+    def _handle_merge_duplicates(self) -> None:
+        res = deduplicate_vault(self.database, self.encryption_key, auto_merge=True)
+        if res["merged_count"] > 0:
+            self._notify_update(f"✓ Merged {res['merged_count']} redundant duplicate entries into primary records.")
+        else:
+            self.status_banner.configure(text="No duplicate entry clusters detected.", text_color=TEXT_MUTED)
+
+    def _handle_purge_ghosts(self) -> None:
+        res = purge_ghost_entries(self.database, self.encryption_key)
+        self._notify_update(f"✓ Cleaned: purged {res['purged_ghosts']} empty records and repaired {res['fixed_orphans']} orphan references.")
+
+    def _handle_auto_organize_files(self) -> None:
+        res = auto_organize_files(self.database, self.encryption_key)
+        self._notify_update(f"✓ Auto-Organized Files: {res['files_updated']} vault attachments tagged and filed by type.")
+
+    def _handle_apply_sort(self) -> None:
+        choice = self.sort_combo.get()
+        mapping = {
+            "Category (A-Z)": "category",
+            "Title (A-Z)": "title_asc",
+            "Title (Z-A)": "title_desc",
+            "Security Risk (Weakest First)": "risk",
+            "Recency (Modified First)": "recency",
+            "Type (Servers -> Keys)": "type",
+        }
+        strategy = mapping.get(choice, "category")
+        entries = self.database.get_all_entries(self.encryption_key)
+        sorted_list = sort_entries(entries, sort_by=strategy)
+        self._notify_update(f"✓ Auto-sorted {len(sorted_list)} entries by {choice}.")
+
+    def _handle_apply_ai_action(self, action: AIRemediationAction) -> None:
+        entry = self.database.get_entry(action.entry_id, self.encryption_key)
+        if not entry:
+            self._notify_update("Target entry not found.", is_error=True)
+            return
+
+        if action.action_type == "set_category" and action.suggested_value:
+            entry.category = action.suggested_value
+            self.database.save_entry(entry, self.encryption_key)
+            self._notify_update(f"✓ Set category for '{entry.title}' to [{action.suggested_value}].")
+
+        elif action.action_type == "update_tags" and action.suggested_value:
+            tags_to_add = [t.strip().lower() for t in action.suggested_value.split(",") if t.strip()]
+            cur_tags = set(entry.tags)
+            cur_tags.update(tags_to_add)
+            entry.tags = sorted(list(cur_tags))
+            self.database.save_entry(entry, self.encryption_key)
+            self._notify_update(f"✓ Updated tags for '{entry.title}'.")
+
+        elif action.action_type == "normalize_title" and action.suggested_value:
+            entry.title = action.suggested_value
+            self.database.save_entry(entry, self.encryption_key)
+            self._notify_update(f"✓ Normalized title to '{entry.title}'.")
+
+        elif action.action_type == "merge_duplicate":
+            res = deduplicate_vault(self.database, self.encryption_key, auto_merge=True)
+            self._notify_update(f"✓ Merged {res['merged_count']} duplicates.")
+
+        elif action.action_type == "purge_ghost":
+            self.database.delete_entry(action.entry_id)
+            self._notify_update(f"✓ Purged ghost entry '{entry.title}'.")
+

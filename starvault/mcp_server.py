@@ -52,6 +52,15 @@ from starvault.keys import (
     generate_wireguard_key_result,
 )
 from starvault.models import VaultEntry
+from starvault.organizer import (
+    auto_organize_files,
+    auto_organize_vault,
+    deduplicate_vault,
+    find_duplicates,
+    find_ghost_and_stale,
+    purge_ghost_entries,
+    sort_entries,
+)
 from starvault.search import search_entries
 from starvault.totp import generate_totp_code
 
@@ -368,6 +377,58 @@ class StarVaultMCPServer:
                         "cipher": {"type": "string", "enum": ["AES-256-GCM", "AES-256-CBC", "ChaCha20-Poly1305"], "default": "AES-256-GCM"},
                     },
                     "required": ["operation", "source_path", "dest_path", "passphrase"],
+                },
+            },
+            {
+                "name": "starvault_auto_organize_vault",
+                "description": "Automatically organizes the entire vault: infers categories for unorganized items, adds smart domain/cloud/protocol tags, and normalizes messy title casing and acronyms.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "override_categories": {"type": "boolean", "default": False, "description": "Whether to re-categorize items that already have non-General categories"},
+                        "dry_run": {"type": "boolean", "default": False, "description": "Simulate and preview organization changes without persisting to database"},
+                    },
+                },
+            },
+            {
+                "name": "starvault_deduplicate_entries",
+                "description": "Detects duplicate or near-duplicate credentials and keys, and optionally auto-merges them into primary records while preserving all unique secrets, fields, and notes.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "auto_merge": {"type": "boolean", "default": True, "description": "If True, automatically merges duplicates; if False, returns preview of detected clusters"},
+                    },
+                },
+            },
+            {
+                "name": "starvault_clean_stale_ghosts",
+                "description": "Finds and purges empty ghost records, abandoned temporary test entries, and repairs orphaned child credentials whose parent server no longer exists.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "dry_run": {"type": "boolean", "default": False, "description": "If True, only reports findings without deleting"},
+                    },
+                },
+            },
+            {
+                "name": "starvault_auto_organize_files",
+                "description": "Auto-organizes stored File Vault attachments by file extension and MIME type into virtual category tags (Keys & Certificates, Configs & Dotfiles, Documents & Manuals, Archives & Backups, Media & Images).",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "dry_run": {"type": "boolean", "default": False, "description": "Simulate file tagging without saving"},
+                    },
+                },
+            },
+            {
+                "name": "starvault_sort_entries",
+                "description": "Returns vault entries sorted by specified dimension ('category', 'title_asc', 'title_desc', 'risk', 'recency', 'type').",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "sort_by": {"type": "string", "enum": ["category", "title_asc", "title_desc", "risk", "recency", "type"], "default": "category"},
+                        "favorites_first": {"type": "boolean", "default": True},
+                    },
                 },
             },
         ]
@@ -775,6 +836,94 @@ class StarVaultMCPServer:
                 return json.dumps({"success": True, "operation": op, "bytes_written": bytes_written, "dest_path": dst})
             else:
                 raise ValueError(f"Unknown operation: {op}")
+
+        elif name == "starvault_auto_organize_vault":
+            key = self._require_unlocked()
+            override = args.get("override_categories", False)
+            dry_run = args.get("dry_run", False)
+            summary = auto_organize_vault(self.db, key, override_categories=override, dry_run=dry_run)
+            return json.dumps({
+                "success": True,
+                "dry_run": dry_run,
+                "total_entries_scanned": summary.total_entries_scanned,
+                "categories_updated": summary.categories_updated,
+                "tags_added": summary.tags_added,
+                "titles_normalized": summary.titles_normalized,
+                "duplicates_found": summary.duplicates_found,
+                "sample_changes": summary.details[:15],
+            }, indent=2)
+
+        elif name == "starvault_deduplicate_entries":
+            key = self._require_unlocked()
+            auto_merge = args.get("auto_merge", True)
+            res = deduplicate_vault(self.db, key, auto_merge=auto_merge)
+            return json.dumps({
+                "success": True,
+                "auto_merge": auto_merge,
+                "duplicate_groups_count": res.get("duplicate_groups_count", 0),
+                "merged_count": res.get("merged_count", 0),
+                "details": res.get("details", []) if auto_merge else res.get("groups", []),
+            }, indent=2)
+
+        elif name == "starvault_clean_stale_ghosts":
+            key = self._require_unlocked()
+            dry_run = args.get("dry_run", False)
+            if dry_run:
+                entries = self.db.get_all_entries(key)
+                findings = find_ghost_and_stale(entries)
+                return json.dumps({
+                    "success": True,
+                    "dry_run": True,
+                    "ghosts_count": len(findings["ghosts"]),
+                    "orphans_count": len(findings["orphans"]),
+                    "stale_test_count": len(findings["stale_test"]),
+                    "ghost_titles": [g.title for g in findings["ghosts"]],
+                }, indent=2)
+            else:
+                res = purge_ghost_entries(self.db, key)
+                return json.dumps({
+                    "success": True,
+                    "dry_run": False,
+                    "purged_ghosts": res["purged_ghosts"],
+                    "fixed_orphans": res["fixed_orphans"],
+                    "total_cleaned": res["total_cleaned"],
+                }, indent=2)
+
+        elif name == "starvault_auto_organize_files":
+            key = self._require_unlocked()
+            dry_run = args.get("dry_run", False)
+            res = auto_organize_files(self.db, key, dry_run=dry_run)
+            return json.dumps({
+                "success": True,
+                "dry_run": dry_run,
+                "total_files_scanned": res["total_files_scanned"],
+                "files_updated": res["files_updated"],
+                "folder_breakdown": res["folder_breakdown"],
+            }, indent=2)
+
+        elif name == "starvault_sort_entries":
+            key = self._require_unlocked()
+            sort_by = args.get("sort_by", "category")
+            fav_first = args.get("favorites_first", True)
+            entries = self.db.get_all_entries(key)
+            sorted_entries = sort_entries(entries, sort_by=sort_by, favorites_first=fav_first)
+            return json.dumps({
+                "success": True,
+                "sort_by": sort_by,
+                "total_entries": len(sorted_entries),
+                "entries": [
+                    {
+                        "id": e.id,
+                        "title": e.title,
+                        "category": e.category,
+                        "entry_type": e.entry_type,
+                        "tags": e.tags,
+                        "is_favorite": e.is_favorite,
+                        "updated_at": e.updated_at,
+                    }
+                    for e in sorted_entries
+                ],
+            }, indent=2)
 
         else:
             raise ValueError(f"Unknown tool: {name}")

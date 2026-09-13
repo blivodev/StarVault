@@ -241,6 +241,41 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({"success": True, "id": new_entry.id, "title": new_entry.title}).encode("utf-8"))
             return
 
+        elif path == "/api/auto_organize":
+            session_key = self.server.get_session_key()
+            if not session_key:
+                self._send_cors_headers(401)
+                self.wfile.write(json.dumps({"error": "Vault is locked"}).encode("utf-8"))
+                return
+            from starvault.organizer import auto_organize_vault
+            data = self._read_json_body()
+            override = data.get("override_categories", False)
+            dry_run = data.get("dry_run", False)
+            summ = auto_organize_vault(self.server.database, session_key, override_categories=override, dry_run=dry_run)
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "categories_updated": summ.categories_updated,
+                "tags_added": summ.tags_added,
+                "titles_normalized": summ.titles_normalized,
+            }).encode("utf-8"))
+            return
+
+        elif path == "/api/deduplicate":
+            session_key = self.server.get_session_key()
+            if not session_key:
+                self._send_cors_headers(401)
+                self.wfile.write(json.dumps({"error": "Vault is locked"}).encode("utf-8"))
+                return
+            from starvault.organizer import deduplicate_vault
+            res = deduplicate_vault(self.server.database, session_key, auto_merge=True)
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "merged_count": res["merged_count"],
+            }).encode("utf-8"))
+            return
+
         elif path == "/api/lock":
             if self.server.on_lock:
                 self.server.on_lock()
