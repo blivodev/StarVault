@@ -1,0 +1,43 @@
+# Byte-compiled / optimized / DLL files
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+
+# Environments
+.venv/
+env/
+venv/
+ENV/
+env.bak/
+venv.bak/
+
+# PyInstaller / Packaging
+*.manifest
+*.spec.bak
+build/
+dist/
+StarVault.exe
+
+# Testing & Caches
+.pytest_cache/
+.coverage
+htmlcov/
+.mypy_cache/
+
+# User Vault Databases & Secret Keys (Strictly Zero-Knowledge)
+vaults/
+*.db
+*.db-wal
+*.db-shm
+*keyfile*.png
+*keyfile*.txt
+starvault_config.json
+.env
+.secrets/
+
+# IDE / Editor
+.vscode/
+.idea/
+*.swp
+*.swo
