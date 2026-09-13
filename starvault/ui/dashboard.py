@@ -75,6 +75,9 @@ class DashboardView(ctk.CTkFrame):
         self.selected_entry: Optional[VaultEntry] = None
         self.selected_category = "All"
         self.selected_tag: Optional[str] = None
+        self.selected_type_filter = "All"
+        self.selected_status_filter: Optional[str] = None
+        self.sort_reverse = False
         self._revealed_secrets: set = set()
         self._search_job = None
         self._card_widgets = {}
@@ -128,7 +131,7 @@ class DashboardView(ctk.CTkFrame):
 
         # Filter bar header
         self.filter_header = ctk.CTkFrame(center_container, fg_color="transparent", height=36)
-        self.filter_header.pack(fill="x", padx=16, pady=(12, 4))
+        self.filter_header.pack(fill="x", padx=16, pady=(10, 2))
 
         self.filter_title_lbl = ctk.CTkLabel(
             self.filter_header,
@@ -146,20 +149,118 @@ class DashboardView(ctk.CTkFrame):
         )
         self.count_badge.pack(side="left", padx=8)
 
-        # Sort Dropdown in header
+        # Sort Dropdown & Direction Toggle in header
         sort_frame = ctk.CTkFrame(self.filter_header, fg_color="transparent")
-        sort_frame.pack(side="right", padx=(0, 4))
-        ctk.CTkLabel(sort_frame, text="Sort:", font=get_font(11), text_color=TEXT_MUTED).pack(side="left", padx=(0, 6))
+        sort_frame.pack(side="right")
+
+        ctk.CTkLabel(sort_frame, text="Sort:", font=get_font(11, "bold"), text_color=TEXT_MUTED).pack(side="left", padx=(0, 6))
+
         self.dashboard_sort_combo = ctk.CTkComboBox(
             sort_frame,
-            values=["Title (A-Z)", "Title (Z-A)", "Category", "Risk (Highest)", "Recently Modified", "Type"],
-            width=160,
+            values=[
+                "Alphabetical (A → Z)",
+                "Alphabetical (Z → A)",
+                "Natural Numeric (1, 2, 10...)",
+                "Date Modified (Newest)",
+                "Date Modified (Oldest)",
+                "Date Created (Newest)",
+                "Date Created (Oldest)",
+                "Category (A → Z)",
+                "Security Risk (Highest)",
+                "Entry Type",
+                "Port Number (Numeric)",
+            ],
+            width=190,
             height=28,
             font=get_font(11),
             command=lambda v: self._apply_filters(),
         )
-        self.dashboard_sort_combo.set("Title (A-Z)")
-        self.dashboard_sort_combo.pack(side="left")
+        self.dashboard_sort_combo.set("Alphabetical (A → Z)")
+        self.dashboard_sort_combo.pack(side="left", padx=(0, 4))
+
+        self.sort_dir_btn = ctk.CTkButton(
+            sort_frame,
+            text="▲",
+            width=28,
+            height=28,
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=self._toggle_sort_direction,
+        )
+        self.sort_dir_btn.pack(side="left")
+
+        # Quick Filter Row (Type Pills & Status Chips)
+        self.quick_filter_bar = ctk.CTkFrame(center_container, fg_color="transparent")
+        self.quick_filter_bar.pack(fill="x", padx=16, pady=(2, 6))
+
+        # Type Pills Segmented Button
+        self.type_filter_var = ctk.StringVar(value="All")
+        self.type_selector = ctk.CTkSegmentedButton(
+            self.quick_filter_bar,
+            values=["All", "🖥️ Servers", "🌐 Services", "🔑 API Keys", "🛡️ Keys", "⭐ Favorites"],
+            variable=self.type_filter_var,
+            font=get_font(10, "bold"),
+            selected_color=ACCENT_PRIMARY,
+            selected_hover_color=ACCENT_HOVER,
+            unselected_color=BG_INPUT,
+            unselected_hover_color=BORDER_COLOR,
+            text_color="#000000",
+            height=26,
+            command=self._on_type_filter_changed,
+        )
+        self.type_selector.pack(side="left", padx=(0, 8))
+
+        # Status Chips (Expiring, Weak, TOTP)
+        self.chip_expiring = ctk.CTkButton(
+            self.quick_filter_bar,
+            text="⏳ Expiring",
+            font=get_font(10),
+            height=26,
+            width=75,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._toggle_status_chip("expiring"),
+        )
+        self.chip_expiring.pack(side="left", padx=2)
+
+        self.chip_weak = ctk.CTkButton(
+            self.quick_filter_bar,
+            text="⚠️ Weak",
+            font=get_font(10),
+            height=26,
+            width=65,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._toggle_status_chip("weak"),
+        )
+        self.chip_weak.pack(side="left", padx=2)
+
+        self.chip_totp = ctk.CTkButton(
+            self.quick_filter_bar,
+            text="📱 TOTP",
+            font=get_font(10),
+            height=26,
+            width=65,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._toggle_status_chip("totp"),
+        )
+        self.chip_totp.pack(side="left", padx=2)
+
+        # Clear Filters Button
+        self.clear_filters_btn = ctk.CTkButton(
+            self.quick_filter_bar,
+            text="✕ Clear",
+            font=get_font(10),
+            height=26,
+            width=60,
+            fg_color="transparent",
+            hover_color=BG_INPUT,
+            text_color=COLOR_DANGER,
+            command=self._clear_all_filters,
+        )
+        self.clear_filters_btn.pack(side="right")
 
         # Scrollable Cards Area
         self.cards_scroll = ctk.CTkScrollableFrame(center_container, fg_color=BG_ROOT)
@@ -501,6 +602,53 @@ class DashboardView(ctk.CTkFrame):
             self.after_cancel(self._search_job)
         self._search_job = self.after(150, self._apply_filters)
 
+    def _toggle_sort_direction(self):
+        self.sort_reverse = not self.sort_reverse
+        self.sort_dir_btn.configure(text="▼" if self.sort_reverse else "▲")
+        self._apply_filters()
+
+    def _on_type_filter_changed(self, choice: str):
+        self.selected_type_filter = choice
+        self._apply_filters()
+
+    def _toggle_status_chip(self, chip: str):
+        if self.selected_status_filter == chip:
+            self.selected_status_filter = None
+        else:
+            self.selected_status_filter = chip
+        self._update_chip_styles()
+        self._apply_filters()
+
+    def _update_chip_styles(self):
+        self.chip_expiring.configure(
+            fg_color=ACCENT_PRIMARY if self.selected_status_filter == "expiring" else BG_INPUT,
+            text_color="#000000" if self.selected_status_filter == "expiring" else TEXT_PRIMARY,
+        )
+        self.chip_weak.configure(
+            fg_color=COLOR_WARNING if self.selected_status_filter == "weak" else BG_INPUT,
+            text_color="#000000" if self.selected_status_filter == "weak" else TEXT_PRIMARY,
+        )
+        self.chip_totp.configure(
+            fg_color=ACCENT_INDIGO if self.selected_status_filter == "totp" else BG_INPUT,
+            text_color="#ffffff" if self.selected_status_filter == "totp" else TEXT_PRIMARY,
+        )
+
+    def _clear_all_filters(self):
+        self.search_entry.delete(0, "end")
+        self.selected_type_filter = "All"
+        self.type_filter_var.set("All")
+        self.selected_status_filter = None
+        self._update_chip_styles()
+        self.selected_category = "All"
+        for k, btn in self.cat_buttons.items():
+            btn.configure(
+                fg_color=BG_CARD if k == "All" else "transparent",
+                text_color=ACCENT_PRIMARY if k == "All" else TEXT_SECONDARY,
+            )
+        self.selected_tag = None
+        self._refresh_tags_sidebar()
+        self._apply_filters()
+
     def _apply_filters(self):
         query = self.search_entry.get().strip()
         scored = search_entries(
@@ -509,24 +657,60 @@ class DashboardView(ctk.CTkFrame):
             selected_category=self.selected_category,
             selected_tag=self.selected_tag,
         )
-        self.filtered_entries = [e for e, score in scored]
+        candidates = [e for e, score in scored]
 
-        # Apply active sort if not searching with high-relevance query
-        if not query and hasattr(self, "dashboard_sort_combo"):
+        # 1. Filter by Selected Entry Type / Favorites
+        if self.selected_type_filter == "🖥️ Servers":
+            candidates = [e for e in candidates if e.entry_type == "server"]
+        elif self.selected_type_filter == "🌐 Services":
+            candidates = [e for e in candidates if e.entry_type == "service"]
+        elif self.selected_type_filter == "🔑 API Keys":
+            candidates = [e for e in candidates if e.entry_type == "apikey"]
+        elif self.selected_type_filter == "🛡️ Keys":
+            candidates = [e for e in candidates if e.entry_type == "keypair"]
+        elif self.selected_type_filter == "⭐ Favorites":
+            candidates = [e for e in candidates if e.is_favorite]
+
+        # 2. Filter by Status Chip
+        if self.selected_status_filter == "expiring":
+            now_utc = datetime.now(timezone.utc)
+            in_30_days = now_utc + timedelta(days=30)
+            soon_iso = in_30_days.strftime("%Y-%m-%d")
+            candidates = [e for e in candidates if getattr(e, "expires_at", "") and e.expires_at <= soon_iso]
+        elif self.selected_status_filter == "weak":
+            candidates = [e for e in candidates if e.password and len(e.password) < 12]
+        elif self.selected_status_filter == "totp":
+            candidates = [e for e in candidates if getattr(e, "totp_secret", "")]
+
+        # 3. Apply Multi-Dimensional Sorting
+        if hasattr(self, "dashboard_sort_combo"):
             from starvault.organizer import sort_entries
             choice = self.dashboard_sort_combo.get()
             mapping = {
-                "Category": "category",
-                "Title (A-Z)": "title_asc",
-                "Title (Z-A)": "title_desc",
-                "Risk (Highest)": "risk",
-                "Recently Modified": "recency",
-                "Type": "type",
+                "Alphabetical (A → Z)": "title_asc",
+                "Alphabetical (Z → A)": "title_desc",
+                "Natural Numeric (1, 2, 10...)": "natural",
+                "Date Modified (Newest)": "modified_desc",
+                "Date Modified (Oldest)": "modified_asc",
+                "Date Created (Newest)": "created_desc",
+                "Date Created (Oldest)": "created_asc",
+                "Category (A → Z)": "category",
+                "Security Risk (Highest)": "risk",
+                "Entry Type": "type",
+                "Port Number (Numeric)": "port_numeric",
             }
             strat = mapping.get(choice, "title_asc")
-            self.filtered_entries = sort_entries(self.filtered_entries, sort_by=strat)
+            # Sort unless high-relevance query is being searched without explicit sort
+            if not query or choice != "Alphabetical (A → Z)" or self.sort_reverse:
+                candidates = sort_entries(candidates, sort_by=strat, reverse=self.sort_reverse)
 
-        self.count_badge.configure(text=f"{len(self.filtered_entries)} items")
+        self.filtered_entries = candidates
+        total_all = len(self.entries)
+        if len(self.filtered_entries) == total_all:
+            self.count_badge.configure(text=f"{total_all} items")
+        else:
+            self.count_badge.configure(text=f"Showing {len(self.filtered_entries)} of {total_all} items")
+
         self._render_cards()
 
     def _render_cards(self):

@@ -140,3 +140,65 @@ def test_ui_tab_switching_and_duplication(app_instance):
     assert not app_instance.session.is_unlocked
     assert isinstance(app_instance.current_view, UnlockView)
 
+
+def test_dashboard_sorting_and_filtering(app_instance):
+    """Verify natural sorting, numerical sorting, and quick type/status filtering in Dashboard."""
+    from datetime import datetime, timezone, timedelta
+
+    db = app_instance.db
+    # If locked, unlock with test key
+    if not app_instance.session.is_unlocked:
+        key = db.initialize_vault("SortPass123!")
+        app_instance.on_unlock_success(key)
+    key = app_instance.session.key
+    assert key is not None
+
+    # Clear entries
+    for e in db.get_all_entries(key):
+        db.delete_entry(e.id)
+
+    # 1. Create realistic items with numeric variations
+    e_vps1 = VaultEntry.create_server("VPS 1", "vps1.lan", username="root", port=22)
+    e_vps10 = VaultEntry.create_server("VPS 10", "vps10.lan", username="root", port=8080)
+    e_vps2 = VaultEntry.create_server("VPS 2", "vps2.lan", username="root", port=443)
+    e_api = VaultEntry.create_api_key("Stripe API Key", "sk_live_123", provider="Stripe")
+    e_api.expires_at = (datetime.now(timezone.utc) + timedelta(days=5)).strftime("%Y-%m-%d")
+
+    db.save_entry(e_vps1, key)
+    db.save_entry(e_vps10, key)
+    db.save_entry(e_vps2, key)
+    db.save_entry(e_api, key)
+
+    app_instance.on_unlock_success(key)
+    dashboard = app_instance.current_view
+    dashboard.reload_entries()
+
+    # 2. Test Natural Numeric Sorting (VPS 1 -> VPS 2 -> VPS 10)
+    dashboard.dashboard_sort_combo.set("Natural Numeric (1, 2, 10...)")
+    dashboard._apply_filters()
+    titles = [e.title for e in dashboard.filtered_entries if "VPS" in e.title]
+    assert titles == ["VPS 1", "VPS 2", "VPS 10"]
+
+    # 3. Test Type Filter: Servers
+    dashboard._on_type_filter_changed("🖥️ Servers")
+    assert len(dashboard.filtered_entries) == 3
+    assert all(e.entry_type == "server" for e in dashboard.filtered_entries)
+
+    # 4. Test Status Filter: Expiring
+    dashboard._toggle_status_chip("expiring")
+    assert len(dashboard.filtered_entries) == 0  # No servers are expiring
+    dashboard._on_type_filter_changed("All")      # Now Stripe API Key should match
+    assert len(dashboard.filtered_entries) == 1
+    assert dashboard.filtered_entries[0].title == "Stripe API Key"
+
+    # 5. Test Direction Flip
+    dashboard._clear_all_filters()
+    assert len(dashboard.filtered_entries) == 4
+    dashboard.dashboard_sort_combo.set("Alphabetical (A → Z)")
+    dashboard._apply_filters()
+    first_title = dashboard.filtered_entries[0].title
+    dashboard._toggle_sort_direction()
+    last_title = dashboard.filtered_entries[-1].title
+    assert first_title == last_title
+
+
