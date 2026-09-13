@@ -1,0 +1,25 @@
+[build-system]
+requires = ["setuptools>=61.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "starvault"
+version = "1.0.0"
+description = "Lightweight cross-platform credential & key vault for homelabs and VPS"
+readme = "README.md"
+authors = [{ name = "StarVault Team" }]
+dependencies = [
+    "customtkinter>=6.0.0",
+    "cryptography>=50.0.1",
+    "argon2-cffi>=25.1.0",
+    "pillow>=12.0.0",
+    "pystray>=0.19.5",
+    "rapidfuzz>=3.14.0",
+    "pgpy>=0.6.0",
+    "paramiko>=5.0.0",
+    "pyperclip>=1.11.0",
+]
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
