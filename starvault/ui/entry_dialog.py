@@ -19,6 +19,7 @@ from starvault.ui.theme import (
     BG_SUBTLE,
     BORDER_COLOR,
     COLOR_DANGER,
+    COLOR_FAVORITE,
     COLOR_SUCCESS,
     COLOR_WARNING,
     TEXT_MUTED,
@@ -27,6 +28,7 @@ from starvault.ui.theme import (
     get_font,
     get_mono_font,
 )
+from starvault.ui.widgets import add_password_toggle
 
 
 def generate_secure_password(
@@ -126,7 +128,7 @@ class EntryDialog(ctk.CTkToplevel):
             selected_hover_color=ACCENT_HOVER,
             unselected_color=BG_INPUT,
             unselected_hover_color=BORDER_COLOR,
-            text_color="#000000",
+            text_color=TEXT_PRIMARY,
         )
         self.type_segmented.pack(side="right", padx=24, pady=12)
 
@@ -203,16 +205,12 @@ class EntryDialog(ctk.CTkToplevel):
             text_color=ACCENT_PRIMARY,
         ).pack(anchor="w", padx=16, pady=(12, 6))
 
-        # Title & Category Row
-        row1 = ctk.CTkFrame(basics_card, fg_color="transparent")
-        row1.pack(fill="x", padx=16, pady=(0, 8))
-
-        # Title
-        col_title = ctk.CTkFrame(row1, fg_color="transparent")
-        col_title.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        ctk.CTkLabel(col_title, text="Title / Label *", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        # Title Row
+        row_title = ctk.CTkFrame(basics_card, fg_color="transparent")
+        row_title.pack(fill="x", padx=16, pady=(0, 6))
+        ctk.CTkLabel(row_title, text="Title / Label *", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
         self.title_entry = ctk.CTkEntry(
-            col_title,
+            row_title,
             placeholder_text="e.g. VPS1-Debian, Postgres-Main, Prod-Deploy-Key",
             fg_color=BG_INPUT,
             border_color=BORDER_COLOR,
@@ -221,31 +219,68 @@ class EntryDialog(ctk.CTkToplevel):
         )
         self.title_entry.pack(fill="x", pady=(4, 0))
 
-        # Category
-        col_cat = ctk.CTkFrame(row1, fg_color="transparent", width=200)
-        col_cat.pack(side="right", padx=(8, 0))
-        ctk.CTkLabel(col_cat, text="Category", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
-        self.category_entry = ctk.CTkComboBox(
-            col_cat,
-            values=["Infrastructure", "Services", "Databases", "Keys", "Homelab", "Production"],
+        # Groups & Services Row (Allows multiple assignments!)
+        row_groups_services = ctk.CTkFrame(basics_card, fg_color="transparent")
+        row_groups_services.pack(fill="x", padx=16, pady=(0, 6))
+
+        # Multiple Groups
+        col_groups = ctk.CTkFrame(row_groups_services, fg_color="transparent")
+        col_groups.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_groups, text="🗂️ Groups (comma-separated, e.g. 'DevOps, Infra, Prod')", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.groups_entry = ctk.CTkEntry(
+            col_groups,
+            placeholder_text="Infrastructure, DevOps, Production",
             fg_color=BG_INPUT,
             border_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=36,
         )
+        self.groups_entry.pack(fill="x", pady=(4, 0))
+
+        # Multiple Services
+        col_services = ctk.CTkFrame(row_groups_services, fg_color="transparent")
+        col_services.pack(side="right", fill="x", expand=True, padx=(8, 0))
+        ctk.CTkLabel(col_services, text="🌐 Services (comma-separated, e.g. 'Postgres, Next.js, API')", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.services_entry = ctk.CTkEntry(
+            col_services,
+            placeholder_text="Postgres, Next.js, Stripe",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            height=36,
+        )
+        self.services_entry.pack(fill="x", pady=(4, 0))
+
+        # Category Preset & Relational Tags Row
+        row_cat_tags = ctk.CTkFrame(basics_card, fg_color="transparent")
+        row_cat_tags.pack(fill="x", padx=16, pady=(0, 14))
+
+        # Category Preset
+        col_cat = ctk.CTkFrame(row_cat_tags, fg_color="transparent", width=220)
+        col_cat.pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(col_cat, text="Primary Category Preset", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.category_entry = ctk.CTkComboBox(
+            col_cat,
+            values=["Infrastructure", "Services", "Databases", "Keys", "Homelab", "Production", "Security & Networking", "Finance & Payments"],
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            height=36,
+            command=self._on_category_preset_selected,
+        )
         self.category_entry.pack(fill="x", pady=(4, 0))
 
-        # Tags Row (comma-separated with relational note)
-        row_tags = ctk.CTkFrame(basics_card, fg_color="transparent")
-        row_tags.pack(fill="x", padx=16, pady=(0, 14))
+        # Tags Row
+        col_tags = ctk.CTkFrame(row_cat_tags, fg_color="transparent")
+        col_tags.pack(side="left", fill="x", expand=True, padx=(8, 0))
         ctk.CTkLabel(
-            row_tags,
+            col_tags,
             text="Relational Tags (comma separated, e.g. 'vps1, homelab, prod')",
             font=get_font(12),
             text_color=TEXT_SECONDARY,
         ).pack(anchor="w")
         self.tags_entry = ctk.CTkEntry(
-            row_tags,
+            col_tags,
             placeholder_text="vps1, homelab, docker",
             fg_color=BG_INPUT,
             border_color=BORDER_COLOR,
@@ -253,6 +288,13 @@ class EntryDialog(ctk.CTkToplevel):
             height=36,
         )
         self.tags_entry.pack(fill="x", pady=(4, 0))
+
+    def _on_category_preset_selected(self, val: str):
+        current_grps = [g.strip() for g in self.groups_entry.get().split(",") if g.strip()]
+        if val and val not in current_grps:
+            current_grps.insert(0, val)
+            self.groups_entry.delete(0, "end")
+            self.groups_entry.insert(0, ", ".join(current_grps))
 
     def _render_type_fields(self, entry_type: str):
         # Clear dynamic container
@@ -321,6 +363,7 @@ class EntryDialog(ctk.CTkToplevel):
         pass_row.pack(fill="x", pady=(4, 0))
         self.server_pass = ctk.CTkEntry(pass_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
         self.server_pass.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(pass_row, self.server_pass)
 
         ctk.CTkButton(
             pass_row,
@@ -351,8 +394,11 @@ class EntryDialog(ctk.CTkToplevel):
         col_sudo = ctk.CTkFrame(row3, fg_color="transparent")
         col_sudo.pack(side="left", fill="x", expand=True, padx=(0, 8))
         ctk.CTkLabel(col_sudo, text="Sudo Password (Optional)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
-        self.server_sudo = ctk.CTkEntry(col_sudo, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
-        self.server_sudo.pack(fill="x", pady=(4, 0))
+        sudo_row = ctk.CTkFrame(col_sudo, fg_color="transparent")
+        sudo_row.pack(fill="x", pady=(4, 0))
+        self.server_sudo = ctk.CTkEntry(sudo_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.server_sudo.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(sudo_row, self.server_sudo)
 
         col_distro = ctk.CTkFrame(row3, fg_color="transparent")
         col_distro.pack(side="right", fill="x", expand=True, padx=(8, 0))
@@ -453,6 +499,7 @@ class EntryDialog(ctk.CTkToplevel):
         pass_row.pack(fill="x", pady=(4, 0))
         self.service_pass = ctk.CTkEntry(pass_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
         self.service_pass.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(pass_row, self.service_pass)
 
         ctk.CTkButton(
             pass_row,
@@ -489,8 +536,11 @@ class EntryDialog(ctk.CTkToplevel):
         col_token = ctk.CTkFrame(row4, fg_color="transparent")
         col_token.pack(side="right", fill="x", expand=True, padx=(8, 0))
         ctk.CTkLabel(col_token, text="API Key / Token (Encrypted)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
-        self.service_token = ctk.CTkEntry(col_token, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
-        self.service_token.pack(fill="x", pady=(4, 0))
+        tok_row = ctk.CTkFrame(col_token, fg_color="transparent")
+        tok_row.pack(fill="x", pady=(4, 0))
+        self.service_token = ctk.CTkEntry(tok_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.service_token.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(tok_row, self.service_token)
 
     def _render_keypair_form(self, container):
         ctk.CTkLabel(
@@ -535,8 +585,11 @@ class EntryDialog(ctk.CTkToplevel):
         col_pass = ctk.CTkFrame(row2, fg_color="transparent")
         col_pass.pack(side="right", fill="x", expand=True, padx=(8, 0))
         ctk.CTkLabel(col_pass, text="Passphrase (Encrypted, if any)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
-        self.key_passphrase_entry = ctk.CTkEntry(col_pass, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
-        self.key_passphrase_entry.pack(fill="x", pady=(4, 0))
+        pass_row = ctk.CTkFrame(col_pass, fg_color="transparent")
+        pass_row.pack(fill="x", pady=(4, 0))
+        self.key_passphrase_entry = ctk.CTkEntry(pass_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.key_passphrase_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(pass_row, self.key_passphrase_entry)
 
         # Public Key Box
         pub_box = ctk.CTkFrame(container, fg_color="transparent")
@@ -622,6 +675,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         self.apikey_token = ctk.CTkEntry(token_input_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
         self.apikey_token.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(token_input_row, self.apikey_token)
 
         def generate_and_use_apikey():
             fmt = self.apikey_fmt_combo.get().strip() or "hex64"
@@ -650,8 +704,11 @@ class EntryDialog(ctk.CTkToplevel):
         row4.pack(fill="x", padx=16, pady=4)
 
         ctk.CTkLabel(row4, text="Secret Key / Secondary Token (Optional, Encrypted)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
-        self.apikey_secret = ctk.CTkEntry(row4, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
-        self.apikey_secret.pack(fill="x", pady=(4, 0))
+        sec_row = ctk.CTkFrame(row4, fg_color="transparent")
+        sec_row.pack(fill="x", pady=(4, 0))
+        self.apikey_secret = ctk.CTkEntry(sec_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.apikey_secret.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(sec_row, self.apikey_secret)
 
         # Row 5: Scopes / Permissions & 2FA Secret
         row5 = ctk.CTkFrame(container, fg_color="transparent")
@@ -872,6 +929,8 @@ class EntryDialog(ctk.CTkToplevel):
     def _populate_fields(self, entry: VaultEntry):
         self.type_var.set(entry.entry_type)
         self.title_entry.insert(0, entry.title)
+        self.groups_entry.insert(0, entry.get_groups_display())
+        self.services_entry.insert(0, entry.get_services_display())
         self.category_entry.set(entry.category)
         self.tags_entry.insert(0, entry.get_tags_display())
 
@@ -954,7 +1013,16 @@ class EntryDialog(ctk.CTkToplevel):
         entry = self.entry or VaultEntry()
         entry.title = title
         entry.entry_type = etype
-        entry.category = self.category_entry.get().strip() or "General"
+        entry.set_groups_from_str(self.groups_entry.get())
+        entry.set_services_from_str(self.services_entry.get())
+        cat_choice = self.category_entry.get().strip()
+        if cat_choice and cat_choice not in entry.groups:
+            entry.groups.insert(0, cat_choice)
+        if entry.groups:
+            entry.category = entry.groups[0]
+        else:
+            entry.category = cat_choice or "General"
+            entry.groups = [entry.category]
         entry.set_tags_from_str(self.tags_entry.get())
         entry.notes = self.notes_text.get("1.0", "end-1c")
 

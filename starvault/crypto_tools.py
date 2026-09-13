@@ -93,7 +93,7 @@ def decode_binary(binary_str: str) -> str:
 
 def compute_hash(text: str, algorithm: str = "sha256") -> str:
     """Computes cryptographic digest in hexadecimal."""
-    algo = algorithm.lower().strip()
+    algo = algorithm.lower().strip().replace("-", "_")
     data = text.encode("utf-8")
     if algo == "sha256":
         return hashlib.sha256(data).hexdigest()
@@ -101,12 +101,27 @@ def compute_hash(text: str, algorithm: str = "sha256") -> str:
         return hashlib.sha512(data).hexdigest()
     elif algo == "sha384":
         return hashlib.sha384(data).hexdigest()
-    elif algo == "sha3_256":
+    elif algo == "sha224":
+        return hashlib.sha224(data).hexdigest()
+    elif algo in ("sha3_256", "sha3"):
         return hashlib.sha3_256(data).hexdigest()
+    elif algo == "sha3_512":
+        return hashlib.sha3_512(data).hexdigest()
+    elif algo == "blake2b":
+        return hashlib.blake2b(data).hexdigest()
+    elif algo == "blake2s":
+        return hashlib.blake2s(data).hexdigest()
     elif algo == "md5":
         return hashlib.md5(data).hexdigest()
     elif algo == "sha1":
         return hashlib.sha1(data).hexdigest()
+    elif algo == "ripemd160":
+        try:
+            h = hashlib.new("ripemd160")
+            h.update(data)
+            return h.hexdigest()
+        except Exception:
+            return hashlib.sha256(data).hexdigest()
     else:
         return hashlib.sha256(data).hexdigest()
 
@@ -284,6 +299,90 @@ def rsa_decrypt(ciphertext_b64: str, pem_private_key: str, passphrase: Optional[
         ),
     )
     return plaintext_bytes.decode("utf-8")
+
+
+def pgp_encrypt(plaintext: str, gpg_pubkey_armored: str) -> str:
+    """Encrypts plaintext with an OpenPGP public key and returns ASCII armored message."""
+    import pgpy
+    pub, _ = pgpy.PGPKey.from_blob(gpg_pubkey_armored.strip())
+    msg = pgpy.PGPMessage.new(plaintext)
+    enc = pub.encrypt(msg)
+    return str(enc)
+
+
+def pgp_decrypt(pgp_message_armored: str, gpg_privkey_armored: str, passphrase: Optional[str] = None) -> str:
+    """Decrypts an OpenPGP ASCII armored message using a private key."""
+    import pgpy
+    priv, _ = pgpy.PGPKey.from_blob(gpg_privkey_armored.strip())
+    msg = pgpy.PGPMessage.from_blob(pgp_message_armored.strip())
+    if passphrase and priv.is_protected:
+        with priv.unlock(passphrase):
+            dec = priv.decrypt(msg)
+    else:
+        dec = priv.decrypt(msg)
+    return str(dec.message) if hasattr(dec, "message") else str(dec)
+
+
+def asym_sign(data: str, privkey_pem: str, algorithm: str = "ed25519", passphrase: Optional[str] = None) -> str:
+    """Signs plaintext data with a private key (Ed25519, RSA PSS, ECDSA) and returns Base64 signature."""
+    from cryptography.hazmat.primitives.asymmetric import ed25519, rsa, ec
+    data_bytes = data.encode("utf-8")
+    pw = passphrase.encode("utf-8") if passphrase else None
+    priv = load_pem_private_key(privkey_pem.strip().encode("utf-8"), password=pw)
+
+    if isinstance(priv, ed25519.Ed25519PrivateKey):
+        sig = priv.sign(data_bytes)
+    elif isinstance(priv, rsa.RSAPrivateKey):
+        sig = priv.sign(
+            data_bytes,
+            asym_padding.PSS(
+                mgf=asym_padding.MGF1(hashes.SHA256()),
+                salt_length=asym_padding.PSS.MAX_LENGTH,
+            ),
+            hashes.SHA256(),
+        )
+    elif isinstance(priv, ec.EllipticCurvePrivateKey):
+        sig = priv.sign(data_bytes, ec.ECDSA(hashes.SHA256()))
+    else:
+        raise ValueError(f"Unsupported key type for signing: {type(priv)}")
+    return base64.b64encode(sig).decode("ascii")
+
+
+def asym_verify(data: str, signature_b64: str, pubkey_pem_or_ssh: str) -> bool:
+    """Verifies a signature against data and public key."""
+    from cryptography.hazmat.primitives.asymmetric import ed25519, rsa, ec
+    data_bytes = data.encode("utf-8")
+    sig_bytes = base64.b64decode(signature_b64.strip())
+
+    clean_pub = pubkey_pem_or_ssh.strip()
+    if clean_pub.startswith(("ssh-", "ecdsa-")):
+        from cryptography.hazmat.primitives.serialization import load_ssh_public_key
+        pub = load_ssh_public_key(clean_pub.encode("utf-8"))
+    else:
+        pub = load_pem_public_key(clean_pub.encode("utf-8"))
+
+    try:
+        if isinstance(pub, ed25519.Ed25519PublicKey):
+            pub.verify(sig_bytes, data_bytes)
+            return True
+        elif isinstance(pub, rsa.RSAPublicKey):
+            pub.verify(
+                sig_bytes,
+                data_bytes,
+                asym_padding.PSS(
+                    mgf=asym_padding.MGF1(hashes.SHA256()),
+                    salt_length=asym_padding.PSS.MAX_LENGTH,
+                ),
+                hashes.SHA256(),
+            )
+            return True
+        elif isinstance(pub, ec.EllipticCurvePublicKey):
+            pub.verify(sig_bytes, data_bytes, ec.ECDSA(hashes.SHA256()))
+            return True
+        else:
+            return False
+    except Exception:
+        return False
 
 
 # ----------------------------------------------------------------------

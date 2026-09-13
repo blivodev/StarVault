@@ -181,6 +181,69 @@ def infer_category(entry: VaultEntry) -> str:
     return best_category
 
 
+def infer_groups(entry: VaultEntry) -> List[str]:
+    """Infers all relevant groups/categories for a vault entry based on all available metadata."""
+    groups_set: Set[str] = set()
+    primary = infer_category(entry)
+    if primary and primary != "General":
+        groups_set.add(primary)
+
+    # Check for secondary matching categories
+    signals = [
+        entry.title,
+        entry.url,
+        entry.hostname,
+        entry.app_name,
+        entry.provider,
+        entry.service_type,
+        entry.notes,
+        " ".join(entry.tags),
+    ]
+    search_text = " ".join(s for s in signals if s).lower()
+
+    for cat, kw_list in CATEGORY_KEYWORDS.items():
+        matches = sum(1 for kw in kw_list if kw in search_text)
+        if matches >= 1:
+            groups_set.add(cat)
+
+    # Include any existing groups
+    for g in getattr(entry, "groups", []):
+        if g.strip() and g.strip() != "General":
+            groups_set.add(g.strip())
+
+    if not groups_set:
+        groups_set.add(primary or "General")
+
+    return sorted(list(groups_set))
+
+
+def infer_services(entry: VaultEntry) -> List[str]:
+    """Infers linked or associated service names for a vault entry."""
+    services_set: Set[str] = set()
+    if entry.app_name:
+        services_set.add(entry.app_name)
+    if entry.service_type and entry.service_type != "generic":
+        services_set.add(entry.service_type.title())
+
+    # Check for service keywords in title, hostname, notes
+    text = f"{entry.title} {entry.hostname} {entry.url} {entry.notes} {' '.join(entry.tags)}".lower()
+    common_services = [
+        "postgres", "postgresql", "mysql", "mariadb", "redis", "mongodb", "nginx",
+        "caddy", "docker", "rabbitmq", "kafka", "elasticsearch", "grafana",
+        "prometheus", "vault", "nextjs", "react", "fastapi", "django", "flask",
+        "stripe", "openai", "github", "gitlab", "wireguard", "tailscale"
+    ]
+    for s in common_services:
+        if s in text:
+            services_set.add(s.title())
+
+    for s in getattr(entry, "services", []):
+        if s.strip():
+            services_set.add(s.strip())
+
+    return sorted(list(services_set))
+
+
 def infer_tags(entry: VaultEntry) -> List[str]:
     """Generates intelligent metadata tags from entry fields without duplication."""
     inferred: Set[str] = set()
@@ -589,6 +652,22 @@ def auto_organize_vault(
             e.tags = sorted(list(existing_tags.union(added_for_entry)))
             summary.tags_added += len(added_for_entry)
             summary.details.append(f"Added tags to '{e.title}': {', '.join(added_for_entry)}")
+            changed = True
+
+        # 2b. Auto-Group (Multiple groups assignment)
+        new_groups = infer_groups(e)
+        if set(new_groups) != set(getattr(e, "groups", [])):
+            e.groups = new_groups
+            if not e.category or e.category in ("General", "Uncategorized"):
+                e.category = new_groups[0] if new_groups else "General"
+            summary.details.append(f"Assigned groups to '{e.title}': {', '.join(new_groups)}")
+            changed = True
+
+        # 2c. Auto-Service (Multiple services assignment)
+        new_services = infer_services(e)
+        if set(new_services) != set(getattr(e, "services", [])):
+            e.services = new_services
+            summary.details.append(f"Assigned services to '{e.title}': {', '.join(new_services)}")
             changed = True
 
         # 3. Title Normalization

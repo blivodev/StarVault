@@ -199,7 +199,7 @@ class AIAdvisor:
 
     def analyze_local_heuristics(self, entries: List[VaultEntry]) -> AIAnalysisResult:
         """Fast offline heuristic analysis for immediate security and organization recommendations."""
-        from starvault.organizer import find_duplicates, find_ghost_and_stale, infer_category, infer_tags, normalize_title
+        from starvault.organizer import find_duplicates, find_ghost_and_stale, infer_category, infer_groups, infer_services, infer_tags, normalize_title
 
         now = datetime.now(timezone.utc)
         findings: List[str] = []
@@ -229,17 +229,29 @@ class AIAdvisor:
             ))
 
         for e in entries:
-            # 3. Categorization Suggestions
-            if not e.category or e.category in ("General", "Uncategorized"):
-                suggested_cat = infer_category(e)
-                if suggested_cat != "General":
-                    actions.append(AIRemediationAction(
-                        action_type="set_category",
-                        entry_id=e.id,
-                        entry_title=e.title,
-                        reason=f"Auto-group under '{suggested_cat}'",
-                        suggested_value=suggested_cat,
-                    ))
+            # 3. Multi-Group Suggestions
+            inferred_grps = infer_groups(e)
+            current_grps = set(getattr(e, "groups", []))
+            if set(inferred_grps) - current_grps:
+                actions.append(AIRemediationAction(
+                    action_type="assign_groups",
+                    entry_id=e.id,
+                    entry_title=e.title,
+                    reason=f"Assign groups: {', '.join(inferred_grps)}",
+                    suggested_value=", ".join(inferred_grps),
+                ))
+
+            # 3b. Multi-Service Suggestions
+            inferred_srvs = infer_services(e)
+            current_srvs = set(getattr(e, "services", []))
+            if set(inferred_srvs) - current_srvs:
+                actions.append(AIRemediationAction(
+                    action_type="assign_services",
+                    entry_id=e.id,
+                    entry_title=e.title,
+                    reason=f"Assign services: {', '.join(inferred_srvs)}",
+                    suggested_value=", ".join(inferred_srvs),
+                ))
 
             # 4. Tagging Suggestions
             missing_tags = [t for t in infer_tags(e) if t not in e.tags]

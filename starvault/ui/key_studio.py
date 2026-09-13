@@ -125,7 +125,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
             selected_hover_color=ACCENT_HOVER,
             unselected_color=BG_INPUT,
             unselected_hover_color=BORDER_COLOR,
-            text_color="#000000",
+            text_color=TEXT_PRIMARY,
             font=get_font(11, "bold"),
             height=36,
         )

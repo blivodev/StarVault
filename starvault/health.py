@@ -292,17 +292,42 @@ class VaultHealthAdvisor:
                             )
 
         # 6. Unorganized / Uncategorized Entries Check
-        uncategorized = [e for e in entries if not e.category or e.category in ("General", "Uncategorized")]
+        uncategorized = [
+            e for e in entries
+            if (not e.category or e.category in ("General", "Uncategorized"))
+            and not [g for g in getattr(e, "groups", []) if g not in ("General", "Uncategorized")]
+        ]
         if len(uncategorized) >= 2:
             issues.append(
                 HealthIssue(
                     issue_type="unorganized_vault",
                     severity="low",
                     title=f"Uncategorized Credentials ({len(uncategorized)} items)",
-                    description=f"{len(uncategorized)} entries are in default 'General' category without service groupings.",
+                    description=f"{len(uncategorized)} entries are in default 'General' category without service or group assignments.",
                     entry_ids=[e.id for e in uncategorized],
                     entry_titles=[e.title for e in uncategorized],
-                    recommendation="Run Auto-Group to automatically categorize these entries by service domain.",
+                    recommendation="Run Auto-Group to automatically assign relevant groups and services to these entries.",
+                    remediation_action="auto_organize",
+                )
+            )
+
+        # 6b. Unassigned Services Check
+        unassigned_services = [
+            e for e in entries
+            if e.entry_type in ("server", "service", "apikey")
+            and not getattr(e, "services", [])
+            and not getattr(e, "app_name", "")
+        ]
+        if len(unassigned_services) >= 3:
+            issues.append(
+                HealthIssue(
+                    issue_type="unassigned_services",
+                    severity="low",
+                    title=f"Unassigned Services ({len(unassigned_services)} items)",
+                    description=f"{len(unassigned_services)} credentials are not linked to any service definition.",
+                    entry_ids=[e.id for e in unassigned_services],
+                    entry_titles=[e.title for e in unassigned_services],
+                    recommendation="Assign credentials to specific infrastructure or application services.",
                     remediation_action="auto_organize",
                 )
             )

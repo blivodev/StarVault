@@ -234,7 +234,7 @@ class StarVaultMCPServer:
             },
             {
                 "name": "starvault_list_groups",
-                "description": "Lists all categories, relational tags, and hierarchies with item counts.",
+                "description": "Lists all categories, assigned groups, assigned services, and relational tags with item counts.",
                 "inputSchema": {"type": "object", "properties": {}},
             },
             {
@@ -246,6 +246,8 @@ class StarVaultMCPServer:
                         "title": {"type": "string", "description": "Title or label for the entry"},
                         "entry_type": {"type": "string", "enum": ["server", "service", "apikey", "keypair"]},
                         "category": {"type": "string", "description": "Category name"},
+                        "groups": {"type": "array", "items": {"type": "string"}, "description": "Multiple group assignments"},
+                        "services": {"type": "array", "items": {"type": "string"}, "description": "Multiple service assignments"},
                         "tags": {"type": "array", "items": {"type": "string"}},
                         "username": {"type": "string"},
                         "password": {"type": "string"},
@@ -257,6 +259,30 @@ class StarVaultMCPServer:
                         "notes": {"type": "string"},
                     },
                     "required": ["title", "entry_type"],
+                },
+            },
+            {
+                "name": "starvault_update_entry",
+                "description": "Updates an existing encrypted vault entry, including assigning multiple groups or services.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "identifier": {"type": "string", "description": "Entry ID or Title to update"},
+                        "title": {"type": "string"},
+                        "category": {"type": "string"},
+                        "groups": {"type": "array", "items": {"type": "string"}, "description": "Multiple group assignments"},
+                        "services": {"type": "array", "items": {"type": "string"}, "description": "Multiple service assignments"},
+                        "tags": {"type": "array", "items": {"type": "string"}},
+                        "username": {"type": "string"},
+                        "password": {"type": "string"},
+                        "hostname_or_url": {"type": "string"},
+                        "port": {"type": "integer"},
+                        "api_token": {"type": "string"},
+                        "provider": {"type": "string"},
+                        "environment": {"type": "string"},
+                        "notes": {"type": "string"},
+                    },
+                    "required": ["identifier"],
                 },
             },
             {
@@ -497,6 +523,8 @@ class StarVaultMCPServer:
                     "title": e.title,
                     "type": e.entry_type,
                     "category": e.category,
+                    "groups": getattr(e, "groups", []),
+                    "services": getattr(e, "services", []),
                     "tags": e.tags,
                     "host_or_url": e.hostname or e.url,
                     "username": e.username,
@@ -516,6 +544,8 @@ class StarVaultMCPServer:
                 "title": e.title,
                 "type": e.entry_type,
                 "category": e.category,
+                "groups": getattr(e, "groups", []),
+                "services": getattr(e, "services", []),
                 "tags": e.tags,
                 "hostname": e.hostname,
                 "port": e.port,
@@ -583,14 +613,24 @@ class StarVaultMCPServer:
             entries = self.db.get_all_entries(key)
 
             cats: Dict[str, int] = {}
+            groups_map: Dict[str, int] = {}
+            services_map: Dict[str, int] = {}
             tags: Dict[str, int] = {}
             for e in entries:
                 cats[e.category] = cats.get(e.category, 0) + 1
+                for g in getattr(e, "groups", []):
+                    if g:
+                        groups_map[g] = groups_map.get(g, 0) + 1
+                for s in getattr(e, "services", []):
+                    if s:
+                        services_map[s] = services_map.get(s, 0) + 1
                 for t in e.tags:
                     tags[t] = tags.get(t, 0) + 1
 
             return json.dumps({
                 "categories": [{"category": k, "count": v} for k, v in sorted(cats.items())],
+                "groups": [{"group": k, "count": v} for k, v in sorted(groups_map.items())],
+                "services": [{"service": k, "count": v} for k, v in sorted(services_map.items())],
                 "tags": [{"tag": k, "count": v} for k, v in sorted(tags.items())],
                 "total_entries": len(entries),
             }, indent=2)
@@ -599,10 +639,19 @@ class StarVaultMCPServer:
             key = self._require_unlocked()
             etype = args.get("entry_type", "server")
             title = args.get("title", "New Entry")
+            grps = args.get("groups", [])
+            srvs = args.get("services", [])
+            if isinstance(grps, str):
+                grps = [x.strip() for x in grps.split(",") if x.strip()]
+            if isinstance(srvs, str):
+                srvs = [x.strip() for x in srvs.split(",") if x.strip()]
+
             entry = VaultEntry(
                 title=title,
                 entry_type=etype,
                 category=args.get("category", "General"),
+                groups=list(grps) if grps else [],
+                services=list(srvs) if srvs else [],
                 tags=args.get("tags", []),
                 username=args.get("username", ""),
                 password=args.get("password", ""),
@@ -616,6 +665,43 @@ class StarVaultMCPServer:
             )
             self.db.save_entry(entry, key)
             return f"Successfully created {etype} entry '{entry.title}' (ID: {entry.id})."
+
+        elif name == "starvault_update_entry":
+            key = self._require_unlocked()
+            e = self._find_entry(args.get("identifier", ""), key)
+            if not e:
+                return "Entry not found."
+            if "title" in args:
+                e.title = args["title"]
+            if "category" in args:
+                e.category = args["category"]
+            if "groups" in args:
+                g = args["groups"]
+                e.groups = [x.strip() for x in g.split(",") if x.strip()] if isinstance(g, str) else list(g)
+            if "services" in args:
+                s = args["services"]
+                e.services = [x.strip() for x in s.split(",") if x.strip()] if isinstance(s, str) else list(s)
+            if "tags" in args:
+                e.tags = args["tags"]
+            if "username" in args:
+                e.username = args["username"]
+            if "password" in args:
+                e.password = args["password"]
+            if "hostname_or_url" in args:
+                e.hostname = args["hostname_or_url"]
+                e.url = args["hostname_or_url"]
+            if "port" in args:
+                e.port = args["port"]
+            if "api_token" in args:
+                e.api_token = args["api_token"]
+            if "provider" in args:
+                e.provider = args["provider"]
+            if "environment" in args:
+                e.environment = args["environment"]
+            if "notes" in args:
+                e.notes = args["notes"]
+            self.db.save_entry(e, key)
+            return f"Successfully updated entry '{e.title}' (ID: {e.id})."
 
         elif name == "starvault_delete_entry":
             key = self._require_unlocked()

@@ -32,6 +32,7 @@ from starvault.ui.theme import (
     get_font,
     get_mono_font,
 )
+from starvault.ui.widgets import add_password_toggle
 
 
 def calculate_password_entropy(password: str) -> float:
@@ -386,8 +387,11 @@ class UnlockView(ctk.CTkFrame):
             anchor="w",
         ).pack(fill="x")
 
+        c_row = ctk.CTkFrame(confirm_container, fg_color="transparent")
+        c_row.pack(fill="x", pady=(4, 0))
+
         self.confirm_entry = ctk.CTkEntry(
-            confirm_container,
+            c_row,
             show="•",
             font=get_font(14),
             height=40,
@@ -396,8 +400,9 @@ class UnlockView(ctk.CTkFrame):
             text_color=TEXT_PRIMARY,
             placeholder_text="Repeat master password...",
         )
-        self.confirm_entry.pack(fill="x", pady=(4, 0))
+        self.confirm_entry.pack(side="left", fill="x", expand=True, padx=(0, 8))
         self.confirm_entry.bind("<Return>", lambda e: self._handle_submit())
+        add_password_toggle(c_row, self.confirm_entry, width=40, height=40)
 
         # 2FA Keyfile Option Checkbox
         twofa_box = ctk.CTkFrame(self.card, fg_color=BG_SUBTLE, corner_radius=10, border_width=1, border_color=BORDER_COLOR)

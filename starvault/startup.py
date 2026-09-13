@@ -14,14 +14,17 @@ APP_REG_NAME = "StarVault"
 
 
 def _get_launch_command() -> str:
-    """Returns the executable command line string for launching StarVault minimized."""
+    """Returns the executable command line string for launching StarVault minimized to tray."""
     if getattr(sys, "frozen", False):
         exe_path = Path(sys.executable).resolve()
-        return f'"{exe_path}" --portable'
+        local_db = (exe_path.parent / "starvault.db").resolve()
+        if local_db.exists():
+            return f'"{exe_path}" --portable --minimized'
+        return f'"{exe_path}" --minimized'
     else:
         python_exe = Path(sys.executable).resolve()
         run_py = Path(__file__).resolve().parent.parent / "run.py"
-        return f'"{python_exe}" "{run_py}"'
+        return f'"{python_exe}" "{run_py}" --minimized'
 
 
 def is_startup_enabled() -> bool:

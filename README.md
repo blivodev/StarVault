@@ -24,6 +24,13 @@ Built with **Python**, **CustomTkinter**, **Argon2id**, **AES-256-GCM**, and **S
 
 ## 🌟 Key Features
 
+### 🗂️ Multi-Group & Multi-Service Organization
+- **Multi-Group Assignment**: A single vault entry can belong to multiple groups or organizational categories simultaneously (e.g. `Infrastructure`, `DevOps`, `Production`).
+- **Multi-Service Association**: Entries can be mapped to multiple internal/external services (e.g. `SSH`, `WireGuard`, `Prometheus-Exporter`, `Keycloak`).
+- **Zero-Knowledge Multi-Tagging**: Groups and services are encrypted inside the AES-256-GCM zero-knowledge payload while remaining fast-indexed for instant search and grouping.
+- **Relational Group Views**: In the Group Explorer, switch between `By Group / Category`, `By Service`, `By Tag`, and `By Server Hierarchy`.
+- **Ecosystem Sync**: Fully accessible and manageable via the Desktop GUI, Chromium Extension, and Model Context Protocol (MCP) server.
+
 ### 🔍 Main Dashboard: Multi-Dimensional Sorting & Quick Filters
 - **Natural Numeric Sorting Engine**: Automatically sorts numbered identifiers in human numerical sequence (`VPS 1` → `VPS 2` → `VPS 10`, rather than alphabetical `VPS 1, VPS 10, VPS 2`).
 - **11 Sorting Dimensions**:
@@ -181,7 +188,7 @@ python run.py
 
 ## 🧪 Testing
 
-StarVault includes a comprehensive automated test suite with **100% pass rate** (52 test cases):
+StarVault includes a comprehensive automated test suite with **100% pass rate** (58 test cases):
 
 ```powershell
 .\.venv\Scripts\pytest tests/ -v

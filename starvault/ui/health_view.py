@@ -48,6 +48,7 @@ from starvault.ui.theme import (
     get_font,
     get_mono_font,
 )
+from starvault.ui.widgets import add_password_toggle
 
 
 class HealthView(ctk.CTkFrame):
@@ -383,8 +384,11 @@ class HealthView(ctk.CTkFrame):
         col_key = ctk.CTkFrame(row1, fg_color="transparent")
         col_key.pack(side="right", fill="x", expand=True, padx=(6, 0))
         ctk.CTkLabel(col_key, text="API Key (Leave empty for Ollama)", font=get_font(11)).pack(anchor="w")
-        self.ai_key_entry = ctk.CTkEntry(col_key, placeholder_text="sk-...", show="•", height=34)
-        self.ai_key_entry.pack(fill="x", pady=(3, 0))
+        key_box = ctk.CTkFrame(col_key, fg_color="transparent")
+        key_box.pack(fill="x", pady=(3, 0))
+        self.ai_key_entry = ctk.CTkEntry(key_box, placeholder_text="sk-...", show="•", height=34)
+        self.ai_key_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(key_box, self.ai_key_entry, width=34, height=34)
 
         # Endpoint row & Run Button
         row2 = ctk.CTkFrame(self.ai_body, fg_color="transparent")
@@ -841,6 +845,20 @@ class HealthView(ctk.CTkFrame):
             entry.category = action.suggested_value
             self.database.save_entry(entry, self.encryption_key)
             self._notify_update(f"✓ Set category for '{entry.title}' to [{action.suggested_value}].")
+
+        elif action.action_type == "assign_groups" and action.suggested_value:
+            new_grps = [g.strip() for g in action.suggested_value.split(",") if g.strip()]
+            entry.groups = new_grps
+            if new_grps:
+                entry.category = new_grps[0]
+            self.database.save_entry(entry, self.encryption_key)
+            self._notify_update(f"✓ Assigned groups to '{entry.title}': {action.suggested_value}")
+
+        elif action.action_type == "assign_services" and action.suggested_value:
+            new_srvs = [s.strip() for s in action.suggested_value.split(",") if s.strip()]
+            entry.services = new_srvs
+            self.database.save_entry(entry, self.encryption_key)
+            self._notify_update(f"✓ Assigned services to '{entry.title}': {action.suggested_value}")
 
         elif action.action_type == "update_tags" and action.suggested_value:
             tags_to_add = [t.strip().lower() for t in action.suggested_value.split(",") if t.strip()]

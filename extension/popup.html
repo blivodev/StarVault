@@ -179,9 +179,14 @@
         <select id="cryptoOpSelect" class="form-select">
           <option value="hash">Hash (SHA-256)</option>
           <option value="hash512">Hash (SHA-512)</option>
+          <option value="sha384">Hash (SHA-384)</option>
+          <option value="sha3_256">Hash (SHA3-256)</option>
+          <option value="blake2b">Hash (BLAKE2b)</option>
           <option value="md5">Hash (MD5)</option>
           <option value="encrypt">AES-256-GCM Encrypt</option>
           <option value="decrypt">AES-256-GCM Decrypt</option>
+          <option value="chacha20_enc">ChaCha20-Poly1305 Encrypt</option>
+          <option value="chacha20_dec">ChaCha20-Poly1305 Decrypt</option>
           <option value="encode_base64">Base64 Encode</option>
           <option value="decode_base64">Base64 Decode</option>
           <option value="encode_hex">Hex Encode</option>
@@ -192,7 +197,10 @@
           <option value="tls_cert">Self-Signed TLS Certificate</option>
         </select>
       </div>
-      <input type="text" id="cryptoKeyInput" placeholder="Passphrase / Secret Key..." class="hidden">
+      <div id="cryptoKeyWrapper" class="input-with-eye hidden" style="margin-bottom: 6px;">
+        <input type="password" id="cryptoKeyInput" placeholder="Passphrase / Secret Key...">
+        <button type="button" id="toggleCryptoKeyBtn" class="btn-eye-toggle" title="Show/Hide Key">👁</button>
+      </div>
       <div id="tlsOptions" class="hidden">
         <input type="text" id="tlsCommonName" placeholder="Common Name (e.g. localhost, *.vault.local)" value="localhost">
         <input type="text" id="tlsSans" placeholder="SANs (comma separated, e.g. 127.0.0.1, dev.local)" value="localhost, 127.0.0.1">
@@ -238,8 +246,14 @@
       <p style="font-size: 11px; color: #9CA3AF; margin-bottom: 10px;">
         Export all decrypted entries to CSV spreadsheet. Master password verification is required.
       </p>
-      <input type="password" id="exportMasterPassword" placeholder="Enter Master Password...">
-      <input type="password" id="exportKeyfileToken" placeholder="2FA Keyfile Token (if configured)..." style="margin-top: 4px;">
+      <div class="input-with-eye" style="margin-bottom: 6px;">
+        <input type="password" id="exportMasterPassword" placeholder="Enter Master Password...">
+        <button type="button" id="toggleExportPassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+      </div>
+      <div class="input-with-eye" style="margin-bottom: 6px;">
+        <input type="password" id="exportKeyfileToken" placeholder="2FA Keyfile Token (if configured)...">
+        <button type="button" id="toggleExportKeyfileBtn" class="btn-eye-toggle" title="Show/Hide Keyfile Token">👁</button>
+      </div>
       <button id="submitExportBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Authenticate & Download CSV</button>
       <div id="exportStatus" class="hidden" style="margin-top: 6px; font-size: 11px;"></div>
     </div>
@@ -255,8 +269,11 @@
       <input type="text" id="saveTitleInput" placeholder="Title (e.g. GitHub)">
       <input type="text" id="saveUrlInput" placeholder="URL or Hostname">
       <input type="text" id="saveUserInput" placeholder="Username / Email">
-      <input type="password" id="savePassInput" placeholder="Password">
-      <div style="display: flex; gap: 6px;">
+      <div class="input-with-eye" style="margin-bottom: 6px;">
+        <input type="password" id="savePassInput" placeholder="Password">
+        <button type="button" id="toggleSavePassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+      </div>
+      <div style="display: flex; gap: 6px; margin-bottom: 6px;">
         <select id="saveCategorySelect" class="form-select" style="flex: 1;">
           <option value="Work & Productivity">Work & Productivity</option>
           <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
@@ -268,6 +285,10 @@
           <option value="Personal & Entertainment">Personal & Entertainment</option>
         </select>
         <input type="text" id="saveTagsInput" placeholder="Tags (e.g. prod, aws)" style="flex: 1;">
+      </div>
+      <div style="display: flex; gap: 6px;">
+        <input type="text" id="saveGroupsInput" placeholder="Groups (comma separated)" style="flex: 1;">
+        <input type="text" id="saveServicesInput" placeholder="Services (comma separated)" style="flex: 1;">
       </div>
       <button id="submitSaveBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Save to Vault</button>
     </div>
