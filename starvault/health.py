@@ -11,6 +11,7 @@ import re
 from typing import Any, Dict, List, Optional, Tuple
 from rapidfuzz import fuzz
 
+from starvault.crypto import generate_secure_password
 from starvault.models import VaultEntry
 
 
@@ -24,6 +25,7 @@ class HealthIssue:
     entry_ids: List[str]
     entry_titles: List[str]
     recommendation: str
+    remediation_action: str = ""  # 'generate_password', 'rotate_duplicates', 'extend_expiry', 'rename_suffix'
 
 
 @dataclass
@@ -127,6 +129,7 @@ class VaultHealthAdvisor:
                         entry_ids=ids,
                         entry_titles=titles,
                         recommendation="Generate unique passwords for each service to prevent credential stuffing attacks.",
+                        remediation_action="rotate_duplicates",
                     )
                 )
 
@@ -152,6 +155,7 @@ class VaultHealthAdvisor:
                             entry_ids=[e.id],
                             entry_titles=[e.title],
                             recommendation="Replace with a generated passphrase or high-entropy key of at least 16 characters.",
+                            remediation_action="generate_password",
                         )
                     )
                 elif len(pwd) < 12 or entropy < 48.0:
@@ -165,6 +169,7 @@ class VaultHealthAdvisor:
                             entry_ids=[e.id],
                             entry_titles=[e.title],
                             recommendation="Use StarVault's Key Studio to generate a secure random password.",
+                            remediation_action="generate_password",
                         )
                     )
 
@@ -187,6 +192,7 @@ class VaultHealthAdvisor:
                                 entry_ids=[e.id],
                                 entry_titles=[e.title],
                                 recommendation="Review and rotate credentials on critical VPS and homelab instances annually.",
+                                remediation_action="rotate_stale",
                             )
                         )
                     elif age_days > self.stale_days_threshold:
@@ -200,12 +206,48 @@ class VaultHealthAdvisor:
                                 entry_ids=[e.id],
                                 entry_titles=[e.title],
                                 recommendation="Consider rotating this password if associated with sensitive infrastructure.",
+                                remediation_action="rotate_stale",
                             )
                         )
 
-        # 5. Expiring or Expired Custom Fields / Keys
+        # 5. Expiring or Expired Custom Fields / Keys / API Keys
         expiring_keys_count = 0
         for e in entries:
+            # Check direct e.expires_at field
+            if getattr(e, "expires_at", ""):
+                exp_date = parse_date_safely(e.expires_at)
+                if exp_date:
+                    delta = (exp_date - now).days
+                    if delta < 0:
+                        expiring_keys_count += 1
+                        issues.append(
+                            HealthIssue(
+                                issue_type="expiring_key",
+                                severity="high",
+                                title=f"Expired Credential: '{e.title}'",
+                                description=f"Credential expired {abs(delta)} days ago ({exp_date.strftime('%Y-%m-%d')}).",
+                                entry_ids=[e.id],
+                                entry_titles=[e.title],
+                                recommendation="Rotate or renew this credential immediately.",
+                                remediation_action="extend_expiry",
+                            )
+                        )
+                    elif delta <= 30:
+                        expiring_keys_count += 1
+                        issues.append(
+                            HealthIssue(
+                                issue_type="expiring_key",
+                                severity="medium",
+                                title=f"Expiring Soon: '{e.title}'",
+                                description=f"Credential expires in {delta} days ({exp_date.strftime('%Y-%m-%d')}).",
+                                entry_ids=[e.id],
+                                entry_titles=[e.title],
+                                recommendation="Schedule rotation before this credential expires.",
+                                remediation_action="extend_expiry",
+                            )
+                        )
+
+            # Check custom fields
             for field_dict in e.custom_fields:
                 field_key = field_dict.get("key", "").strip().lower()
                 field_val = field_dict.get("value", "").strip()
@@ -224,6 +266,7 @@ class VaultHealthAdvisor:
                                     entry_ids=[e.id],
                                     entry_titles=[e.title],
                                     recommendation="Renew or replace the expired certificate, license, or API key immediately.",
+                                    remediation_action="extend_expiry",
                                 )
                             )
                         elif delta <= 30:
@@ -237,6 +280,7 @@ class VaultHealthAdvisor:
                                     entry_ids=[e.id],
                                     entry_titles=[e.title],
                                     recommendation="Schedule rotation for this credential before it expires.",
+                                    remediation_action="extend_expiry",
                                 )
                             )
 
@@ -322,6 +366,72 @@ class VaultHealthAdvisor:
                                     entry_ids=[e1.id, e2.id],
                                     entry_titles=[e1.title, e2.title],
                                     recommendation="Verify if these are redundant duplicate entries.",
+                                    remediation_action="rename_suffix",
                                 )
                             )
         return issues
+
+
+def fix_health_issue(issue: HealthIssue, database, key: bytes) -> Tuple[bool, str]:
+    """Applies automated remediation for a security issue."""
+    if not issue.entry_ids:
+        return False, "No entries associated with this issue."
+
+    if issue.remediation_action == "generate_password":
+        # Fix weak password
+        entry = database.get_entry(issue.entry_ids[0], key)
+        if not entry:
+            return False, "Entry not found."
+        new_pwd = generate_secure_password(length=24)
+        entry.password = new_pwd
+        entry.updated_at = datetime.now(timezone.utc).isoformat()
+        database.save_entry(entry, key)
+        return True, f"Generated strong 24-character password for '{entry.title}'."
+
+    elif issue.remediation_action == "rotate_duplicates":
+        # Rotate duplicate passwords (keep first, rotate subsequent)
+        fixed_count = 0
+        for eid in issue.entry_ids[1:]:
+            entry = database.get_entry(eid, key)
+            if entry:
+                entry.password = generate_secure_password(length=24)
+                entry.updated_at = datetime.now(timezone.utc).isoformat()
+                database.save_entry(entry, key)
+                fixed_count += 1
+        return True, f"Rotated passwords for {fixed_count} duplicate entries to unique secure credentials."
+
+    elif issue.remediation_action == "rotate_stale":
+        entry = database.get_entry(issue.entry_ids[0], key)
+        if not entry:
+            return False, "Entry not found."
+        entry.password = generate_secure_password(length=24)
+        entry.updated_at = datetime.now(timezone.utc).isoformat()
+        database.save_entry(entry, key)
+        return True, f"Rotated stale password for '{entry.title}' to a fresh 24-character credential."
+
+    elif issue.remediation_action == "extend_expiry":
+        from datetime import timedelta
+        new_exp = (datetime.now(timezone.utc) + timedelta(days=90)).strftime("%Y-%m-%d")
+        entry = database.get_entry(issue.entry_ids[0], key)
+        if not entry:
+            return False, "Entry not found."
+        if getattr(entry, "expires_at", ""):
+            entry.expires_at = new_exp
+        for cf in entry.custom_fields:
+            if any(kw in cf.get("key", "").lower() for kw in VaultHealthAdvisor.EXPIRY_FIELD_KEYWORDS):
+                cf["value"] = new_exp
+        entry.updated_at = datetime.now(timezone.utc).isoformat()
+        database.save_entry(entry, key)
+        return True, f"Extended expiration date for '{entry.title}' to {new_exp} (+90 days)."
+
+    elif issue.remediation_action == "rename_suffix":
+        if len(issue.entry_ids) >= 2:
+            entry = database.get_entry(issue.entry_ids[1], key)
+            if entry:
+                entry.title = f"{entry.title} (2)"
+                entry.updated_at = datetime.now(timezone.utc).isoformat()
+                database.save_entry(entry, key)
+                return True, f"Renamed duplicate entry to '{entry.title}'."
+
+    return False, "No automated fix available for this finding."
+

@@ -8,9 +8,12 @@ import customtkinter as ctk
 from starvault.clipboard import ClipboardManager
 from starvault.keys import (
     GeneratedKeyResult,
+    generate_age_key_result,
     generate_ed25519_key,
     generate_gpg_key,
     generate_rsa_key,
+    generate_tls_cert_key,
+    generate_wireguard_key_result,
 )
 from starvault.models import VaultEntry
 from starvault.ui.theme import (
@@ -115,7 +118,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
         self.algo_var = ctk.StringVar(value="ed25519")
         algo_seg = ctk.CTkSegmentedButton(
             row_algo,
-            values=["ed25519", "rsa4096", "gpg"],
+            values=["ed25519", "rsa4096", "gpg", "tls_cert", "wireguard", "age"],
             variable=self.algo_var,
             command=self._on_algo_change,
             selected_color=ACCENT_PRIMARY,
@@ -123,12 +126,12 @@ class KeyStudioDialog(ctk.CTkToplevel):
             unselected_color=BG_INPUT,
             unselected_hover_color=BORDER_COLOR,
             text_color="#000000",
-            font=get_font(12, "bold"),
+            font=get_font(11, "bold"),
             height=36,
         )
         algo_seg.pack(fill="x", pady=(4, 8))
 
-        # Parameters row (Comment, Name, Email)
+        # Parameters row (Comment, Name, Email, TLS SANs)
         self.param_container = ctk.CTkFrame(gen_card, fg_color="transparent")
         self.param_container.pack(fill="x", padx=16, pady=(0, 8))
         self._render_algo_params("ed25519")
@@ -191,6 +194,57 @@ class KeyStudioDialog(ctk.CTkToplevel):
             self.gpg_email_entry.insert(0, "admin@homelab.local")
             self.gpg_email_entry.pack(fill="x", pady=(4, 0))
 
+        elif algo == "tls_cert":
+            row1 = ctk.CTkFrame(self.param_container, fg_color="transparent")
+            row1.pack(fill="x", pady=2)
+            col1 = ctk.CTkFrame(row1, fg_color="transparent")
+            col1.pack(side="left", fill="x", expand=True, padx=(0, 6))
+            ctk.CTkLabel(col1, text="Common Name (Domain / IP) *", font=get_font(11), text_color=TEXT_SECONDARY).pack(anchor="w")
+            self.tls_cn_entry = ctk.CTkEntry(col1, placeholder_text="localhost", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=34)
+            self.tls_cn_entry.insert(0, "localhost")
+            self.tls_cn_entry.pack(fill="x", pady=(2, 0))
+
+            col2 = ctk.CTkFrame(row1, fg_color="transparent")
+            col2.pack(side="right", fill="x", expand=True, padx=(6, 0))
+            ctk.CTkLabel(col2, text="SANs (Comma separated) *", font=get_font(11), text_color=TEXT_SECONDARY).pack(anchor="w")
+            self.tls_sans_entry = ctk.CTkEntry(col2, placeholder_text="127.0.0.1, *.local, homelab.lan", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=34)
+            self.tls_sans_entry.insert(0, "127.0.0.1, *.local")
+            self.tls_sans_entry.pack(fill="x", pady=(2, 0))
+
+            row2 = ctk.CTkFrame(self.param_container, fg_color="transparent")
+            row2.pack(fill="x", pady=4)
+            col3 = ctk.CTkFrame(row2, fg_color="transparent")
+            col3.pack(side="left", fill="x", expand=True, padx=(0, 6))
+            ctk.CTkLabel(col3, text="Organization", font=get_font(11), text_color=TEXT_SECONDARY).pack(anchor="w")
+            self.tls_org_entry = ctk.CTkEntry(col3, placeholder_text="StarVault Homelab", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=34)
+            self.tls_org_entry.insert(0, "StarVault Homelab")
+            self.tls_org_entry.pack(fill="x", pady=(2, 0))
+
+            col4 = ctk.CTkFrame(row2, fg_color="transparent")
+            col4.pack(side="right", fill="x", expand=True, padx=(6, 0))
+            ctk.CTkLabel(col4, text="Key Algorithm", font=get_font(11), text_color=TEXT_SECONDARY).pack(anchor="w")
+            self.tls_keytype_combo = ctk.CTkComboBox(col4, values=["RSA 2048", "RSA 4096", "ECDSA P-256", "Ed25519"], fg_color=BG_INPUT, border_color=BORDER_COLOR, height=34)
+            self.tls_keytype_combo.set("RSA 2048")
+            self.tls_keytype_combo.pack(fill="x", pady=(2, 0))
+
+        elif algo == "wireguard":
+            ctk.CTkLabel(
+                self.param_container,
+                text="Generates a high-performance WireGuard Curve25519 keypair.\nOutputs standard Base64 private and public keys ready to paste into wg0.conf.",
+                font=get_font(11),
+                text_color=TEXT_MUTED,
+                justify="left",
+            ).pack(anchor="w", pady=4)
+
+        elif algo == "age":
+            ctk.CTkLabel(
+                self.param_container,
+                text="Generates an age-keygen compatible X25519 keypair (Bech32 format).\nOutputs AGE-SECRET-KEY-1... private key and age1... recipient public key.",
+                font=get_font(11),
+                text_color=TEXT_MUTED,
+                justify="left",
+            ).pack(anchor="w", pady=4)
+
     def _on_algo_change(self, new_algo: str):
         self._render_algo_params(new_algo)
 
@@ -208,10 +262,22 @@ class KeyStudioDialog(ctk.CTkToplevel):
                 elif algo == "rsa4096":
                     comment = self.ssh_comment_entry.get().strip() if hasattr(self, "ssh_comment_entry") else "starvault-rsa4096"
                     res = generate_rsa_key(bits=4096, comment=comment)
-                else:
+                elif algo == "gpg":
                     name = self.gpg_name_entry.get().strip() or "Homelab User"
                     email = self.gpg_email_entry.get().strip() or "user@homelab.local"
                     res = generate_gpg_key(name=name, email=email, bits=2048)
+                elif algo == "tls_cert":
+                    cn = self.tls_cn_entry.get().strip() or "localhost"
+                    sans = [s.strip() for s in self.tls_sans_entry.get().split(",") if s.strip()]
+                    org = self.tls_org_entry.get().strip() or "StarVault Homelab"
+                    kt = self.tls_keytype_combo.get().strip() or "RSA 2048"
+                    res = generate_tls_cert_key(common_name=cn, san_list=sans, organization=org, key_type=kt)
+                elif algo == "wireguard":
+                    res = generate_wireguard_key_result()
+                elif algo == "age":
+                    res = generate_age_key_result()
+                else:
+                    res = generate_ed25519_key()
 
                 self.after(0, lambda: self._on_generation_complete(res))
             except Exception as e:

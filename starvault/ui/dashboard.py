@@ -1,5 +1,6 @@
 """Main Dashboard View for StarVault with card list and detail inspector."""
 
+from datetime import datetime, timezone, timedelta
 from typing import Callable, List, Optional
 import customtkinter as ctk
 
@@ -14,11 +15,15 @@ from starvault.quick_strings import (
     generate_ssh_command,
 )
 from starvault.search import search_entries
+from starvault.ui.api_key_dialog import ApiKeyStudioDialog
+from starvault.ui.crypto_tools_view import CryptoToolsView
 from starvault.ui.entry_dialog import EntryDialog
 from starvault.ui.files_view import FilesView
+from starvault.ui.groups_view import GroupsView
 from starvault.ui.health_view import HealthView
 from starvault.ui.key_studio import KeyStudioDialog
 from starvault.ui.settings_dialog import SettingsDialog
+from starvault.ui.totp_view import TotpView
 from starvault.ui.theme import (
     ACCENT_HOVER,
     ACCENT_INDIGO,
@@ -71,6 +76,9 @@ class DashboardView(ctk.CTkFrame):
         self.selected_category = "All"
         self.selected_tag: Optional[str] = None
         self._revealed_secrets: set = set()
+        self._search_job = None
+        self._card_widgets = {}
+        self._rendered_limit = 35
 
         self._build_ui()
         self.clipboard_mgr.set_status_callback(self._on_clipboard_status)
@@ -84,6 +92,10 @@ class DashboardView(ctk.CTkFrame):
             self.health_view.encryption_key = new_key
         if hasattr(self, "files_view"):
             self.files_view.encryption_key = new_key
+        if hasattr(self, "groups_view"):
+            self.groups_view.session_key = new_key
+        if hasattr(self, "totp_view"):
+            self.totp_view.session_key = new_key
 
     def _build_ui(self):
         # 1. Top Global Navigation & Search Bar
@@ -138,7 +150,7 @@ class DashboardView(ctk.CTkFrame):
         self.cards_scroll = ctk.CTkScrollableFrame(center_container, fg_color=BG_ROOT)
         self.cards_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
-        # 3. Vault Health and File Vault Views (hidden by default)
+        # 3. Vault Views (Health, Files, Groups, 2FA/QR - hidden by default)
         self.health_view = HealthView(
             self,
             database=self.database,
@@ -149,6 +161,23 @@ class DashboardView(ctk.CTkFrame):
             self,
             database=self.database,
             encryption_key=self.session_key,
+        )
+        self.groups_view = GroupsView(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            clipboard_mgr=self.clipboard_mgr,
+            on_select_entry=self.switch_to_credentials_tab,
+        )
+        self.totp_view = TotpView(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            clipboard_mgr=self.clipboard_mgr,
+        )
+        self.crypto_tools_view = CryptoToolsView(
+            self,
+            clipboard_mgr=self.clipboard_mgr,
         )
 
     def _build_top_navbar(self):
@@ -177,7 +206,7 @@ class DashboardView(ctk.CTkFrame):
         self.nav_var = ctk.StringVar(value="Credentials")
         self.tab_selector = ctk.CTkSegmentedButton(
             top_bar,
-            values=["Credentials", "🛡️ Vault Health", "📁 File Vault"],
+            values=["Credentials", "🗂️ Groups", "📱 2FA / QR", "🛡️ Vault Health", "📁 File Vault", "⚡ Crypto Tools"],
             variable=self.nav_var,
             command=self._on_nav_tab_changed,
             font=get_font(11, "bold"),
@@ -211,6 +240,19 @@ class DashboardView(ctk.CTkFrame):
         actions_frame = ctk.CTkFrame(top_bar, fg_color="transparent")
         actions_frame.pack(side="right", padx=16, pady=12)
 
+        # Expiry Alert Pill (shown when items are expiring/expired)
+        self.expiry_pill = ctk.CTkButton(
+            actions_frame,
+            text="",
+            font=get_font(11, "bold"),
+            fg_color=COLOR_WARNING,
+            text_color="#000000",
+            hover_color=COLOR_DANGER,
+            height=28,
+            corner_radius=6,
+            command=self._on_expiry_pill_clicked,
+        )
+
         # Clipboard Status Pill
         self.clipboard_pill = ctk.CTkLabel(
             actions_frame,
@@ -243,6 +285,17 @@ class DashboardView(ctk.CTkFrame):
             text_color="#000000",
             height=34,
             command=self._open_new_entry_dialog,
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            actions_frame,
+            text="⚡ API Keys",
+            font=get_font(12),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            height=34,
+            command=self._open_api_key_studio,
         ).pack(side="left", padx=4)
 
         ctk.CTkButton(
@@ -291,6 +344,7 @@ class DashboardView(ctk.CTkFrame):
         categories = [
             ("All", "🌐 All Entries"),
             ("Favorites", "⭐ Favorites"),
+            ("API Keys", "⚡ API Keys"),
             ("Servers", "🖥️ Servers & VPS"),
             ("Services", "⚙️ Services & DBs"),
             ("Keys", "🔑 SSH & GPG Keys"),
@@ -380,12 +434,56 @@ class DashboardView(ctk.CTkFrame):
             self.entries = self.database.get_all_entries(self.session_key)
         except Exception:
             self.entries = []
+        self._update_expiry_status()
         self._apply_filters()
         self._refresh_tags_sidebar()
 
+    def _update_expiry_status(self):
+        """Checks for expiring credentials and updates the navbar alert pill."""
+        if not hasattr(self, "expiry_pill"):
+            return
+        now_utc = datetime.now(timezone.utc)
+        in_30_days = now_utc + timedelta(days=30)
+        now_iso = now_utc.isoformat()
+        soon_iso = in_30_days.isoformat()
+
+        expiring_count = 0
+        expired_count = 0
+        for e in self.entries:
+            exp = getattr(e, "expires_at", None)
+            if exp:
+                if exp < now_iso:
+                    expired_count += 1
+                elif exp <= soon_iso:
+                    expiring_count += 1
+
+        if expired_count > 0:
+            self.expiry_pill.configure(
+                text=f"⚠️ {expired_count} Expired",
+                fg_color=COLOR_DANGER,
+                hover_color=COLOR_WARNING,
+            )
+            self.expiry_pill.pack(side="left", padx=(0, 8))
+        elif expiring_count > 0:
+            self.expiry_pill.configure(
+                text=f"⏳ {expiring_count} Expiring Soon",
+                fg_color=COLOR_WARNING,
+                hover_color=COLOR_DANGER,
+            )
+            self.expiry_pill.pack(side="left", padx=(0, 8))
+        else:
+            self.expiry_pill.pack_forget()
+
+    def _on_expiry_pill_clicked(self):
+        self.nav_var.set("🛡️ Vault Health")
+        self.tab_selector.set("🛡️ Vault Health")
+        self._on_nav_tab_changed("🛡️ Vault Health")
+
     def _on_search_query_change(self):
         self.autolock_mgr.record_activity()
-        self._apply_filters()
+        if self._search_job is not None:
+            self.after_cancel(self._search_job)
+        self._search_job = self.after(150, self._apply_filters)
 
     def _apply_filters(self):
         query = self.search_entry.get().strip()
@@ -400,6 +498,7 @@ class DashboardView(ctk.CTkFrame):
         self._render_cards()
 
     def _render_cards(self):
+        self._card_widgets.clear()
         for child in self.cards_scroll.winfo_children():
             child.destroy()
 
@@ -423,8 +522,27 @@ class DashboardView(ctk.CTkFrame):
             ).pack(pady=12)
             return
 
-        for entry in self.filtered_entries:
+        to_render = self.filtered_entries[:self._rendered_limit]
+        for entry in to_render:
             self._render_entry_card(entry)
+
+        if len(self.filtered_entries) > self._rendered_limit:
+            remaining = len(self.filtered_entries) - self._rendered_limit
+            btn_more = ctk.CTkButton(
+                self.cards_scroll,
+                text=f"Show remaining {remaining} entries...",
+                font=get_font(11, "bold"),
+                fg_color=BG_INPUT,
+                hover_color=BORDER_COLOR,
+                text_color=ACCENT_PRIMARY,
+                height=32,
+                command=self._show_all_cards,
+            )
+            btn_more.pack(fill="x", padx=10, pady=8)
+
+    def _show_all_cards(self):
+        self._rendered_limit = len(self.filtered_entries)
+        self._render_cards()
 
     def _render_entry_card(self, entry: VaultEntry):
         is_selected = self.selected_entry and self.selected_entry.id == entry.id
@@ -438,6 +556,7 @@ class DashboardView(ctk.CTkFrame):
             border_color=ACCENT_PRIMARY if is_selected else BORDER_COLOR,
         )
         card.pack(fill="x", pady=4, padx=4)
+        self._card_widgets[entry.id] = card
 
         # Click card to select & show in inspector
         card.bind("<Button-1>", lambda e, ent=entry: self._select_entry(ent))
@@ -473,6 +592,9 @@ class DashboardView(ctk.CTkFrame):
         elif entry.entry_type == "service":
             badge_color = COLOR_WARNING
             badge_text = "SERVICE"
+        elif entry.entry_type == "apikey":
+            badge_color = ACCENT_INDIGO
+            badge_text = "API KEY"
         else:
             badge_color = ACCENT_PURPLE
             badge_text = "KEY"
@@ -525,6 +647,11 @@ class DashboardView(ctk.CTkFrame):
             preview_str = f"⚙️ {entry.app_name} • {entry.url or entry.hostname}"
             if entry.port:
                 preview_str += f":{entry.port}"
+        elif entry.entry_type == "apikey":
+            env_str = entry.environment or "Production"
+            preview_str = f"⚡ {entry.provider or 'API Key'} • Env: {env_str} • Format: {entry.api_key_format or 'Standard'}"
+            if entry.expires_at:
+                preview_str += f" • Exp: {entry.expires_at[:10]}"
         elif entry.entry_type == "keypair":
             preview_str = f"🔑 {entry.key_type.upper()} • Fingerprint: {entry.fingerprint[:28]}..."
 
@@ -631,6 +758,45 @@ class DashboardView(ctk.CTkFrame):
                     command=lambda e=entry: self._copy_val(e.password, "Password copied (30s wipe)", is_sensitive=True),
                 ).pack(side="left", padx=4)
 
+        elif entry.entry_type == "apikey":
+            if entry.api_token:
+                ctk.CTkButton(
+                    btn_row,
+                    text="⚡ Copy Key",
+                    width=90,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11, "bold"),
+                    text_color=ACCENT_INDIGO,
+                    command=lambda e=entry: self._copy_val(e.api_token, "API key copied (30s wipe)", is_sensitive=True),
+                ).pack(side="left", padx=(0, 4))
+            if entry.api_key_secret:
+                ctk.CTkButton(
+                    btn_row,
+                    text="🔐 Copy Secret",
+                    width=95,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    text_color=COLOR_WARNING,
+                    command=lambda e=entry: self._copy_val(e.api_key_secret, "API secret copied (30s wipe)", is_sensitive=True),
+                ).pack(side="left", padx=4)
+            if entry.totp_secret:
+                from starvault.totp import generate_totp
+                ctk.CTkButton(
+                    btn_row,
+                    text="📱 2FA",
+                    width=65,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    text_color=COLOR_SUCCESS,
+                    command=lambda e=entry: self._copy_val(generate_totp(e.totp_secret), "2FA code copied (30s wipe)", is_sensitive=True),
+                ).pack(side="left", padx=4)
+
         elif entry.entry_type == "keypair":
             if entry.public_key:
                 ctk.CTkButton(
@@ -658,9 +824,24 @@ class DashboardView(ctk.CTkFrame):
                 ).pack(side="left", padx=4)
 
     def _select_entry(self, entry: VaultEntry):
+        prev_entry = self.selected_entry
         self.selected_entry = entry
         self.autolock_mgr.record_activity()
-        self._render_cards()
+
+        if prev_entry and prev_entry.id in self._card_widgets:
+            try:
+                card_w = self._card_widgets[prev_entry.id]
+                card_w.configure(fg_color=BG_CARD, border_color=BORDER_COLOR)
+            except Exception:
+                pass
+
+        if entry.id in self._card_widgets:
+            try:
+                card_w = self._card_widgets[entry.id]
+                card_w.configure(fg_color=BG_CARD_HOVER, border_color=ACCENT_PRIMARY)
+            except Exception:
+                pass
+
         self._render_inspector()
 
     def _render_inspector_empty(self):
@@ -786,6 +967,24 @@ class DashboardView(ctk.CTkFrame):
             if entry.db_name:
                 self._add_inspector_field(box, "Database Name", entry.db_name, copyable=True)
 
+        elif entry.entry_type == "apikey":
+            self._add_inspector_field(box, "Provider", entry.provider, copyable=True)
+            self._add_inspector_field(box, "Environment", entry.environment or "Production", copyable=False)
+            self._add_inspector_field(box, "Format", entry.api_key_format or "Standard", copyable=False)
+            if entry.scopes:
+                self._add_inspector_field(box, "Scopes", entry.scopes, copyable=True)
+            if entry.expires_at:
+                self._add_inspector_field(box, "Expires At", entry.expires_at[:10], copyable=False)
+            if entry.api_token:
+                self._add_inspector_masked_field(box, "API Key / Token", entry.api_token, key_id=f"tok_{entry.id}")
+            if entry.api_key_secret:
+                self._add_inspector_masked_field(box, "API Secret", entry.api_key_secret, key_id=f"sec_{entry.id}")
+            if entry.totp_secret:
+                from starvault.totp import generate_totp, get_totp_remaining_seconds
+                code = generate_totp(entry.totp_secret)
+                rem = get_totp_remaining_seconds()
+                self._add_inspector_field(box, f"2FA Code ({rem}s)", code, copyable=True, mono=True)
+
         elif entry.entry_type == "keypair":
             self._add_inspector_field(box, "Algorithm", entry.key_type.upper(), copyable=False)
             self._add_inspector_field(box, "Fingerprint", entry.fingerprint, copyable=True)
@@ -887,6 +1086,13 @@ class DashboardView(ctk.CTkFrame):
             curl_cmd = generate_curl_command(entry)
             self._render_quick_string_row(q_card, "cURL Request", curl_cmd, is_sensitive=bool(entry.api_token or entry.password))
 
+        elif entry.entry_type == "apikey":
+            if entry.api_token:
+                curl_cmd = f"curl -H 'Authorization: Bearer {entry.api_token}' https://api.example.com"
+                self._render_quick_string_row(q_card, "cURL Bearer Header", curl_cmd, is_sensitive=True)
+                export_cmd = f"export API_KEY='{entry.api_token}'"
+                self._render_quick_string_row(q_card, "Shell Export", export_cmd, is_sensitive=True)
+
     def _render_quick_string_row(self, parent, label: str, text_val: str, is_sensitive: bool = False):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="x", padx=12, pady=4)
@@ -976,23 +1182,32 @@ class DashboardView(ctk.CTkFrame):
 
     def _on_nav_tab_changed(self, tab_name: str):
         self.autolock_mgr.record_activity()
+        # Hide all content frames
+        self.body_frame.pack_forget()
+        self.groups_view.pack_forget()
+        self.totp_view.pack_forget()
+        self.health_view.pack_forget()
+        self.files_view.pack_forget()
+        self.crypto_tools_view.pack_forget()
+        self.search_container.pack_forget()
+
         if tab_name == "Credentials":
-            self.health_view.pack_forget()
-            self.files_view.pack_forget()
             self.body_frame.pack(fill="both", expand=True)
             self.search_container.pack(side="left", fill="x", expand=True, padx=(10, 16), pady=12)
+        elif tab_name == "🗂️ Groups":
+            self.groups_view.pack(fill="both", expand=True)
+            self.groups_view.refresh()
+        elif tab_name == "📱 2FA / QR":
+            self.totp_view.pack(fill="both", expand=True)
+            self.totp_view.refresh()
         elif tab_name == "🛡️ Vault Health":
-            self.body_frame.pack_forget()
-            self.files_view.pack_forget()
-            self.search_container.pack_forget()
             self.health_view.pack(fill="both", expand=True)
             self.health_view.refresh()
         elif tab_name == "📁 File Vault":
-            self.body_frame.pack_forget()
-            self.health_view.pack_forget()
-            self.search_container.pack_forget()
             self.files_view.pack(fill="both", expand=True)
             self.files_view.refresh()
+        elif tab_name == "⚡ Crypto Tools":
+            self.crypto_tools_view.pack(fill="both", expand=True)
 
     def switch_to_credentials_tab(self, entry_id: Optional[str] = None):
         """Switches to Credentials tab and highlights/selects the given entry."""
@@ -1287,3 +1502,28 @@ class DashboardView(ctk.CTkFrame):
             self.autolock_mgr.lock_on_minimize = settings["lock_on_minimize"]
         if "clipboard_timeout" in settings:
             self.clipboard_mgr.default_timeout_sec = settings["clipboard_timeout"]
+
+    def _open_api_key_studio(self):
+        self.autolock_mgr.record_activity()
+        ApiKeyStudioDialog(
+            self,
+            on_use_key=self._on_use_generated_api_key,
+        )
+
+    def _on_use_generated_api_key(self, key_str: str, provider: str, key_fmt: str):
+        self.autolock_mgr.record_activity()
+        servers = [e for e in self.entries if e.entry_type == "server"]
+        new_entry = VaultEntry.create_api_key(
+            title=f"{provider} API Key",
+            provider=provider,
+            api_token=key_str,
+            api_key_format=key_fmt,
+        )
+        EntryDialog(
+            self,
+            entry=new_entry,
+            default_type="apikey",
+            existing_tags=self.database.get_all_tags(),
+            available_servers=servers,
+            on_save=self._on_entry_saved,
+        )

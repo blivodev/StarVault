@@ -239,3 +239,44 @@ class VaultSession:
 
     def __del__(self) -> None:
         self.lock()
+
+
+def generate_secure_password(
+    length: int = 24,
+    use_upper: bool = True,
+    use_lower: bool = True,
+    use_digits: bool = True,
+    use_symbols: bool = True,
+) -> str:
+    """Generates a cryptographically strong random password."""
+    import secrets
+    import string
+
+    chars = ""
+    reqs = []
+    if use_upper:
+        chars += string.ascii_uppercase
+        reqs.append(secrets.choice(string.ascii_uppercase))
+    if use_lower:
+        chars += string.ascii_lowercase
+        reqs.append(secrets.choice(string.ascii_lowercase))
+    if use_digits:
+        chars += string.digits
+        reqs.append(secrets.choice(string.digits))
+    if use_symbols:
+        symbols = "!@#$%^&*()-_=+[]{}|;:,.<>?"
+        chars += symbols
+        reqs.append(secrets.choice(symbols))
+
+    if not chars:
+        chars = string.ascii_letters + string.digits
+
+    remaining_len = max(0, length - len(reqs))
+    random_chars = [secrets.choice(chars) for _ in range(remaining_len)]
+    full_list = reqs + random_chars
+    # Cryptographic shuffle
+    for i in range(len(full_list) - 1, 0, -1):
+        j = secrets.randbelow(i + 1)
+        full_list[i], full_list[j] = full_list[j], full_list[i]
+    return "".join(full_list)
+

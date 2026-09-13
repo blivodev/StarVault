@@ -19,9 +19,11 @@ hiddenimports = [
     "keyring",
     "keyring.backends",
     "keyring.backends.Windows",
+    "pyzipper",
+    "py7zr",
 ]
 
-for pkg in ["customtkinter", "pystray", "pgpy", "keyring"]:
+for pkg in ["customtkinter", "pystray", "pgpy", "keyring", "pyzipper", "py7zr"]:
     d, b, h = collect_all(pkg)
     datas += d
     binaries += b

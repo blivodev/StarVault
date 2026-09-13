@@ -36,7 +36,17 @@ class AppConfigManager:
             "last_vault_path": "",
             "recent_vaults": [],
             "remember_password": False,
+            "theme": "Dark",
         }
+
+    def get_theme(self) -> str:
+        """Returns the saved UI theme preference (e.g. 'Dark', 'Light', 'Trendy', 'Console', 'Nord', 'Dracula')."""
+        return self.data.get("theme", "Dark")
+
+    def set_theme(self, theme_name: str) -> None:
+        """Saves UI theme preference."""
+        self.data["theme"] = theme_name
+        self._save()
 
     def _save(self) -> None:
         try:
@@ -128,3 +138,13 @@ class AppConfigManager:
             keyring.delete_password(self.SERVICE_NAME, str(Path(db_path).resolve()))
         except Exception:
             pass
+
+    def get_gdrive_config(self) -> Dict:
+        """Retrieves Google Drive sync settings and tokens."""
+        return self.data.get("gdrive", {})
+
+    def save_gdrive_config(self, cfg: Dict) -> None:
+        """Saves Google Drive sync configuration dictionary."""
+        self.data["gdrive"] = cfg
+        self._save()
+

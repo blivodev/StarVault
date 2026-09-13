@@ -35,8 +35,10 @@ def search_entries(
             continue
         elif selected_category == "Keys" and e.entry_type != "keypair":
             continue
+        elif selected_category in ("API Keys", "APIs") and e.entry_type != "apikey":
+            continue
         elif (
-            selected_category not in ("All", "Favorites", "Servers", "Services", "Keys")
+            selected_category not in ("All", "Favorites", "Servers", "Services", "Keys", "API Keys", "APIs")
             and e.category != selected_category
         ):
             continue
@@ -62,6 +64,7 @@ def search_entries(
         host_lower = (entry.hostname or entry.url or "").lower()
         user_lower = entry.username.lower()
         app_lower = entry.app_name.lower()
+        provider_lower = getattr(entry, "provider", "").lower()
         type_lower = entry.entry_type.lower()
 
         score = 0.0
@@ -93,6 +96,10 @@ def search_entries(
             score = max(score, 70.0)
         elif host_lower:
             score = max(score, fuzz.partial_ratio(cleaned_query, host_lower) * 0.6)
+
+        # Provider match (API Keys)
+        if provider_lower and cleaned_query in provider_lower:
+            score = max(score, 80.0)
 
         # Username match
         if cleaned_query in user_lower:

@@ -27,6 +27,11 @@ def main():
         action="store_true",
         help="Use portable database file './starvault.db' in the current working directory",
     )
+    parser.add_argument(
+        "--mcp",
+        action="store_true",
+        help="Run as a Model Context Protocol (MCP) JSON-RPC stdio server for AI agents",
+    )
 
     args = parser.parse_args()
 
@@ -36,6 +41,12 @@ def main():
         db_path = Path("starvault.db").resolve()
     else:
         db_path = get_default_db_path()
+
+    if args.mcp:
+        from starvault.mcp_server import StarVaultMCPServer
+        server = StarVaultMCPServer(db_path=db_path)
+        server.run()
+        return
 
     app = StarVaultApp(db_path=db_path)
     app.mainloop()

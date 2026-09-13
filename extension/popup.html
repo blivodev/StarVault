@@ -1,0 +1,135 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <title>StarVault</title>
+  <link rel="stylesheet" href="style.css">
+</head>
+<body>
+  <div class="header">
+    <div class="logo">
+      <span class="star-icon">★</span>
+      <span class="brand-text">StarVault</span>
+    </div>
+    <div class="header-right">
+      <span id="statusBadge" class="badge badge-offline">Connecting...</span>
+      <button id="lockBtn" class="icon-btn" title="Lock Vault">🔒</button>
+    </div>
+  </div>
+
+  <div class="search-section">
+    <div class="search-box">
+      <span class="search-icon">🔍</span>
+      <input type="text" id="searchInput" placeholder="Search logins or current domain...">
+    </div>
+  </div>
+
+  <!-- Locked State Notice -->
+  <div id="lockedView" class="state-view hidden">
+    <div class="state-icon">🔒</div>
+    <h3>Vault is Locked</h3>
+    <p>Unlock StarVault on your desktop to access your credentials.</p>
+    <button id="retryBtn" class="btn btn-secondary">Check Status</button>
+  </div>
+
+  <!-- Disconnected State Notice -->
+  <div id="disconnectedView" class="state-view hidden">
+    <div class="state-icon">⚠️</div>
+    <h3>StarVault Desktop Not Detected</h3>
+    <p>Please launch StarVault on your computer. Bridge runs on <code>127.0.0.1:8088</code>.</p>
+    <button id="connectRetryBtn" class="btn btn-primary">Retry Connection</button>
+  </div>
+
+  <!-- Logins List -->
+  <div id="loginsView" class="logins-list">
+    <!-- Populated dynamically via popup.js -->
+  </div>
+
+  <!-- Action Bar -->
+  <div class="bottom-bar">
+    <button id="tabFillBtn" class="btn-tool" title="Auto-fill login fields on page">⚡ Fill</button>
+    <button id="openGenBtn" class="btn-tool" title="Generate Secure Password or API Key">🔑 Gen</button>
+    <button id="openCryptoBtn" class="btn-tool" title="Crypto & Hash Helper">🛠️ Crypto</button>
+    <button id="openSaveBtn" class="btn-tool" title="Save New Login">+ Save</button>
+  </div>
+
+  <!-- Password / API Key Generator Modal / Drawer -->
+  <div id="genDrawer" class="drawer hidden">
+    <div class="drawer-header">
+      <h4 id="genTitle">Secret Generator</h4>
+      <button id="closeGenBtn" class="close-btn">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
+        <button id="genModePass" class="btn-tab active" style="flex: 1; padding: 4px;">Password</button>
+        <button id="genModeKey" class="btn-tab" style="flex: 1; padding: 4px;">API Key</button>
+      </div>
+      <div class="gen-output-row">
+        <input type="text" id="genPasswordInput" readonly>
+        <button id="copyGenBtn" class="btn btn-accent">Copy</button>
+        <button id="refreshGenBtn" class="icon-btn" title="Refresh">🔄</button>
+      </div>
+      <div id="passOptions" class="gen-options">
+        <label>Length: <span id="lengthVal">20</span></label>
+        <input type="range" id="lengthSlider" min="12" max="48" value="20">
+      </div>
+      <div id="keyOptions" class="gen-options hidden">
+        <label>Format: </label>
+        <select id="keyFormatSelect" style="width: 100%; background: #0c1322; color: #fff; border: 1px solid #23304c; border-radius: 4px; padding: 4px; margin-top: 4px;">
+          <option value="hex64">64-char Hex (sv_...)</option>
+          <option value="openai">OpenAI Format (sk-proj-...)</option>
+          <option value="stripe_live">Stripe Live (sk_live_...)</option>
+          <option value="aws">AWS Secret Format (40 chars)</option>
+          <option value="uuid">UUID v4</option>
+        </select>
+      </div>
+    </div>
+  </div>
+
+  <!-- Crypto Helper Drawer -->
+  <div id="cryptoDrawer" class="drawer hidden">
+    <div class="drawer-header">
+      <h4>🛠️ Crypto Helper</h4>
+      <button id="closeCryptoBtn" class="close-btn">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+        <select id="cryptoOpSelect" style="flex: 1; background: #0c1322; color: #fff; border: 1px solid #23304c; border-radius: 4px; padding: 4px;">
+          <option value="hash">Hash (SHA-256)</option>
+          <option value="encrypt">AES-256-GCM Encrypt</option>
+          <option value="decrypt">AES-256-GCM Decrypt</option>
+          <option value="encode">Base64 Encode</option>
+          <option value="decode">Base64 Decode</option>
+        </select>
+      </div>
+      <input type="text" id="cryptoKeyInput" placeholder="Key / Passphrase (for encrypt/decrypt)..." class="hidden" style="margin-bottom: 6px;">
+      <textarea id="cryptoTextInput" placeholder="Enter text to process..." style="width: 100%; height: 50px; background: #0c1322; color: #fff; border: 1px solid #23304c; border-radius: 4px; padding: 6px; font-family: monospace; font-size: 11px; resize: none; margin-bottom: 6px;"></textarea>
+      <button id="runCryptoBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 6px;">Calculate / Process</button>
+      <div class="gen-output-row">
+        <input type="text" id="cryptoOutput" readonly placeholder="Output result...">
+        <button id="copyCryptoBtn" class="btn btn-accent">Copy</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Save Login Drawer -->
+  <div id="saveDrawer" class="drawer hidden">
+    <div class="drawer-header">
+      <h4>Save Login to StarVault</h4>
+      <button id="closeSaveBtn" class="close-btn">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <input type="text" id="saveTitleInput" placeholder="Title (e.g. GitHub)">
+      <input type="text" id="saveUrlInput" placeholder="URL or Domain">
+      <input type="text" id="saveUserInput" placeholder="Username / Email">
+      <input type="password" id="savePassInput" placeholder="Password">
+      <button id="submitSaveBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Save to Vault</button>
+    </div>
+  </div>
+
+  <!-- Notification Toast -->
+  <div id="toast" class="toast hidden"></div>
+
+  <script src="popup.js"></script>
+</body>
+</html>
