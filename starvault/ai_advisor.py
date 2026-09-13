@@ -170,22 +170,23 @@ class AIAdvisor:
         metadata = self.build_sanitized_metadata(entries)
 
         system_prompt = (
-            "You are StarVault AI Security Advisor. You analyze non-sensitive credential vault metadata "
+            "You are StarVault AI Security & Vault Organization Advisor. You analyze non-sensitive credential vault metadata "
             "encompassing credentials, API tokens, self-signed certificates, SSH keys, GPG keys, and WireGuard/Age keypairs. "
             "Detect expiring certificates/keys (<30 days), duplicate services, stale credentials (>90 days), "
-            "un-tagged cryptographic keys, and missing environment tags. "
+            "un-categorized/un-tagged entries, unnormalized titles, and redundant duplicate records. "
+            "Suggest optimal categories (e.g. 'Cloud & Infrastructure', 'Dev & Repositories', 'Databases & Storage', 'AI & LLM Services', 'Finance & Payments', 'Security & Networking', 'Keys & Certificates'). "
             "You NEVER have access to secrets. Respond ONLY with a valid JSON object matching this exact schema:\n"
             "{\n"
-            '  "summary": "Brief 1-2 sentence overall health summary",\n'
+            '  "summary": "Brief 1-2 sentence overall health & organization summary",\n'
             '  "findings": ["finding 1", "finding 2"],\n'
             '  "actions": [\n'
-            '    {"action_type": "merge_duplicate|flag_stale|update_tags|set_category|renew_cert|rotate_key", "entry_id": "...", "entry_title": "...", "reason": "...", "suggested_value": "..."}\n'
+            '    {"action_type": "merge_duplicate|flag_stale|update_tags|set_category|normalize_title|renew_cert|rotate_key", "entry_id": "...", "entry_title": "...", "reason": "...", "suggested_value": "..."}\n'
             "  ]\n"
             "}"
         )
 
         user_prompt = (
-            f"Please analyze these {len(metadata)} vault entries and provide actionable hygiene improvements:\n"
+            f"Please analyze these {len(metadata)} vault entries and provide actionable hygiene and auto-organization improvements:\n"
             f"{json.dumps(metadata, indent=2)}"
         )
 
@@ -193,31 +194,76 @@ class AIAdvisor:
             response_text = self._call_llm(system_prompt, user_prompt)
             return self._parse_response(response_text, entries)
         except Exception:
-            # Fallback to local heuristic security analysis
+            # Fallback to local heuristic security and organization analysis
             return self.analyze_local_heuristics(entries)
 
     def analyze_local_heuristics(self, entries: List[VaultEntry]) -> AIAnalysisResult:
-        """Fast offline heuristic analysis for immediate security recommendations."""
+        """Fast offline heuristic analysis for immediate security and organization recommendations."""
+        from starvault.organizer import find_duplicates, find_ghost_and_stale, infer_category, infer_tags, normalize_title
+
         now = datetime.now(timezone.utc)
         findings: List[str] = []
         actions: List[AIRemediationAction] = []
 
-        seen_titles = {}
-        for e in entries:
-            # Check duplicate titles
-            tl = e.title.lower().strip()
-            if tl in seen_titles:
-                findings.append(f"Duplicate entry label detected: '{e.title}'")
+        # 1. Deduplication Detection
+        dup_groups = find_duplicates(entries)
+        for g in dup_groups:
+            findings.append(f"Duplicate cluster detected: '{g.primary_title}' ({g.match_reason})")
+            for dup_id, dup_title in zip(g.duplicate_ids, g.duplicate_titles):
                 actions.append(AIRemediationAction(
                     action_type="merge_duplicate",
+                    entry_id=dup_id,
+                    entry_title=dup_title,
+                    reason=f"Merge into '{g.primary_title}' ({g.match_reason})",
+                    suggested_value=g.primary_id,
+                ))
+
+        # 2. Ghost and Orphan Detection
+        ghost_data = find_ghost_and_stale(entries)
+        for gh in ghost_data["ghosts"]:
+            actions.append(AIRemediationAction(
+                action_type="purge_ghost",
+                entry_id=gh.id,
+                entry_title=gh.title or "Untitled Ghost",
+                reason="Empty ghost record with no secrets or destination",
+            ))
+
+        for e in entries:
+            # 3. Categorization Suggestions
+            if not e.category or e.category in ("General", "Uncategorized"):
+                suggested_cat = infer_category(e)
+                if suggested_cat != "General":
+                    actions.append(AIRemediationAction(
+                        action_type="set_category",
+                        entry_id=e.id,
+                        entry_title=e.title,
+                        reason=f"Auto-group under '{suggested_cat}'",
+                        suggested_value=suggested_cat,
+                    ))
+
+            # 4. Tagging Suggestions
+            missing_tags = [t for t in infer_tags(e) if t not in e.tags]
+            if missing_tags:
+                actions.append(AIRemediationAction(
+                    action_type="update_tags",
                     entry_id=e.id,
                     entry_title=e.title,
-                    reason=f"Duplicate title matching existing entry '{seen_titles[tl]}'",
+                    reason=f"Add inferred tags: {', '.join(missing_tags[:3])}",
+                    suggested_value=", ".join(missing_tags),
                 ))
-            else:
-                seen_titles[tl] = e.title
 
-            # Check expiring certificates or keys
+            # 5. Title Normalization Suggestions
+            norm = normalize_title(e)
+            if norm != e.title:
+                actions.append(AIRemediationAction(
+                    action_type="normalize_title",
+                    entry_id=e.id,
+                    entry_title=e.title,
+                    reason="Standardize title formatting and acronyms",
+                    suggested_value=norm,
+                ))
+
+            # 6. Expiring certificates or keys
             if e.expires_at:
                 try:
                     exp = datetime.fromisoformat(e.expires_at.replace("Z", "+00:00"))
@@ -241,17 +287,7 @@ class AIAdvisor:
                 except Exception:
                     pass
 
-            # Check untagged keys
-            if e.entry_type == "keypair" and not e.tags:
-                actions.append(AIRemediationAction(
-                    action_type="update_tags",
-                    entry_id=e.id,
-                    entry_title=e.title,
-                    reason="Cryptographic keypair has no relational tags assigned",
-                    suggested_value="keys, infra",
-                ))
-
-        summary = f"Audit analyzed {len(entries)} items: identified {len(actions)} security and organizational recommendations."
+        summary = f"Audit analyzed {len(entries)} items: identified {len(actions)} security, grouping, and organizational recommendations."
         return AIAnalysisResult(
             summary=summary,
             findings=findings,

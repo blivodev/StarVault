@@ -13,6 +13,13 @@ from rapidfuzz import fuzz
 
 from starvault.crypto import generate_secure_password
 from starvault.models import VaultEntry
+from starvault.organizer import (
+    auto_organize_vault,
+    deduplicate_vault,
+    find_duplicates,
+    find_ghost_and_stale,
+    purge_ghost_entries,
+)
 
 
 @dataclass
@@ -284,6 +291,65 @@ class VaultHealthAdvisor:
                                 )
                             )
 
+        # 6. Unorganized / Uncategorized Entries Check
+        uncategorized = [e for e in entries if not e.category or e.category in ("General", "Uncategorized")]
+        if len(uncategorized) >= 2:
+            issues.append(
+                HealthIssue(
+                    issue_type="unorganized_vault",
+                    severity="low",
+                    title=f"Uncategorized Credentials ({len(uncategorized)} items)",
+                    description=f"{len(uncategorized)} entries are in default 'General' category without service groupings.",
+                    entry_ids=[e.id for e in uncategorized],
+                    entry_titles=[e.title for e in uncategorized],
+                    recommendation="Run Auto-Group to automatically categorize these entries by service domain.",
+                    remediation_action="auto_organize",
+                )
+            )
+
+        # 7. Ghost & Abandoned Entries Check
+        ghost_findings = find_ghost_and_stale(entries)
+        if ghost_findings["total_issues"] > 0:
+            ghost_list = ghost_findings["ghosts"] + ghost_findings["stale_test"] + ghost_findings["orphans"]
+            issues.append(
+                HealthIssue(
+                    issue_type="ghost_entries",
+                    severity="low",
+                    title=f"Ghost or Orphaned Entries ({ghost_findings['total_issues']} items)",
+                    description=(
+                        f"Found {len(ghost_findings['ghosts'])} empty ghost records, "
+                        f"{len(ghost_findings['stale_test'])} abandoned test items, and "
+                        f"{len(ghost_findings['orphans'])} orphaned subcredentials."
+                    ),
+                    entry_ids=[e.id for e in ghost_list],
+                    entry_titles=[e.title for e in ghost_list],
+                    recommendation="Purge empty placeholder records and clean invalid parent references.",
+                    remediation_action="purge_ghosts",
+                )
+            )
+
+        # 8. Duplicate Clusters Ready for 1-Click Merge
+        dup_clusters = find_duplicates(entries)
+        if dup_clusters:
+            all_dup_ids = []
+            all_dup_titles = []
+            for cl in dup_clusters:
+                all_dup_ids.append(cl.primary_id)
+                all_dup_ids.extend(cl.duplicate_ids)
+                all_dup_titles.append(cl.primary_title)
+            issues.append(
+                HealthIssue(
+                    issue_type="duplicate_cluster",
+                    severity="medium",
+                    title=f"Consolidatable Duplicates ({len(dup_clusters)} clusters)",
+                    description=f"{len(dup_clusters)} clusters of redundant entries share matching host/user or identical keys.",
+                    entry_ids=all_dup_ids,
+                    entry_titles=all_dup_titles,
+                    recommendation="Auto-merge duplicate entries to consolidate notes and fields into a single record.",
+                    remediation_action="merge_duplicates",
+                )
+            )
+
         # Compute Overall Score (100 down to 0)
         score = 100
         for issue in issues:
@@ -432,6 +498,21 @@ def fix_health_issue(issue: HealthIssue, database, key: bytes) -> Tuple[bool, st
                 entry.updated_at = datetime.now(timezone.utc).isoformat()
                 database.save_entry(entry, key)
                 return True, f"Renamed duplicate entry to '{entry.title}'."
+
+    elif issue.remediation_action in ("auto_organize", "auto_tag"):
+        summary = auto_organize_vault(database, key)
+        return True, (
+            f"Auto-Organized vault: {summary.categories_updated} categories assigned, "
+            f"{summary.tags_added} tags enriched, {summary.titles_normalized} titles normalized."
+        )
+
+    elif issue.remediation_action == "merge_duplicates":
+        res = deduplicate_vault(database, key, auto_merge=True)
+        return True, f"Merged {res['merged_count']} redundant duplicate entries."
+
+    elif issue.remediation_action == "purge_ghosts":
+        res = purge_ghost_entries(database, key)
+        return True, f"Purged {res['purged_ghosts']} empty records and repaired {res['fixed_orphans']} orphaned references."
 
     return False, "No automated fix available for this finding."
 

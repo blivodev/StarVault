@@ -146,6 +146,21 @@ class DashboardView(ctk.CTkFrame):
         )
         self.count_badge.pack(side="left", padx=8)
 
+        # Sort Dropdown in header
+        sort_frame = ctk.CTkFrame(self.filter_header, fg_color="transparent")
+        sort_frame.pack(side="right", padx=(0, 4))
+        ctk.CTkLabel(sort_frame, text="Sort:", font=get_font(11), text_color=TEXT_MUTED).pack(side="left", padx=(0, 6))
+        self.dashboard_sort_combo = ctk.CTkComboBox(
+            sort_frame,
+            values=["Title (A-Z)", "Title (Z-A)", "Category", "Risk (Highest)", "Recently Modified", "Type"],
+            width=160,
+            height=28,
+            font=get_font(11),
+            command=lambda v: self._apply_filters(),
+        )
+        self.dashboard_sort_combo.set("Title (A-Z)")
+        self.dashboard_sort_combo.pack(side="left")
+
         # Scrollable Cards Area
         self.cards_scroll = ctk.CTkScrollableFrame(center_container, fg_color=BG_ROOT)
         self.cards_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 12))
@@ -156,6 +171,7 @@ class DashboardView(ctk.CTkFrame):
             database=self.database,
             encryption_key=self.session_key,
             on_review_entry=self.switch_to_credentials_tab,
+            on_vault_updated=self.reload_entries,
         )
         self.files_view = FilesView(
             self,
@@ -494,6 +510,22 @@ class DashboardView(ctk.CTkFrame):
             selected_tag=self.selected_tag,
         )
         self.filtered_entries = [e for e, score in scored]
+
+        # Apply active sort if not searching with high-relevance query
+        if not query and hasattr(self, "dashboard_sort_combo"):
+            from starvault.organizer import sort_entries
+            choice = self.dashboard_sort_combo.get()
+            mapping = {
+                "Category": "category",
+                "Title (A-Z)": "title_asc",
+                "Title (Z-A)": "title_desc",
+                "Risk (Highest)": "risk",
+                "Recently Modified": "recency",
+                "Type": "type",
+            }
+            strat = mapping.get(choice, "title_asc")
+            self.filtered_entries = sort_entries(self.filtered_entries, sort_by=strat)
+
         self.count_badge.configure(text=f"{len(self.filtered_entries)} items")
         self._render_cards()
 
