@@ -788,3 +788,86 @@ body {
   border: 1px solid rgba(0, 229, 255, 0.35);
 }
 
+/* Neural Health Engine UI */
+.neural-health-card {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  padding: 10px;
+  margin-bottom: 8px;
+}
+
+.neural-header-row {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.neural-title {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.neural-results {
+  background-color: var(--bg-input);
+  border: 1px solid var(--border);
+  border-radius: 6px;
+  padding: 8px;
+  margin-top: 6px;
+}
+
+.neural-score-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  margin-bottom: 8px;
+}
+
+.neural-gauge-large {
+  display: flex;
+  align-items: baseline;
+  gap: 2px;
+}
+
+.neural-gauge-num {
+  font-size: 26px;
+  font-weight: 900;
+  font-family: monospace;
+}
+
+.neural-gauge-label {
+  font-size: 11px;
+  color: var(--text-muted);
+}
+
+.neural-summary-stats {
+  font-size: 10px;
+  color: var(--text-secondary);
+  line-height: 1.4;
+}
+
+.neural-vulns-list {
+  border-top: 1px solid var(--border);
+  padding-top: 6px;
+  margin-top: 6px;
+}
+
+.neural-vuln-item {
+  background-color: var(--bg-card);
+  border: 1px solid var(--border);
+  border-radius: 4px;
+  padding: 4px 6px;
+  margin-bottom: 4px;
+}
+
+.neural-entry-box {
+  margin-top: 6px;
+  padding: 6px 8px;
+  background-color: var(--bg-input);
+  border: 1px solid rgba(0, 229, 255, 0.35);
+  border-radius: 6px;
+  font-size: 10px;
+  line-height: 1.3;
+}
+

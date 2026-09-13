@@ -13,6 +13,7 @@ from rapidfuzz import fuzz
 
 from starvault.crypto import generate_secure_password
 from starvault.models import VaultEntry
+from starvault.neural_health import NeuralVaultAudit, audit_vault_neural
 from starvault.organizer import (
     auto_organize_vault,
     deduplicate_vault,
@@ -47,6 +48,10 @@ class VaultHealthReport:
     weak_passwords_count: int = 0
     stale_passwords_count: int = 0
     expiring_keys_count: int = 0
+    neural_audit: Optional[NeuralVaultAudit] = None
+    neural_safety_index: int = 100
+    neural_grade: str = "A+"
+    neural_anomalies_count: int = 0
 
 
 def calculate_entropy(password: str) -> float:
@@ -402,6 +407,9 @@ class VaultHealthAdvisor:
         severity_rank = {"high": 0, "medium": 1, "low": 2}
         issues.sort(key=lambda x: severity_rank.get(x.severity, 3))
 
+        # Internal Neural Network Health & Anomaly Evaluation (100% Offline)
+        neural_audit = audit_vault_neural(entries)
+
         return VaultHealthReport(
             overall_score=score,
             grade=grade,
@@ -412,6 +420,10 @@ class VaultHealthAdvisor:
             weak_passwords_count=weak_pwd_count,
             stale_passwords_count=stale_pwd_count,
             expiring_keys_count=expiring_keys_count,
+            neural_audit=neural_audit,
+            neural_safety_index=neural_audit.safety_index,
+            neural_grade=neural_audit.letter_grade,
+            neural_anomalies_count=neural_audit.anomalies_flagged_count,
         )
 
     def _check_duplicate_names(self, entries: List[VaultEntry]) -> List[HealthIssue]:

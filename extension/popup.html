@@ -14,6 +14,7 @@
     </div>
     <div class="header-right">
       <span id="statusBadge" class="badge badge-offline">Connecting...</span>
+      <button id="neuralScanHeaderBtn" class="icon-btn" title="Run Local Neural Security Scan (Zero-Knowledge)">🧠</button>
       <button id="themeToggleBtn" class="icon-btn" title="Cycle Themes (Dark / Blue / Matrix / Cyberpunk / Light)">🎨</button>
       <button id="exportCsvBtn" class="icon-btn" title="Export CSV (Master Password Protected)">📤</button>
       <button id="lockBtn" class="icon-btn" title="Lock Vault">🔒</button>
@@ -214,18 +215,38 @@
     </div>
   </div>
 
-  <!-- Smart Auto-Organize & Deduplicate Drawer -->
+  <!-- Smart Auto-Organize, Deduplicate & Neural Health Drawer -->
   <div id="organizeDrawer" class="drawer hidden">
     <div class="drawer-header">
-      <h4>✨ Smart Auto-Organize & Deduplicate</h4>
+      <h4>✨ Organize & 🧠 Neural Health</h4>
       <button id="closeOrganizeBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
-      <p style="font-size: 11px; color: #9CA3AF; margin-bottom: 12px; line-height: 1.4;">
+      <!-- Neural Security Section -->
+      <div class="neural-health-card">
+        <div class="neural-header-row">
+          <div class="neural-title">
+            <span class="neural-brain-icon">🧠</span>
+            <span style="font-weight: 700; font-size: 12px;">Neural Security Engine</span>
+          </div>
+          <span id="neuralGradeBadge" class="mini-badge badge-online">100% Offline</span>
+        </div>
+        <p style="font-size: 10px; color: var(--text-muted); margin: 4px 0 8px 0; line-height: 1.3;">
+          Local multilayer perceptron audits entropy, blast radius, and anomalies in &lt;1ms.
+        </p>
+        <button id="btnRunNeuralScan" class="btn btn-primary" style="width: 100%; margin-bottom: 6px;">
+          🧠 Run Neural Security Audit
+        </button>
+        <div id="neuralResultsBox" class="neural-results hidden"></div>
+      </div>
+
+      <div style="height: 1px; background: var(--border); margin: 10px 0;"></div>
+
+      <p style="font-size: 11px; color: #9CA3AF; margin-bottom: 8px; line-height: 1.4;">
         Instantly categorize, tag, normalize titles, and merge duplicate credentials using the StarVault local automation engine.
       </p>
       <div style="display: flex; flex-direction: column; gap: 8px;">
-        <button id="btnAutoOrganize" class="btn btn-primary">
+        <button id="btnAutoOrganize" class="btn btn-secondary">
           ✨ Auto-Organize & Tag Vault
         </button>
         <button id="btnDeduplicate" class="btn btn-secondary">

@@ -43,6 +43,7 @@ from starvault.crypto_tools import (
 from starvault.database import Database
 from starvault.export_utils import export_vault_to_archive, export_vault_to_csv
 from starvault.health import VaultHealthAdvisor, fix_health_issue
+from starvault.neural_health import audit_vault_neural, evaluate_entry_neural
 from starvault.keys import (
     generate_age_key_result,
     generate_ed25519_key,
@@ -320,8 +321,29 @@ class StarVaultMCPServer:
             },
             {
                 "name": "starvault_health_audit",
-                "description": "Audits vault security posture in-memory, detecting weak, duplicate, or expiring keys with recommended fixes.",
-                "inputSchema": {"type": "object", "properties": {}},
+                "description": "Audits vault security posture in-memory using the internal neural network (default) or optional heuristic/AI scans.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "mode": {
+                            "type": "string",
+                            "enum": ["neural", "heuristic", "full"],
+                            "default": "neural",
+                            "description": "Analysis engine: 'neural' (default, local neural network), 'heuristic' (rule-based checks), 'full' (both)",
+                        },
+                    },
+                },
+            },
+            {
+                "name": "starvault_neural_analyze_entry",
+                "description": "Runs the local zero-knowledge neural network on a specific entry to calculate multi-factor compromise risk (0-100), anomaly score, classification, entropy metrics, and actionable recommendations.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "identifier": {"type": "string", "description": "Entry ID or Title to analyze"},
+                    },
+                    "required": ["identifier"],
+                },
             },
             {
                 "name": "starvault_fix_health_issue",
@@ -729,24 +751,100 @@ class StarVaultMCPServer:
         elif name == "starvault_health_audit":
             key = self._require_unlocked()
             entries = self.db.get_all_entries(key)
+            mode = args.get("mode", "neural").lower()
             advisor = VaultHealthAdvisor()
             report = advisor.analyze(entries)
-            issues_out = []
-            for idx, iss in enumerate(report.issues):
-                issues_out.append({
-                    "issue_index": idx,
-                    "title": iss.title,
-                    "severity": iss.severity,
-                    "issue_type": iss.issue_type,
-                    "remediation_action": iss.remediation_action,
-                    "description": iss.description,
-                    "recommendation": iss.recommendation,
-                })
+            na = report.neural_audit or audit_vault_neural(entries)
+
+            if mode == "neural":
+                return json.dumps({
+                    "engine": na.engine_name,
+                    "mode": na.engine_mode,
+                    "overall_score": na.safety_index,
+                    "neural_safety_index": na.safety_index,
+                    "grade": na.letter_grade,
+                    "neural_grade": na.letter_grade,
+                    "total_entries_evaluated": na.total_entries_evaluated,
+                    "mean_risk_score": round(na.mean_risk_score, 1),
+                    "high_risk_entries_count": na.high_risk_entries_count,
+                    "anomalies_flagged_count": na.anomalies_flagged_count,
+                    "class_distribution": na.class_distribution,
+                    "top_vulnerabilities": na.top_vulnerabilities,
+                    "suggested_optimizations": na.suggested_optimizations,
+                    "execution_time_ms": round(na.execution_time_ms, 2),
+                }, indent=2)
+            elif mode == "heuristic":
+                issues_out = []
+                for idx, iss in enumerate(report.issues):
+                    issues_out.append({
+                        "issue_index": idx,
+                        "title": iss.title,
+                        "severity": iss.severity,
+                        "issue_type": iss.issue_type,
+                        "remediation_action": iss.remediation_action,
+                        "description": iss.description,
+                        "recommendation": iss.recommendation,
+                    })
+                return json.dumps({
+                    "overall_score": report.overall_score,
+                    "grade": report.grade,
+                    "total_entries": report.total_entries_analyzed,
+                    "issues": issues_out,
+                }, indent=2)
+            else:  # "full"
+                issues_out = []
+                for idx, iss in enumerate(report.issues):
+                    issues_out.append({
+                        "issue_index": idx,
+                        "title": iss.title,
+                        "severity": iss.severity,
+                        "issue_type": iss.issue_type,
+                        "remediation_action": iss.remediation_action,
+                        "description": iss.description,
+                        "recommendation": iss.recommendation,
+                    })
+                return json.dumps({
+                    "overall_score": report.overall_score,
+                    "heuristic_grade": report.grade,
+                    "neural_safety_index": na.safety_index,
+                    "neural_grade": na.letter_grade,
+                    "total_entries": report.total_entries_analyzed,
+                    "engine": na.engine_name,
+                    "mode": na.engine_mode,
+                    "anomalies_flagged_count": na.anomalies_flagged_count,
+                    "class_distribution": na.class_distribution,
+                    "top_vulnerabilities": na.top_vulnerabilities,
+                    "suggested_optimizations": na.suggested_optimizations,
+                    "issues": issues_out,
+                }, indent=2)
+
+        elif name == "starvault_neural_analyze_entry":
+            key = self._require_unlocked()
+            identifier = args.get("identifier", "")
+            e = self._find_entry(identifier, key)
+            if not e:
+                return f"Entry '{identifier}' not found."
+            entries = self.db.get_all_entries(key)
+            reuse_map: Dict[str, int] = {}
+            for ent in entries:
+                pwd = ent.password or ent.api_token
+                if pwd:
+                    reuse_map[pwd] = reuse_map.get(pwd, 0) + 1
+            assessment = evaluate_entry_neural(e)
             return json.dumps({
-                "overall_score": report.overall_score,
-                "grade": report.grade,
-                "total_entries": report.total_entries_analyzed,
-                "issues": issues_out,
+                "entry_id": assessment.entry_id,
+                "entry_title": assessment.entry_title,
+                "entry_type": assessment.entry_type,
+                "risk_score": assessment.risk_score,
+                "safety_score": assessment.safety_score,
+                "anomaly_score": assessment.anomaly_score,
+                "predicted_class": assessment.predicted_class,
+                "class_probabilities": assessment.class_probabilities,
+                "anomalies": assessment.anomalies,
+                "recommendations": assessment.recommendations,
+                "recommended_groups": assessment.recommended_groups,
+                "recommended_services": assessment.recommended_services,
+                "auto_fix_action": assessment.auto_fix_action,
             }, indent=2)
 
         elif name == "starvault_fix_health_issue":

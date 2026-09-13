@@ -15,6 +15,7 @@ from starvault.config import APP_VERSION
 from starvault.crypto import generate_secure_password
 from starvault.database import Database
 from starvault.models import VaultEntry
+from starvault.neural_health import audit_vault_neural, evaluate_entry_neural
 from starvault.search import search_entries
 from starvault.totp import generate_totp_code
 
@@ -84,6 +85,32 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             palette = THEME_PALETTES.get(curr, THEME_PALETTES["Dark"])
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({"theme": curr, "palette": palette}).encode("utf-8"))
+            return
+
+        if parsed.path == "/api/neural_health":
+            session_key = self.server.get_session_key()
+            if not session_key:
+                self._send_cors_headers(401)
+                self.wfile.write(json.dumps({"error": "Vault is locked. Please unlock StarVault first."}).encode("utf-8"))
+                return
+            entries = self.server.database.get_all_entries(session_key)
+            audit = audit_vault_neural(entries)
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "safety_index": audit.safety_index,
+                "letter_grade": audit.letter_grade,
+                "total_entries": audit.total_entries_evaluated,
+                "mean_risk": audit.mean_risk_score,
+                "high_risk_count": audit.high_risk_entries_count,
+                "anomalies_count": audit.anomalies_flagged_count,
+                "class_distribution": audit.class_distribution,
+                "top_vulnerabilities": audit.top_vulnerabilities,
+                "suggested_optimizations": audit.suggested_optimizations,
+                "execution_time_ms": audit.execution_time_ms,
+                "engine_name": audit.engine_name,
+                "engine_mode": audit.engine_mode,
+            }).encode("utf-8"))
             return
 
         self._send_cors_headers(404)
@@ -447,6 +474,55 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             self.wfile.write(json.dumps({
                 "success": True,
                 "merged_count": res["merged_count"],
+            }).encode("utf-8"))
+            return
+
+        elif path == "/api/neural_health":
+            entries = db.get_all_entries(session_key)
+            audit = audit_vault_neural(entries)
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "safety_index": audit.safety_index,
+                "letter_grade": audit.letter_grade,
+                "total_entries": audit.total_entries_evaluated,
+                "mean_risk": audit.mean_risk_score,
+                "high_risk_count": audit.high_risk_entries_count,
+                "anomalies_count": audit.anomalies_flagged_count,
+                "class_distribution": audit.class_distribution,
+                "top_vulnerabilities": audit.top_vulnerabilities,
+                "suggested_optimizations": audit.suggested_optimizations,
+                "execution_time_ms": audit.execution_time_ms,
+                "engine_name": audit.engine_name,
+                "engine_mode": audit.engine_mode,
+            }).encode("utf-8"))
+            return
+
+        elif path == "/api/neural_analyze_entry":
+            data = self._read_json_body()
+            entry_id = data.get("entry_id", "")
+            entry = db.get_entry(entry_id, session_key)
+            if not entry:
+                self._send_cors_headers(404)
+                self.wfile.write(json.dumps({"error": "Entry not found"}).encode("utf-8"))
+                return
+            assessment = evaluate_entry_neural(entry)
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "entry_id": assessment.entry_id,
+                "entry_title": assessment.entry_title,
+                "entry_type": assessment.entry_type,
+                "risk_score": assessment.risk_score,
+                "safety_score": assessment.safety_score,
+                "anomaly_score": assessment.anomaly_score,
+                "predicted_class": assessment.predicted_class,
+                "class_probabilities": assessment.class_probabilities,
+                "anomalies": assessment.anomalies,
+                "recommendations": assessment.recommendations,
+                "recommended_groups": assessment.recommended_groups,
+                "recommended_services": assessment.recommended_services,
+                "auto_fix_action": assessment.auto_fix_action,
             }).encode("utf-8"))
             return
 

@@ -21,6 +21,7 @@ hiddenimports = [
     "keyring.backends.Windows",
     "pyzipper",
     "py7zr",
+    "starvault.neural_health",
 ]
 
 for pkg in ["customtkinter", "pystray", "pgpy", "keyring", "pyzipper", "py7zr"]:

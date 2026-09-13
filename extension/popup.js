@@ -47,6 +47,14 @@ function cycleTheme() {
 function setupEventListeners() {
   // Header Actions
   document.getElementById("themeToggleBtn").addEventListener("click", cycleTheme);
+  const neuralScanHeaderBtn = document.getElementById("neuralScanHeaderBtn");
+  if (neuralScanHeaderBtn) {
+    neuralScanHeaderBtn.addEventListener("click", () => {
+      closeAllDrawers();
+      document.getElementById("organizeDrawer").classList.remove("hidden");
+      runNeuralHealthScan();
+    });
+  }
   document.getElementById("lockBtn").addEventListener("click", lockVault);
   document.getElementById("retryBtn").addEventListener("click", checkBridgeStatus);
   document.getElementById("connectRetryBtn").addEventListener("click", checkBridgeStatus);
@@ -365,6 +373,93 @@ function setupOrganizeDrawer() {
       box.textContent = "Error: Desktop bridge offline";
     }
   });
+
+  const btnNeural = document.getElementById("btnRunNeuralScan");
+  if (btnNeural) {
+    btnNeural.addEventListener("click", runNeuralHealthScan);
+  }
+}
+
+async function runNeuralHealthScan() {
+  const box = document.getElementById("neuralResultsBox");
+  const gradeBadge = document.getElementById("neuralGradeBadge");
+  box.classList.remove("hidden");
+  box.innerHTML = '<div style="font-size: 11px; color: var(--text-secondary); text-align: center; padding: 10px;">⏳ Running in-memory local neural inference...</div>';
+
+  try {
+    const res = await fetch(`${BRIDGE_URL}/api/neural_health`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({}),
+    });
+    if (!res.ok) throw new Error("Neural scan request failed");
+    const data = await res.json();
+    if (!data.success) throw new Error(data.error || "Failed");
+
+    const colorMap = {
+      "A+": "#10B981",
+      "A": "#10B981",
+      "B": "#06B6D4",
+      "C": "#F59E0B",
+      "D": "#EF4444",
+      "F": "#DC2626",
+    };
+    const gradeColor = colorMap[data.letter_grade] || "#10B981";
+    if (gradeBadge) {
+      gradeBadge.textContent = `Grade ${data.letter_grade} • ${data.safety_index}/100`;
+      gradeBadge.style.color = gradeColor;
+      gradeBadge.style.background = `${gradeColor}22`;
+    }
+
+    let vulnsHtml = "";
+    if (data.top_vulnerabilities && data.top_vulnerabilities.length > 0) {
+      vulnsHtml = `
+        <div class="neural-vulns-list">
+          <div style="font-weight: 700; font-size: 11px; margin-bottom: 4px; color: var(--text-primary);">Flagged Risk Items:</div>
+          ${data.top_vulnerabilities.map(v => `
+            <div class="neural-vuln-item">
+              <div style="display: flex; justify-content: space-between; align-items: center;">
+                <span style="font-weight: 600; color: var(--text-primary);">${escapeHtml(v.title)}</span>
+                <span class="mini-badge mini-badge-danger">Risk ${v.risk_score}</span>
+              </div>
+              <div style="color: var(--text-muted); font-size: 9px; margin-top: 2px;">
+                ${escapeHtml(v.predicted_class)} ${v.anomalies && v.anomalies.length > 0 ? "• " + escapeHtml(v.anomalies[0]) : ""}
+              </div>
+            </div>
+          `).join("")}
+        </div>
+      `;
+    }
+
+    let recsHtml = "";
+    if (data.suggested_optimizations && data.suggested_optimizations.length > 0) {
+      recsHtml = `
+        <div style="margin-top: 6px; font-size: 10px; color: var(--text-secondary); line-height: 1.3;">
+          <strong style="color: var(--text-primary);">Optimization:</strong> ${escapeHtml(data.suggested_optimizations[0])}
+        </div>
+      `;
+    }
+
+    box.innerHTML = `
+      <div class="neural-score-row">
+        <div class="neural-gauge-large">
+          <span class="neural-gauge-num" style="color: ${gradeColor};">${data.safety_index}</span>
+          <span class="neural-gauge-label">/ 100</span>
+        </div>
+        <div class="neural-summary-stats">
+          <div>Grade: <strong style="color: ${gradeColor};">${data.letter_grade}</strong></div>
+          <div>Anomalies: <strong>${data.anomalies_count}</strong></div>
+          <div>High Risk: <strong>${data.high_risk_count}</strong></div>
+          <div style="font-size: 9px; color: var(--text-muted);">${data.execution_time_ms}ms • Zero-Knowledge</div>
+        </div>
+      </div>
+      ${vulnsHtml}
+      ${recsHtml}
+    `;
+    showToast(`Neural Scan: Grade ${data.letter_grade} (${data.safety_index}/100)`);
+  } catch (e) {
+    box.innerHTML = `<div style="color: var(--danger); font-size: 11px; padding: 6px;">Error running neural scan: ${escapeHtml(e.message)}</div>`;
+  }
 }
 
 function setupExportModal() {
@@ -619,9 +714,11 @@ function renderLogins(items) {
         ${item.type === "apikey" ? '<button class="btn-action btn-copy-key" title="Copy API Key">🎟️ Key</button>' : ""}
         ${item.type === "keypair" ? '<button class="btn-action btn-copy-pub" title="Copy Public Key">📋 Pub</button>' : ""}
         ${item.has_totp ? '<button class="btn-action btn-copy-totp" title="Copy 2FA TOTP Code">⏱️ 2FA</button>' : ""}
+        <button class="btn-action btn-neural-eval" title="Local Neural Security Evaluation">🧠 Risk</button>
         <button class="btn-action btn-fill" title="Auto-fill login fields">⚡ Fill</button>
       </div>
       <div class="revealed-pass-box hidden"></div>
+      <div class="neural-entry-box hidden"></div>
     `;
 
     // Bind Favorite Click
@@ -642,6 +739,49 @@ function renderLogins(items) {
     if (pubBtn) pubBtn.addEventListener("click", () => copyCredential(item.id, "public_key"));
     const totpBtn = card.querySelector(".btn-copy-totp");
     if (totpBtn) totpBtn.addEventListener("click", () => copyCredential(item.id, "totp"));
+
+    const neuralBtn = card.querySelector(".btn-neural-eval");
+    if (neuralBtn) {
+      neuralBtn.addEventListener("click", async () => {
+        const nBox = card.querySelector(".neural-entry-box");
+        if (!nBox.classList.contains("hidden")) {
+          nBox.classList.add("hidden");
+          nBox.innerHTML = "";
+          return;
+        }
+        nBox.classList.remove("hidden");
+        nBox.innerHTML = '<div style="font-size: 9px; color: var(--text-muted); padding: 4px;">🧠 Analyzing neural vector...</div>';
+        try {
+          const res = await fetch(`${BRIDGE_URL}/api/neural_analyze_entry`, {
+            method: "POST",
+            headers: { "Content-Type": "application/json" },
+            body: JSON.stringify({ entry_id: item.id }),
+          });
+          if (!res.ok) throw new Error("Assessment failed");
+          const nData = await res.json();
+          const isHighRisk = nData.risk_score >= 60;
+          const riskBadgeClass = isHighRisk ? "mini-badge-danger" : (nData.risk_score >= 35 ? "mini-badge-warn" : "badge-online");
+          let recs = "";
+          if (nData.recommendations && nData.recommendations.length > 0) {
+            recs = `<div style="margin-top: 3px; color: var(--text-secondary); font-size: 9px;">• ${escapeHtml(nData.recommendations[0])}</div>`;
+          }
+          let groupsRec = "";
+          if (nData.recommended_groups && nData.recommended_groups.length > 0) {
+            groupsRec = `<div style="margin-top: 2px; color: #06B6D4; font-size: 9px;">Suggested Group: ${escapeHtml(nData.recommended_groups.join(", "))}</div>`;
+          }
+          nBox.innerHTML = `
+            <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
+              <span style="font-weight: 700; font-size: 10px; color: var(--text-primary);">🧠 Safety: ${nData.safety_score}/100</span>
+              <span class="mini-badge ${riskBadgeClass}">Risk ${nData.risk_score} • ${escapeHtml(nData.predicted_class)}</span>
+            </div>
+            ${recs}
+            ${groupsRec}
+          `;
+        } catch (e) {
+          nBox.innerHTML = `<div style="color: var(--danger); font-size: 9px;">Neural assessment offline</div>`;
+        }
+      });
+    }
 
     const revealBtn = card.querySelector(".btn-reveal-pass");
     if (revealBtn) {
