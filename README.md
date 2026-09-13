@@ -1,178 +1,187 @@
 # StarVault ★
 
-> **A lightweight, cross-platform (Windows & Linux) desktop credential and key vault designed for VPS instances, self-hosted homelabs, and internal infrastructure.**
+> **A modern, zero-knowledge desktop credential vault, cryptographic workbench, and infrastructure key manager designed for homelabs, VPS instances, cloud services, and software engineers.**
 
-Built with **Python**, **CustomTkinter**, **Argon2id**, **AES-256-GCM**, and **SQLite**.
+Built with **Python**, **CustomTkinter**, **Argon2id**, **AES-256-GCM**, and **SQLite**. Includes a dedicated **Chromium Browser Companion Extension** (Chrome, Brave, Edge) and an integrated **Model Context Protocol (MCP) Server** for AI pair programmers.
 
 ---
 
-## Key Features
+## 📸 Screenshots Gallery
+
+| 🖥️ Main Dashboard: Sorting, Filters & Quick-Strings | 🛡️ Vault Health Advisor & Auto-Organize Studio |
+| :---: | :---: |
+| ![Credentials Dashboard](docs/screenshots/01_dashboard_credentials.png) | ![Vault Health](docs/screenshots/02_vault_health_advisor.png) |
+
+| ⚡ Universal Crypto Tools & Certificate Studio | 📁 Encrypted File Vault (BLOB Storage) |
+| :---: | :---: |
+| ![Crypto Tools Workbench](docs/screenshots/03_crypto_tools_workbench.png) | ![Encrypted File Vault](docs/screenshots/04_encrypted_file_vault.png) |
+
+| 🗂️ Groups, Hierarchy & Relational Tags | 📟 Console (Matrix Green) Theme |
+| :---: | :---: |
+| ![Groups & Tags](docs/screenshots/05_groups_and_tags.png) | ![Console Theme](docs/screenshots/06_theme_console_matrix.png) |
+
+---
+
+## 🌟 Key Features
+
+### 🔍 Main Dashboard: Multi-Dimensional Sorting & Quick Filters
+- **Natural Numeric Sorting Engine**: Automatically sorts numbered identifiers in human numerical sequence (`VPS 1` → `VPS 2` → `VPS 10`, rather than alphabetical `VPS 1, VPS 10, VPS 2`).
+- **11 Sorting Dimensions**:
+  - `Natural Numeric (1, 2, 10...)`
+  - `Alphabetical (A → Z)` and `Alphabetical (Z → A)`
+  - `Date Created (Newest / Oldest)`
+  - `Date Modified (Newest / Oldest)`
+  - `Category (A → Z)`
+  - `Security Risk (Highest Risk First)`
+  - `Entry Type (Servers, Services, API Keys, Keys)`
+  - `Port Number (Numeric Order)`
+  - `Password Length`
+- **Instant Direction Toggle**: Quick `▲ / ▼` button to invert any sorting criterion.
+- **Quick-Filter Toolbar**:
+  - **Type Segmented Selector**: `All`, `🖥️ Servers`, `🌐 Services`, `🔑 API Keys`, `🛡️ Keys`, `⭐ Favorites`.
+  - **Status Filter Chips**: `⏳ Expiring` (items expiring within 30 days), `⚠️ Weak` (passwords < 12 characters), `📱 TOTP` (credentials with 2FA tokens enabled).
+  - **✕ Clear Filters Button**: 1-click reset of all active filters, chips, search terms, and category selections.
+- **Fuzzy Search**: Blazingly fast fuzzy string matching (`rapidfuzz`) over titles, usernames, hosts, and relational tags.
 
 ### 🛡️ Defense-in-Depth Security & True Local 2FA
-- **Argon2id Key Derivation**: Master password derived with RFC 9106 parameters (64 MB memory cost, 3 iterations, 4 threads, 32-byte key length).
-- **True Local 2FA (QR Code Keyfile)**: Fuses Master Password with an offline 256-bit random QR Code Keyfile (`keyfile.png`). Unlocking requires both knowledge (Master Password) and possession (physical QR keyfile).
-- **Seamless Vault Migration**: Automatically detects legacy vaults (v1), allows initial unlock, and guides the user through an in-memory re-encryption upgrade to True Local 2FA (v2).
-- **AES-256-GCM Field & File Encryption**: Sensitive fields (passwords, private keys, API tokens, rich notes) and arbitrary file BLOBs encrypted with unique 12-byte random nonces and 16-byte authentication tags.
-- **Canary Validation**: Verifies master password and 2FA keyfile without storing plaintext passwords or hashes on disk.
-- **In-Memory Protection**: Cryptographic key bytes in memory are securely zeroed upon lock or exit.
+- **Argon2id Key Derivation**: Derived using RFC 9106 recommended parameters (`m=64MB`, `t=3`, `p=4`, `len=32`).
+- **True Local 2FA (QR Code Keyfile)**: Fuses your Master Password with an offline 256-bit random QR Code Keyfile (`keyfile.png`). Unlocking requires both knowledge (Master Password) and possession (physical QR keyfile).
+- **AES-256-GCM Field & File Encryption**: All passwords, tokens, private keys, notes, and file BLOBs are encrypted with unique 12-byte random nonces and 16-byte authentication tags.
+- **Canary Validation**: Verifies authentication without ever storing plaintext passwords or hashes on disk.
+- **In-Memory Protection**: Cryptographic key bytes in memory are zeroed upon lock or exit.
 - **100% Offline & Portable**: Single standalone SQLite database (`starvault.db`).
 
 ### 🩺 Vault Health & Remediation Advisor
-- **In-Memory Security Audit**: Scans decrypted vault in memory and provides an overall health score (0-100) and letter grade (A through F).
-- **Vulnerability Checks**:
-  - **Duplicate Passwords**: Flags identical passwords reused across different servers and services.
-  - **Weak Passwords**: Identifies passwords with low length or low Shannon entropy (< 40 bits).
-  - **Accidental Duplicate Names**: Uses fuzzy string matching (`rapidfuzz`) to spot entries with identical or highly similar names.
-  - **Stale Passwords**: Alerts when credentials haven't been rotated in over 180 or 365 days.
-  - **Expiring Keys & Tokens**: Parses custom fields (e.g. `Expires: 2026-12-31`) to warn of expired or soon-to-expire certificates and licenses.
-- **One-Click Remediation**: Each finding features a "Review" button that instantly opens the affected entry in the credentials view.
+- **Comprehensive Audit**: Calculates an overall vault health score (0–100) and security grade (A through F).
+- **Vulnerability Scanners**:
+  - Reused / duplicate passwords across servers and services.
+  - Weak passwords with low entropy (< 40 bits) or short length (< 12 chars).
+  - Accidental duplicate names (fuzzy name matching).
+  - Stale credentials unrotated for > 180 or 365 days.
+  - Expiring TLS certificates, API tokens, and licenses.
+- **One-Click Remediation**: Click "Review" on any finding to jump directly to the credential inspector.
+
+### ✨ Smart Auto-Organize & Deduplicate Studio
+- **Intelligent Classification**: Automatically categorizes credentials into `Cloud & Infrastructure`, `Dev & Repositories`, `Databases & Storage`, `AI & LLM Services`, `Finance & Payments`, `Security & Networking`, `Work & Productivity`, and `Personal & Entertainment`.
+- **Automated Tag Generation**: Infers and assigns relational tags based on protocols, domains, environments, and services (e.g. `#vps`, `#docker`, `#prod`, `#postgres`, `#ai`).
+- **Title Normalization**: Standardizes casing, trims redundant prefixes, and cleans titles across the vault.
+- **Smart Deduplication & Merge**: Consolidates redundant credentials, automatically merging custom fields, unique notes, and tags without losing data.
+- **Ghost & Stale Detection**: Identifies and safely cleans empty records or orphaned child credentials.
+
+### ⚡ Universal Crypto Tools & Key / Cert Studio
+- **Cryptographic Workbench**:
+  - **Symmetric Encryption**: AES-256-GCM Encrypt & Decrypt with custom passphrases.
+  - **Cryptographic Hashes**: SHA-256, SHA-512, MD5, and HMAC-SHA256.
+  - **Data Encoders**: Base64 Encode/Decode, Hex Encode/Decode, URL Encode/Decode.
+  - **UUID & Entropy**: Cryptographically secure UUID v4 generation.
+- **Key & Certificate Generation Studio**:
+  - **Ed25519 Keypairs**: Modern 256-bit elliptic curve SSH keys.
+  - **WireGuard VPN Keypairs**: X25519 public/private keys for VPN tunnels.
+  - **Self-Signed X.509 TLS/SSL Certificates**: Custom Common Names (CN), Subject Alternative Names (SANs), RSA / ECDSA / Ed25519 keys, and configurable validity periods.
+  - **RSA-4096 & GPG / OpenPGP**: High-security RSA and armored PGP keypairs.
+  - **Direct Vault Storage**: 1-click button to save newly generated keys and certificates straight into your encrypted database.
+
+### 🌐 Chromium Browser Companion Extension (Chrome, Brave, Edge)
+- **Localhost Loopback Bridge**: Runs securely on `127.0.0.1:8088`; credentials never leave your machine.
+- **1-Click Auto-Fill**: Injects username and password directly into web forms matching the active tab.
+- **Natural Numeric Sorting & Quick Filters**: Search and sort your entire vault from the browser toolbar.
+- **In-Browser Key & Secret Studio**: Generate passwords, API keys, Ed25519 keys, and WireGuard keys right in your browser.
+- **Crypto & TLS Studio**: Calculate hashes, encode/decode, or generate self-signed certificates on the fly.
+- **Smart Auto-Organize Trigger**: Trigger auto-categorization and duplicate merging from the extension.
+- **Master Password Protected CSV Export**: Download a sanitized CSV export directly from the extension upon master password authentication.
+- **Multi-Theme Switcher**: Matches your desktop theme (Modern Dark, Midnight Blue, Matrix Console Green, Cyberpunk Neon, Clean Light).
+
+### 📤 Master Password Protected CSV & Full Archive Export
+- **Sanitized CSV Spreadsheet Export**: Neutralizes spreadsheet formula injection (DDE attacks) by escaping formula triggers (`=`, `+`, `-`, `@`).
+- **Full Structured Archive (.zip / .7z)**: Exports credentials CSV, decrypted files, private/public keys, certificates, and an audit manifest into an AES-256 encrypted package.
+- **Strict Master Password Authentication**: Both CSV and archive export flows require master password verification before decrypting.
 
 ### 📁 Encrypted File Vault (BLOB Storage)
-- **Arbitrary File Storage**: Ingest any file (`.pem`, `.ovpn`, `docker-compose.yml`, `.env`, backup `.zip`).
-- **AES-256-GCM BLOB Encryption**: Files are encrypted at rest with the same master vault key and stored as BLOBs within SQLite.
-- **In-Memory Previewer**: Text and configuration files can be previewed in-memory and copied to the clipboard with 1 click.
-- **Decrypted Extraction**: Safe file dialog extraction of raw decrypted files back to disk.
-- **Metadata & Notes**: Search files by filename, tag, or encrypted description.
+- **Arbitrary File Storage**: Securely store `.pem`, `.ovpn`, `docker-compose.yml`, `.env`, and backup files.
+- **AES-256-GCM BLOB Encryption**: Encrypted at rest in SQLite using the vault master key.
+- **In-Memory Previewer & Extraction**: View configuration files in-memory or extract decrypted files back to disk.
 
-### 👥 Relational Sub-Credentials & Hierarchy
-- **Strict Parent/Child Hierarchy**: Link any number of "Services/Apps" to their parent "Server/VPS".
-- **Embedded Sub-Credentials Table**: Viewing a Server entry displays an embedded table showing all hosted services, usernames, masked passwords (`••••••••`), and notes.
-- **Sub-Credential Quick-Copy**: Dedicated buttons to copy username, copy password, or jump straight to the child service.
-- **Duplicate / Clone Entry**: Clone any entry instantly with "📄 Clone" button or `Ctrl+D` (appends `- Copy` to title).
-- **Custom Fields & Timestamps**: Add arbitrary Key-Value pairs (e.g., License Keys, Expiry Dates, PINs). Automatically tracks `Created_At` and `Modified_At` timestamps.
-
-### 🚀 Workflow, Hotkeys & Auto-Load
-- **Global Hotkeys**:
-  - `Ctrl + C`: Copy selected entry's Password (with 30-second clipboard wipe).
-  - `Ctrl + U`: Copy selected entry's Username.
-  - `Ctrl + B`: Copy selected entry's URI, IP, or Host.
-  - `Ctrl + D`: Duplicate selected entry.
-- **Last Vault Auto-Load & Recent Vaults**: Automatically remembers the last successfully opened vault file path in local `starvault_config.json`. Recent Vaults dropdown allows switching vaults effortlessly.
-- **Optional Passwordless Launch ("Remember Me")**: Store derived key in the OS Credential Manager (Windows Credential Manager / Linux Secret Service) to bypass master password prompts on startup (includes clear security warning).
-- **System Tray Quick-Access**: Minimizes directly to the notification area (next to the Windows clock / Linux tray). Restores window on click.
-
-### 🔄 Passive Cloud Sync (Directory Mirroring)
-- **Local Directory Mirroring**: Configure any local folder (e.g. Google Drive, Dropbox, OneDrive, Nextcloud local sync folder).
-- **Auto-Backup**: Automatically mirrors the updated, encrypted `.db` file whenever records are created, edited, deleted, or re-encrypted.
-- **Zero Cloud APIs**: 100% local filesystem operations via SQLite Online Backup API. No network calls, tokens, or third-party cloud SDKs.
-- **Instant Restore**: "🔄 Restore from Backup..." button on the login screen allows restoring/overwriting the active vault from any local backup file.
-
-### ⚡ System Tray & Minimal Fast-Search HUD
-- Minimizes directly to the OS system tray (`pystray`).
-- Clicking the tray icon instantly brings up a **floating, keyboard-navigable fast-search HUD** (Raycast / Alfred style).
-- Type queries, use arrow keys, and press Enter to copy primary credentials, or click quick-copy buttons directly in the search rows.
-
-### 🔍 RapidFuzz & Relational Tagging
-- **Relational Matching**: Searching for `"VPS1"` instantly reveals the VPS server **and** all Docker containers, databases (PostgreSQL, Redis), or SSH keys associated with that VPS via tags.
-- Non-sensitive metadata (titles, tags, categories) are indexed for blazingly fast lookups.
-
-### 🔑 Key Generation & Management Studio
-- **Key Generators**:
-  - **Ed25519**: 256-bit modern elliptic curve keypairs (instant generation).
-  - **RSA-4096**: 4096-bit high-security RSA keypairs.
-  - **OpenPGP / GPG**: Armored keypairs with custom User IDs (Name, Email, Comment).
-- **Key Inspector**: Shows Public Key, Key Type badge, and SHA256 Fingerprint (`SHA256:...`) with masked Private Key (`••••••••••••`) and click-to-reveal toggle.
-- **Multi-Format Export**:
-  - OpenSSH Public (`.pub`)
-  - OpenSSH Private PEM (`.pem`)
-  - PuTTY Private Key (`.ppk` v2 compatible)
-  - Armored PGP (`.asc`)
-- **Direct Vault Storage**: Save newly generated keys straight into your encrypted database with 1 click.
-
-### 📋 Productivity & Automation
-- **30-Second Clipboard Auto-Clear**: Automatically wipes passwords, private keys, and tokens from your clipboard after 30 seconds with a real-time countdown pill in the UI.
-- **Auto-Lock & Inactivity Timer**: Configurable auto-lock (1 min, 5 min, 15 min, 30 min, Never) upon idle timeout or when minimizing to the system tray.
-- **Connection Quick-Strings**:
-  - **SSH**: Ready-to-paste commands (e.g. `ssh -p 22 root@192.168.1.50`).
-  - **Databases**: Standard URLs for PostgreSQL, MySQL, Redis, and MongoDB (`postgresql://user:pass@host:port/db`), plus CLI client commands (`psql -h host -U user`).
-  - **APIs**: Authenticated `curl` snippets (`curl -H "Authorization: Bearer <token>" ...`).
-- **One-Click Copy UI**: Quick-copy buttons directly on entry cards and in HUD search results.
+### 🤖 Model Context Protocol (MCP) Server
+StarVault exposes an integrated MCP server for seamless integration with AI coding assistants (Claude Desktop, Antigravity, Cursor, etc.):
+- `search_credentials`, `get_credential`, `save_credential`, `lock_vault`, `get_vault_health`
+- `auto_organize_vault`, `deduplicate_vault`, `sort_vault_entries`
+- `crypto_hash`, `crypto_encrypt`, `crypto_decrypt`, `crypto_encode`, `crypto_decode`
+- `generate_keypair`, `generate_tls_cert`, `export_vault_csv`
 
 ---
 
-## Dynamic Entry Types
+## 🎨 Themes & Customization
 
-1. **Infrastructure / Server**:
-   - Hostname/IP, Port (default 22), Username, Password, SSH Keypair, Sudo Password, OS Distro, Tags, Multi-line Rich Notes.
-2. **Service / App**:
-   - App Name (e.g., PostgreSQL, Jellyfin, Docker Registry), URI/URL, Port, Username, Password, API Key/Token, Database Name, Tags, Multi-line Rich Notes.
-3. **SSH / GPG Keypair**:
-   - Key Name, Algorithm (`ed25519`, `rsa4096`, `gpg`), Public Key, Fingerprint, Private Key, Passphrase, Tags, Multi-line Rich Notes.
+StarVault features 5 handcrafted color themes:
+1. **Modern Dark** (Default): Sleek slate & electric cyan interface.
+2. **Midnight Blue**: Deep navy palette tailored for nocturnal engineering.
+3. **Console (Matrix Green)**: High-contrast phosphor terminal aesthetic.
+4. **Cyberpunk Neon**: Vivid magenta and electric violet synthwave theme.
+5. **Clean Light**: High-legibility daylight theme for bright office environments.
 
 ---
 
-## Running the Standalone Executable (No Command Line)
+## 🚀 Running StarVault
 
-StarVault is packaged as a standalone, windowed Windows application:
-
-- **Double-click [`StarVault.exe`](file:///d:/Projects/StarVault/StarVault.exe)** directly in this folder or in `dist\StarVault.exe`.
+### Standalone Executable (Windows)
+- Double-click `StarVault.exe` in the project root or in `dist/StarVault.exe`.
 - **Zero console window**: Runs cleanly with custom icon embedding without popping up a command prompt.
-- **Portable ready**: If a `starvault.db` file is placed in the same folder, it runs in local portable mode automatically.
-- You can pin `StarVault.exe` to your Windows Taskbar, Start Menu, or create a Desktop shortcut!
+- **Portable mode**: Place `starvault.db` in the same directory to run in fully portable mode.
 
----
-
-## Installation & Setup (Running from Source)
-
-### Requirements
-- Python 3.10+ (tested on Python 3.12)
-- Windows 10/11 or Linux (with Tkinter support)
-
-### 1. Clone & Set Up Virtual Environment
+### Running from Source
 ```powershell
-git clone https://github.com/your-repo/StarVault.git
+# 1. Clone repository
+git clone https://github.com/YOUR_USERNAME/StarVault.git
 cd StarVault
 
-# Create virtual environment
+# 2. Set up virtual environment
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
-```
 
-### 2. Install Dependencies
-```powershell
+# 3. Install dependencies
 pip install -r requirements.txt
-```
 
-### 3. Launch StarVault
-```powershell
+# 4. Launch StarVault
 python run.py
 ```
 
-#### Launch Options
-- **Default mode** (uses `%LOCALAPPDATA%\StarVault\starvault.db`):
-  ```powershell
-  python run.py
-  ```
-- **Portable mode** (uses `./starvault.db` in the current folder):
-  ```powershell
-  python run.py --portable
-  ```
-- **Custom database path**:
-  ```powershell
-  python run.py --db "D:/SecureStorage/homelab_vault.db"
-  ```
+### Launch Flags
+- **Default Mode** (uses `%LOCALAPPDATA%\StarVault\starvault.db`): `python run.py`
+- **Portable Mode** (uses `./starvault.db` in working directory): `python run.py --portable`
+- **Custom Database**: `python run.py --db "D:/Secure/vault.db"`
 
 ---
 
-## Keyboard Shortcuts
+## 🧩 Installing the Browser Extension
+
+1. Open your Chromium browser's extensions management page:
+   - **Brave**: `brave://extensions`
+   - **Chrome**: `chrome://extensions`
+   - **Edge**: `edge://extensions`
+2. Enable **Developer mode** (toggle switch in the top-right corner).
+3. Click **Load unpacked** and select the `extension/` directory.
+
+---
+
+## ⌨️ Global Keyboard Shortcuts
 
 | Shortcut | Action |
 |---|---|
-| `Ctrl + C` | Copy Password of selected entry (30-second auto-clear) |
+| `Ctrl + C` | Copy Password of selected entry (30-second clipboard wipe) |
 | `Ctrl + U` | Copy Username of selected entry |
 | `Ctrl + B` | Copy Host, URI, or IP address of selected entry |
 | `Ctrl + D` | Duplicate selected entry (clones with `- Copy` title) |
-| `Ctrl + F` | Focus fuzzy search bar |
+| `Ctrl + F` | Focus central search bar |
 | `Ctrl + L` | Immediately lock vault and wipe session keys |
-| `Esc` | Close HUD search window / Dismiss dialogs |
-| `Up / Down` | Navigate search results in HUD |
-| `Enter` | Submit password / Copy primary credential in HUD |
+| `Esc` | Close HUD search window / Dismiss active dialogs |
+| `Up / Down` | Navigate search results in floating HUD |
+| `Enter` | Copy primary credential in HUD |
 
 ---
 
-## Running Automated Tests
+## 🧪 Testing
 
-StarVault includes automated unit and integration tests covering cryptography, database transactions, key generation, and search ranking:
+StarVault includes a comprehensive automated test suite with **100% pass rate** (52 test cases):
 
 ```powershell
 .\.venv\Scripts\pytest tests/ -v
@@ -180,15 +189,16 @@ StarVault includes automated unit and integration tests covering cryptography, d
 
 ---
 
-## Security Specifications Summary
+## 🔒 Cryptographic Specifications
 
-| Feature | Specification |
+| Component | Specification |
 |---|---|
 | Key Derivation Function (KDF) | Argon2id (`t=3`, `m=64MB`, `p=4`, `len=32`) |
 | Salt | Cryptographically secure random 16 bytes per database |
 | Cipher | AES-256-GCM (Galois/Counter Mode) |
 | Nonce / IV | 12 bytes cryptographically secure random per field |
-| Integrity Tag | 16 bytes authentication tag per field |
-| Master Password Verification | AES-256-GCM encrypted canary token |
-| In-Memory Protection | Zeroized upon lock or logout |
+| Authentication Tag | 16 bytes authentication tag per field |
+| Asymmetric Ciphers | Ed25519 (SSH), X25519 (WireGuard), RSA-4096, PGP |
+| Certificate Engine | X.509 Self-Signed TLS with SAN extension support |
+| In-Memory Protection | Zeroized upon lock or application termination |
 | Clipboard Sanitization | Automatic 30-second wipe for all copied secrets |

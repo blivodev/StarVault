@@ -166,31 +166,83 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             data = self._read_json_body()
             url = data.get("url", "").strip()
             query = data.get("query", "").strip()
+            filter_type = data.get("filter_type", "all").lower()
+            filter_status = data.get("filter_status", "all").lower()
+            sort_by = data.get("sort_by", "natural")
+            sort_reverse = bool(data.get("sort_reverse", False))
 
             domain = ""
             if url:
                 parsed_url = urlparse(url if "://" in url else f"https://{url}")
                 domain = parsed_url.hostname or ""
 
-            search_term = domain or query
+            search_term = query if query else domain
             entries = db.get_all_entries(session_key)
-            results = search_entries(entries, query=search_term) if search_term else [(e, 1.0) for e in entries]
+            if search_term:
+                results = search_entries(entries, query=search_term)
+                candidates = [e for e, score in results]
+            else:
+                candidates = list(entries)
+
+            # Filter Type
+            if filter_type in ("server", "servers"):
+                candidates = [e for e in candidates if e.entry_type == "server"]
+            elif filter_type in ("service", "services"):
+                candidates = [e for e in candidates if e.entry_type == "service"]
+            elif filter_type in ("apikey", "apikeys", "api_key", "api"):
+                candidates = [e for e in candidates if e.entry_type == "apikey"]
+            elif filter_type in ("keypair", "keys", "cert"):
+                candidates = [e for e in candidates if e.entry_type == "keypair"]
+            elif filter_type in ("favorite", "favorites"):
+                candidates = [e for e in candidates if e.is_favorite]
+
+            # Filter Status
+            from datetime import datetime, timezone, timedelta
+            now_utc = datetime.now(timezone.utc)
+            soon_iso = (now_utc + timedelta(days=30)).strftime("%Y-%m-%d")
+
+            if filter_status == "expiring":
+                candidates = [e for e in candidates if getattr(e, "expires_at", "") and e.expires_at <= soon_iso]
+            elif filter_status == "weak":
+                candidates = [e for e in candidates if e.password and len(e.password) < 12]
+            elif filter_status == "totp":
+                candidates = [e for e in candidates if getattr(e, "totp_secret", "")]
+            elif filter_status == "favorite":
+                candidates = [e for e in candidates if e.is_favorite]
+
+            # Sort
+            from starvault.organizer import sort_entries
+            candidates = sort_entries(candidates, sort_by=sort_by, reverse=sort_reverse)
 
             matched = []
-            for e, score in results[:15]:
+            for e in candidates:
+                is_exp = bool(getattr(e, "expires_at", "") and e.expires_at <= soon_iso)
+                is_wk = bool(e.password and len(e.password) < 12)
                 matched.append({
                     "id": e.id,
                     "title": e.title,
                     "type": e.entry_type,
                     "username": e.username,
                     "url": e.url or e.hostname,
-                    "category": e.category,
+                    "hostname": e.hostname,
+                    "port": e.port,
+                    "category": e.category or "General",
+                    "tags": e.tags or [],
+                    "is_favorite": bool(e.is_favorite),
                     "has_password": bool(e.password),
                     "has_totp": bool(e.totp_secret),
+                    "is_expiring": is_exp,
+                    "is_weak": is_wk,
+                    "created_at": e.created_at,
+                    "updated_at": e.updated_at,
                 })
 
             self._send_cors_headers(200)
-            self.wfile.write(json.dumps({"matches": matched, "query": search_term}).encode("utf-8"))
+            self.wfile.write(json.dumps({
+                "matches": matched,
+                "total": len(matched),
+                "query": search_term,
+            }).encode("utf-8"))
             return
 
         elif path == "/api/get_credentials":
@@ -213,6 +265,8 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 "username": entry.username,
                 "password": entry.password,
                 "api_token": entry.api_token,
+                "public_key": entry.public_key,
+                "private_key": entry.private_key,
                 "totp_code": totp_code,
                 "url": entry.url or entry.hostname,
             }).encode("utf-8"))
@@ -224,6 +278,8 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             url = data.get("url", "").strip()
             username = data.get("username", "").strip()
             password = data.get("password", "")
+            category = data.get("category", "")
+            tags = data.get("tags", [])
 
             if not title:
                 parsed_u = urlparse(url if "://" in url else f"https://{url}")
@@ -235,10 +291,102 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 url=url,
                 username=username,
                 password=password,
+                category=category or "Work & Productivity",
+                tags=tags or ["browser-extension"],
             )
             db.save_entry(new_entry, session_key)
             self._send_cors_headers(201)
             self.wfile.write(json.dumps({"success": True, "id": new_entry.id, "title": new_entry.title}).encode("utf-8"))
+            return
+
+        elif path == "/api/toggle_favorite":
+            data = self._read_json_body()
+            entry_id = data.get("entry_id", "")
+            if entry_id:
+                new_state = db.toggle_favorite(entry_id)
+                self._send_cors_headers(200)
+                self.wfile.write(json.dumps({"success": True, "is_favorite": new_state}).encode("utf-8"))
+            else:
+                self._send_cors_headers(400)
+                self.wfile.write(json.dumps({"success": False, "error": "entry_id required"}).encode("utf-8"))
+            return
+
+        elif path == "/api/generate_key":
+            data = self._read_json_body()
+            key_type = data.get("type", "ed25519").lower()
+            title = data.get("title", "").strip()
+            save_to_vault = bool(data.get("save_to_vault", False))
+
+            pub, priv, fp = "", "", ""
+            if "wireguard" in key_type or "wg" in key_type:
+                from starvault.keys import generate_wireguard_key_result
+                wg_res = generate_wireguard_key_result()
+                pub, priv = wg_res.public_key, wg_res.private_key
+                key_name = "wg0-client"
+                kt = "wireguard"
+            elif "tls" in key_type or "cert" in key_type or "ssl" in key_type:
+                from starvault.cert_generator import generate_self_signed_cert
+                cn = data.get("common_name", "localhost")
+                sans = data.get("san_list", ["localhost", "127.0.0.1"])
+                days = int(data.get("validity_days", 365))
+                cert_pem, key_pem = generate_self_signed_cert(common_name=cn, san_list=sans, validity_days=days)
+                pub, priv = cert_pem, key_pem
+                key_name = cn
+                kt = "tls_cert"
+            else:
+                from starvault.keys import generate_ed25519_key
+                comment = data.get("comment", "user@starvault")
+                ed_res = generate_ed25519_key(comment=comment)
+                pub, priv, fp = ed_res.public_key, ed_res.private_key, ed_res.fingerprint
+                key_name = "id_ed25519"
+                kt = "ed25519"
+
+            saved_id = None
+            if save_to_vault:
+                session_key = self.server.get_session_key()
+                if session_key:
+                    ent = VaultEntry.create_keypair(
+                        title=title or f"Generated {kt.upper()} Key",
+                        key_name=key_name,
+                        key_type=kt,
+                        public_key=pub,
+                        private_key=priv,
+                        fingerprint=fp,
+                        tags=["extension", kt],
+                        category="Keys & Certificates",
+                    )
+                    db.save_entry(ent, session_key)
+                    saved_id = ent.id
+
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "type": kt,
+                "public_key": pub,
+                "private_key": priv,
+                "fingerprint": fp,
+                "saved_id": saved_id,
+            }).encode("utf-8"))
+            return
+
+        elif path == "/api/export_csv":
+            data = self._read_json_body()
+            pwd = data.get("master_password", "")
+            kf = data.get("keyfile_secret", None)
+            if not pwd:
+                self._send_cors_headers(400)
+                self.wfile.write(json.dumps({"success": False, "error": "Master password is required"}).encode("utf-8"))
+                return
+            success, key = db.unlock_vault(pwd, keyfile_secret=kf)
+            if not success or not key:
+                self._send_cors_headers(401)
+                self.wfile.write(json.dumps({"success": False, "error": "Invalid master password"}).encode("utf-8"))
+                return
+            from starvault.export_utils import export_entries_to_csv_string
+            entries = db.get_all_entries(key)
+            csv_text = export_entries_to_csv_string(entries)
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({"success": True, "csv": csv_text, "count": len(entries)}).encode("utf-8"))
             return
 
         elif path == "/api/auto_organize":

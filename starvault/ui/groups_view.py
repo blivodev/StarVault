@@ -168,6 +168,10 @@ class GroupsView(ctk.CTkFrame):
             self.entries = []
         self._render_groups()
 
+    def refresh(self) -> None:
+        """Alias for reload() to ensure consistent view interface."""
+        self.reload()
+
     def _on_mode_changed(self, val: str) -> None:
         if val == "By Category":
             self.group_mode = "category"

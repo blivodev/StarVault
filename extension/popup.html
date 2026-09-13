@@ -1,11 +1,12 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="dark">
 <head>
   <meta charset="UTF-8">
-  <title>StarVault</title>
+  <title>StarVault Companion</title>
   <link rel="stylesheet" href="style.css">
 </head>
 <body>
+  <!-- Global Top Header -->
   <div class="header">
     <div class="logo">
       <span class="star-icon">★</span>
@@ -13,14 +14,50 @@
     </div>
     <div class="header-right">
       <span id="statusBadge" class="badge badge-offline">Connecting...</span>
+      <button id="themeToggleBtn" class="icon-btn" title="Cycle Themes (Dark / Blue / Matrix / Cyberpunk / Light)">🎨</button>
+      <button id="exportCsvBtn" class="icon-btn" title="Export CSV (Master Password Protected)">📤</button>
       <button id="lockBtn" class="icon-btn" title="Lock Vault">🔒</button>
     </div>
   </div>
 
+  <!-- Search & Filter Controls -->
   <div class="search-section">
     <div class="search-box">
       <span class="search-icon">🔍</span>
-      <input type="text" id="searchInput" placeholder="Search logins or current domain...">
+      <input type="text" id="searchInput" placeholder="Search logins, hosts, or tags...">
+      <button id="clearSearchBtn" class="clear-btn hidden">&times;</button>
+    </div>
+
+    <!-- Quick Filter Chips -->
+    <div class="filter-chips" id="filterChips">
+      <button class="chip active" data-filter="all">All</button>
+      <button class="chip" data-filter="server">🖥️ Servers</button>
+      <button class="chip" data-filter="service">🌐 Services</button>
+      <button class="chip" data-filter="apikey">🔑 API Keys</button>
+      <button class="chip" data-filter="keypair">🛡️ Keys</button>
+      <button class="chip" data-filter="favorite">⭐ Fav</button>
+      <button class="chip chip-warn" data-filter="expiring">⏳ Expiring</button>
+      <button class="chip chip-danger" data-filter="weak">⚠️ Weak</button>
+      <button class="chip chip-totp" data-filter="totp">📱 TOTP</button>
+    </div>
+
+    <!-- Sorting Bar -->
+    <div class="sort-bar">
+      <div class="sort-left">
+        <label for="sortSelect">Sort:</label>
+        <select id="sortSelect">
+          <option value="natural">Natural Numeric (1, 2, 10...)</option>
+          <option value="title_asc">Alphabetical (A → Z)</option>
+          <option value="title_desc">Alphabetical (Z → A)</option>
+          <option value="created_desc">Date Created (Newest)</option>
+          <option value="created_asc">Date Created (Oldest)</option>
+          <option value="modified_desc">Date Modified (Newest)</option>
+          <option value="category">Category</option>
+          <option value="risk">Security Risk (Highest)</option>
+        </select>
+        <button id="sortDirBtn" class="sort-dir-btn" title="Toggle Sort Direction">▲</button>
+      </div>
+      <span id="itemsCountBadge" class="count-badge">0 items</span>
     </div>
   </div>
 
@@ -36,7 +73,7 @@
   <div id="disconnectedView" class="state-view hidden">
     <div class="state-icon">⚠️</div>
     <h3>StarVault Desktop Not Detected</h3>
-    <p>Please launch StarVault on your computer. Bridge runs on <code>127.0.0.1:8088</code>.</p>
+    <p>Please launch StarVault desktop app. Bridge runs on <code>127.0.0.1:8088</code>.</p>
     <button id="connectRetryBtn" class="btn btn-primary">Retry Connection</button>
   </div>
 
@@ -48,81 +85,190 @@
   <!-- Action Bar -->
   <div class="bottom-bar">
     <button id="tabFillBtn" class="btn-tool" title="Auto-fill login fields on page">⚡ Fill</button>
-    <button id="openGenBtn" class="btn-tool" title="Generate Secure Password or API Key">🔑 Gen</button>
-    <button id="openCryptoBtn" class="btn-tool" title="Crypto & Hash Helper">🛠️ Crypto</button>
+    <button id="openGenBtn" class="btn-tool" title="Generate Passwords, API Keys, SSH & WireGuard Keys">🔑 Keys/Gen</button>
+    <button id="openCryptoBtn" class="btn-tool" title="Crypto, Hashing, Encoders, TLS Certs">🛠️ Crypto</button>
+    <button id="openOrganizeBtn" class="btn-tool" title="Smart Auto-Organize & Deduplicate">✨ Organize</button>
     <button id="openSaveBtn" class="btn-tool" title="Save New Login">+ Save</button>
   </div>
 
-  <!-- Password / API Key Generator Modal / Drawer -->
+  <!-- Generator & Key Studio Drawer -->
   <div id="genDrawer" class="drawer hidden">
     <div class="drawer-header">
-      <h4 id="genTitle">Secret Generator</h4>
+      <h4 id="genTitle">Key & Secret Studio</h4>
       <button id="closeGenBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
-      <div style="display: flex; gap: 6px; margin-bottom: 8px;">
-        <button id="genModePass" class="btn-tab active" style="flex: 1; padding: 4px;">Password</button>
-        <button id="genModeKey" class="btn-tab" style="flex: 1; padding: 4px;">API Key</button>
+      <div class="tab-btn-row">
+        <button id="genModePass" class="btn-tab active">Password</button>
+        <button id="genModeKey" class="btn-tab">API Key</button>
+        <button id="genModeSsh" class="btn-tab">SSH / WG</button>
       </div>
-      <div class="gen-output-row">
-        <input type="text" id="genPasswordInput" readonly>
-        <button id="copyGenBtn" class="btn btn-accent">Copy</button>
-        <button id="refreshGenBtn" class="icon-btn" title="Refresh">🔄</button>
+
+      <!-- Password Mode Options -->
+      <div id="passSection" class="gen-section">
+        <div class="gen-output-row">
+          <input type="text" id="genPasswordInput" readonly placeholder="Generated password...">
+          <button id="copyGenBtn" class="btn btn-accent">Copy</button>
+          <button id="refreshGenBtn" class="icon-btn" title="Refresh">🔄</button>
+        </div>
+        <div class="gen-options">
+          <div class="slider-row">
+            <label>Length: <span id="lengthVal">20</span></label>
+            <input type="range" id="lengthSlider" min="8" max="64" value="20">
+          </div>
+        </div>
       </div>
-      <div id="passOptions" class="gen-options">
-        <label>Length: <span id="lengthVal">20</span></label>
-        <input type="range" id="lengthSlider" min="12" max="48" value="20">
+
+      <!-- API Key Mode Options -->
+      <div id="keySection" class="gen-section hidden">
+        <div class="gen-output-row">
+          <input type="text" id="genApiKeyInput" readonly placeholder="Generated API key...">
+          <button id="copyApiKeyBtn" class="btn btn-accent">Copy</button>
+          <button id="refreshApiKeyBtn" class="icon-btn" title="Refresh">🔄</button>
+        </div>
+        <div class="gen-options">
+          <label>Format Preset:</label>
+          <select id="keyFormatSelect" class="form-select">
+            <option value="hex64">64-char Hex (sv_...)</option>
+            <option value="openai">OpenAI Format (sk-proj-...)</option>
+            <option value="stripe_live">Stripe Live (sk_live_...)</option>
+            <option value="aws">AWS Secret Format (40 chars)</option>
+            <option value="uuid">UUID v4</option>
+          </select>
+        </div>
       </div>
-      <div id="keyOptions" class="gen-options hidden">
-        <label>Format: </label>
-        <select id="keyFormatSelect" style="width: 100%; background: #0c1322; color: #fff; border: 1px solid #23304c; border-radius: 4px; padding: 4px; margin-top: 4px;">
-          <option value="hex64">64-char Hex (sv_...)</option>
-          <option value="openai">OpenAI Format (sk-proj-...)</option>
-          <option value="stripe_live">Stripe Live (sk_live_...)</option>
-          <option value="aws">AWS Secret Format (40 chars)</option>
-          <option value="uuid">UUID v4</option>
-        </select>
+
+      <!-- SSH / WireGuard Keypair Mode -->
+      <div id="sshSection" class="gen-section hidden">
+        <div class="gen-options">
+          <label>Keypair Algorithm:</label>
+          <select id="keypairTypeSelect" class="form-select">
+            <option value="ed25519">SSH Ed25519 Keypair</option>
+            <option value="wireguard">WireGuard VPN Keypair</option>
+          </select>
+          <input type="text" id="keyCommentInput" placeholder="Comment / Key Title (e.g. admin@infra)" style="margin-top: 6px;">
+        </div>
+        <button id="runKeygenBtn" class="btn btn-primary" style="width: 100%; margin: 6px 0;">Generate Keypair</button>
+        <div class="keypair-outputs">
+          <label>Public Key:</label>
+          <div class="gen-output-row">
+            <input type="text" id="sshPublicKeyOutput" readonly placeholder="Public key...">
+            <button id="copyPubKeyBtn" class="btn btn-accent">Copy</button>
+          </div>
+          <label>Private Key:</label>
+          <div class="gen-output-row">
+            <input type="text" id="sshPrivateKeyOutput" readonly placeholder="Private key...">
+            <button id="copyPrivKeyBtn" class="btn btn-accent">Copy</button>
+          </div>
+        </div>
+        <div class="checkbox-row" style="margin-top: 4px;">
+          <label><input type="checkbox" id="saveKeyToVaultCheck" checked> Automatically save keypair to StarVault</label>
+        </div>
       </div>
     </div>
   </div>
 
-  <!-- Crypto Helper Drawer -->
+  <!-- Crypto & Certificate Helper Drawer -->
   <div id="cryptoDrawer" class="drawer hidden">
     <div class="drawer-header">
-      <h4>🛠️ Crypto Helper</h4>
+      <h4>🛠️ Crypto & TLS Certificate Studio</h4>
       <button id="closeCryptoBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
       <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-        <select id="cryptoOpSelect" style="flex: 1; background: #0c1322; color: #fff; border: 1px solid #23304c; border-radius: 4px; padding: 4px;">
+        <select id="cryptoOpSelect" class="form-select">
           <option value="hash">Hash (SHA-256)</option>
+          <option value="hash512">Hash (SHA-512)</option>
+          <option value="md5">Hash (MD5)</option>
           <option value="encrypt">AES-256-GCM Encrypt</option>
           <option value="decrypt">AES-256-GCM Decrypt</option>
-          <option value="encode">Base64 Encode</option>
-          <option value="decode">Base64 Decode</option>
+          <option value="encode_base64">Base64 Encode</option>
+          <option value="decode_base64">Base64 Decode</option>
+          <option value="encode_hex">Hex Encode</option>
+          <option value="decode_hex">Hex Decode</option>
+          <option value="encode_url">URL Encode</option>
+          <option value="decode_url">URL Decode</option>
+          <option value="hmac">HMAC-SHA256</option>
+          <option value="tls_cert">Self-Signed TLS Certificate</option>
         </select>
       </div>
-      <input type="text" id="cryptoKeyInput" placeholder="Key / Passphrase (for encrypt/decrypt)..." class="hidden" style="margin-bottom: 6px;">
-      <textarea id="cryptoTextInput" placeholder="Enter text to process..." style="width: 100%; height: 50px; background: #0c1322; color: #fff; border: 1px solid #23304c; border-radius: 4px; padding: 6px; font-family: monospace; font-size: 11px; resize: none; margin-bottom: 6px;"></textarea>
+      <input type="text" id="cryptoKeyInput" placeholder="Passphrase / Secret Key..." class="hidden">
+      <div id="tlsOptions" class="hidden">
+        <input type="text" id="tlsCommonName" placeholder="Common Name (e.g. localhost, *.vault.local)" value="localhost">
+        <input type="text" id="tlsSans" placeholder="SANs (comma separated, e.g. 127.0.0.1, dev.local)" value="localhost, 127.0.0.1">
+      </div>
+      <textarea id="cryptoTextInput" placeholder="Enter plaintext or ciphertext to process..."></textarea>
       <button id="runCryptoBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 6px;">Calculate / Process</button>
       <div class="gen-output-row">
-        <input type="text" id="cryptoOutput" readonly placeholder="Output result...">
-        <button id="copyCryptoBtn" class="btn btn-accent">Copy</button>
+        <textarea id="cryptoOutput" readonly placeholder="Output result..." style="height: 65px;"></textarea>
       </div>
+      <button id="copyCryptoBtn" class="btn btn-accent" style="width: 100%;">Copy Output</button>
+    </div>
+  </div>
+
+  <!-- Smart Auto-Organize & Deduplicate Drawer -->
+  <div id="organizeDrawer" class="drawer hidden">
+    <div class="drawer-header">
+      <h4>✨ Smart Auto-Organize & Deduplicate</h4>
+      <button id="closeOrganizeBtn" class="close-btn">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <p style="font-size: 11px; color: #9CA3AF; margin-bottom: 12px; line-height: 1.4;">
+        Instantly categorize, tag, normalize titles, and merge duplicate credentials using the StarVault local automation engine.
+      </p>
+      <div style="display: flex; flex-direction: column; gap: 8px;">
+        <button id="btnAutoOrganize" class="btn btn-primary">
+          ✨ Auto-Organize & Tag Vault
+        </button>
+        <button id="btnDeduplicate" class="btn btn-secondary">
+          🧹 Detect & Merge Duplicates
+        </button>
+      </div>
+      <div id="organizeStatusBox" class="organize-result hidden"></div>
+    </div>
+  </div>
+
+  <!-- CSV Export Modal -->
+  <div id="exportModal" class="drawer hidden">
+    <div class="drawer-header">
+      <h4>📤 Export Credentials (CSV)</h4>
+      <button id="closeExportBtn" class="close-btn">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <p style="font-size: 11px; color: #9CA3AF; margin-bottom: 10px;">
+        Export all decrypted entries to CSV spreadsheet. Master password verification is required.
+      </p>
+      <input type="password" id="exportMasterPassword" placeholder="Enter Master Password...">
+      <input type="password" id="exportKeyfileToken" placeholder="2FA Keyfile Token (if configured)..." style="margin-top: 4px;">
+      <button id="submitExportBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Authenticate & Download CSV</button>
+      <div id="exportStatus" class="hidden" style="margin-top: 6px; font-size: 11px;"></div>
     </div>
   </div>
 
   <!-- Save Login Drawer -->
   <div id="saveDrawer" class="drawer hidden">
     <div class="drawer-header">
-      <h4>Save Login to StarVault</h4>
+      <h4>Save Entry to StarVault</h4>
       <button id="closeSaveBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
       <input type="text" id="saveTitleInput" placeholder="Title (e.g. GitHub)">
-      <input type="text" id="saveUrlInput" placeholder="URL or Domain">
+      <input type="text" id="saveUrlInput" placeholder="URL or Hostname">
       <input type="text" id="saveUserInput" placeholder="Username / Email">
       <input type="password" id="savePassInput" placeholder="Password">
+      <div style="display: flex; gap: 6px;">
+        <select id="saveCategorySelect" class="form-select" style="flex: 1;">
+          <option value="Work & Productivity">Work & Productivity</option>
+          <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
+          <option value="Dev & Repositories">Dev & Repositories</option>
+          <option value="Databases & Storage">Databases & Storage</option>
+          <option value="AI & LLM Services">AI & LLM Services</option>
+          <option value="Finance & Payments">Finance & Payments</option>
+          <option value="Security & Networking">Security & Networking</option>
+          <option value="Personal & Entertainment">Personal & Entertainment</option>
+        </select>
+        <input type="text" id="saveTagsInput" placeholder="Tags (e.g. prod, aws)" style="flex: 1;">
+      </div>
       <button id="submitSaveBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Save to Vault</button>
     </div>
   </div>

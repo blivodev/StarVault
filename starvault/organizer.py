@@ -475,21 +475,54 @@ def find_ghost_and_stale(entries: List[VaultEntry]) -> Dict[str, Any]:
 # Multi-Dimensional Auto-Sorting
 # =============================================================================
 
-def sort_entries(entries: List[VaultEntry], sort_by: str = "category", favorites_first: bool = True) -> List[VaultEntry]:
-    """Sorts entries according to selected criteria."""
+def natural_sort_key(s: str) -> List[Any]:
+    """Splits string into numeric and non-numeric chunks for natural numerical sorting (e.g. vps2 before vps10)."""
+    return [int(chunk) if chunk.isdigit() else chunk.lower() for chunk in re.split(r'(\d+)', s or "")]
+
+
+def sort_entries(
+    entries: List[VaultEntry],
+    sort_by: str = "category",
+    favorites_first: bool = True,
+    reverse: bool = False,
+) -> List[VaultEntry]:
+    """Sorts entries according to selected criteria:
+    - Alphabetical (A-Z / Z-A)
+    - Natural Numeric (1, 2, 10...)
+    - Date Created (Newest / Oldest)
+    - Date Modified (Newest / Oldest)
+    - Category
+    - Security Risk
+    - Entry Type
+    - Port Number
+    """
     result = list(entries)
 
-    if sort_by == "title_asc":
+    if sort_by in ("natural", "numeric", "natural_asc"):
+        result.sort(key=lambda e: natural_sort_key(e.title))
+    elif sort_by in ("natural_desc", "numeric_desc"):
+        result.sort(key=lambda e: natural_sort_key(e.title), reverse=True)
+    elif sort_by in ("title_asc", "alpha_asc"):
         result.sort(key=lambda e: e.title.lower())
-    elif sort_by == "title_desc":
+    elif sort_by in ("title_desc", "alpha_desc"):
         result.sort(key=lambda e: e.title.lower(), reverse=True)
-    elif sort_by == "category":
-        result.sort(key=lambda e: (e.category.lower(), e.title.lower()))
-    elif sort_by == "recency":
+    elif sort_by in ("created_desc", "date_created_desc"):
+        result.sort(key=lambda e: e.created_at or "", reverse=True)
+    elif sort_by in ("created_asc", "date_created_asc"):
+        result.sort(key=lambda e: e.created_at or "")
+    elif sort_by in ("recency", "modified_desc", "date_modified_desc"):
         result.sort(key=lambda e: e.updated_at or e.created_at or "", reverse=True)
+    elif sort_by in ("modified_asc", "date_modified_asc"):
+        result.sort(key=lambda e: e.updated_at or e.created_at or "")
+    elif sort_by in ("port", "port_numeric"):
+        result.sort(key=lambda e: (e.port or 0, natural_sort_key(e.title)))
+    elif sort_by in ("password_len", "password_length"):
+        result.sort(key=lambda e: len(e.password or ""), reverse=True)
+    elif sort_by == "category":
+        result.sort(key=lambda e: (e.category.lower(), natural_sort_key(e.title)))
     elif sort_by == "type":
         type_rank = {"server": 0, "service": 1, "apikey": 2, "keypair": 3}
-        result.sort(key=lambda e: (type_rank.get(e.entry_type, 4), e.title.lower()))
+        result.sort(key=lambda e: (type_rank.get(e.entry_type, 4), natural_sort_key(e.title)))
     elif sort_by == "risk":
         # Sort by security risk: empty/weak/expiring first
         def risk_score(e: VaultEntry) -> int:
@@ -502,7 +535,10 @@ def sort_entries(entries: List[VaultEntry], sort_by: str = "category", favorites
                 score += 5
             return score
 
-        result.sort(key=lambda e: (risk_score(e), e.title.lower()), reverse=True)
+        result.sort(key=lambda e: (risk_score(e), natural_sort_key(e.title)), reverse=True)
+
+    if reverse:
+        result.reverse()
 
     if favorites_first:
         result.sort(key=lambda e: 0 if e.is_favorite else 1)
