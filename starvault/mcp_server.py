@@ -750,6 +750,12 @@ class StarVaultMCPServer:
                     entry.groups = list(grps)
                 if srvs:
                     entry.services = list(srvs)
+                if "username" in args:
+                    entry.username = args["username"]
+                if "password" in args:
+                    entry.password = args["password"]
+                if "totp_secret" in args:
+                    entry.totp_secret = args["totp_secret"]
                 if "parent_domain_id" in args:
                     entry.parent_domain_id = args["parent_domain_id"]
             else:

@@ -241,6 +241,8 @@ class QuickSearchHUD(ctk.CTkToplevel):
                 sub_text = f"{sub_text} • Registrar: {entry.registrar}" if sub_text else f"Registrar: {entry.registrar}"
             if getattr(entry, "expires_at", ""):
                 sub_text = f"{sub_text} • Exp: {entry.expires_at}"
+            if entry.username:
+                sub_text = f"{entry.username} @ {sub_text}" if sub_text else entry.username
         elif entry.entry_type == "server":
             sub_text = f"{entry.username}@{entry.hostname}:{entry.port}"
         elif entry.entry_type == "service":
@@ -278,6 +280,31 @@ class QuickSearchHUD(ctk.CTkToplevel):
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     command=lambda e=entry: self._copy_val(getattr(e, "domain_name", "") or e.url, "Domain URL copied"),
+                ).pack(side="left", padx=2)
+
+            if getattr(entry, "username", ""):
+                ctk.CTkButton(
+                    btn_col,
+                    text="👤 User",
+                    width=60,
+                    height=28,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    command=lambda e=entry: self._copy_val(e.username, "Username copied"),
+                ).pack(side="left", padx=2)
+
+            if getattr(entry, "password", ""):
+                ctk.CTkButton(
+                    btn_col,
+                    text="🔑 Pass",
+                    width=60,
+                    height=28,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11, "bold"),
+                    text_color=COLOR_WARNING,
+                    command=lambda e=entry: self._copy_val(e.password, "Password copied (30s wipe)", is_sensitive=True),
                 ).pack(side="left", padx=2)
 
             if getattr(entry, "registrar", ""):
