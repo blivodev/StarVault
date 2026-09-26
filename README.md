@@ -104,6 +104,11 @@ Built with **Python**, **CustomTkinter**, **Argon2id**, **AES-256-GCM**, and **S
   - **RSA-4096 & GPG / OpenPGP / Age**: High-security RSA, armored OpenPGP keypairs (`.asc`), and modern Age encryption keys (`.recipient.txt` / `.key`).
   - **Direct Vault Storage**: 1-click button to save newly generated keys and certificates straight into your encrypted database keyring.
   - **Local PC File & Bundle Export**: Save individual public keys / certs or private keys straight to your computer with automatic file extension matching, or export both simultaneously via `📦 Export Keypair Bundle to Folder...`.
+  - **Local Key Installer & System Verifier**: Select and install SSH, GPG, Age, WireGuard, and TLS keys directly onto your local Windows or Linux host:
+    - **Automated Security Hardening**: Enforces strict permissions (NTFS ACLs restricted to current user on Windows; POSIX `chmod 0600`/`0700` on Linux/macOS) with overwrite safeguards.
+    - **Exhaustive System Audits**: Verifies file existence, SHA-256 bit-for-bit integrity, and syntax via OpenSSH `ssh-keygen -l`.
+    - **Agent & Host Integration**: Automatically adds public keys to `~/.ssh/authorized_keys`, creates `~/.ssh/config` Host blocks, and registers keys into running `ssh-agent` or native GPG keyrings (`gpg --import`).
+    - **Local Key Scanner & Exporter**: Scan and discover existing keys across local directories (`~/.ssh`, `~/.gnupg`, etc.) to import into the vault, or bulk-export vault keys with an OpenSSH client configuration template or compressed `.zip` archive.
 
 ### 🌐 Domain & URL Management & Relational Hierarchy
 - **Dedicated Domain Tracking**: First-class `domain` entry type tracking domain names/URLs, registrar ("who I bought it from"), registrar account credentials (username/email, encrypted password with 1-click password generator & show/hide toggle, and 2FA TOTP secrets), expiry dates, registration dates, renewal costs, auto-renewal toggles, DNS management providers, nameservers, and encrypted EPP/transfer authorization codes.

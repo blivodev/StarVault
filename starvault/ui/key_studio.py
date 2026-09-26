@@ -2,7 +2,7 @@
 
 import threading
 from tkinter import filedialog
-from typing import Callable, Optional
+from typing import Any, Callable, Optional
 import customtkinter as ctk
 
 from starvault.clipboard import ClipboardManager
@@ -44,11 +44,15 @@ class KeyStudioDialog(ctk.CTkToplevel):
         parent,
         clipboard_mgr: ClipboardManager,
         on_save_to_vault: Optional[Callable[[VaultEntry], None]] = None,
+        database: Optional[Any] = None,
+        session_key: Optional[bytes] = None,
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
         self.clipboard_mgr = clipboard_mgr
         self.on_save_to_vault = on_save_to_vault
+        self.database = database
+        self.session_key = session_key
 
         self.title("StarVault - Key Generation & Management Studio")
         self.geometry("860x860")
@@ -81,6 +85,17 @@ class KeyStudioDialog(ctk.CTkToplevel):
             font=get_font(12),
             text_color=TEXT_MUTED,
         ).pack(side="left", pady=16)
+
+        ctk.CTkButton(
+            header,
+            text="💻 Local Key Installer...",
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=ACCENT_PRIMARY,
+            height=32,
+            command=self._open_local_installer,
+        ).pack(side="right", padx=20, pady=16)
 
         # Scrollable body
         self.scroll = ctk.CTkScrollableFrame(self, fg_color=BG_ROOT)
@@ -448,7 +463,19 @@ class KeyStudioDialog(ctk.CTkToplevel):
             text_color="#ffffff",
             command=self._export_both_to_folder,
         )
-        self.export_bundle_btn.pack(side="left")
+        self.export_bundle_btn.pack(side="left", padx=(0, 6))
+
+        self.install_local_btn = ctk.CTkButton(
+            export_row,
+            text="💻 Install to System (~/.ssh)...",
+            font=get_font(11, "bold"),
+            height=34,
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            command=self._open_local_installer,
+        )
+        self.install_local_btn.pack(side="left")
 
 
         # Save into StarVault vault directly
@@ -689,3 +716,24 @@ class KeyStudioDialog(ctk.CTkToplevel):
                 text="✓ Saved keypair directly to StarVault entries!",
                 text_color=COLOR_SUCCESS,
             )
+
+    def _open_local_installer(self):
+        from starvault.ui.local_key_installer_dialog import LocalKeyInstallerDialog
+        preselected = None
+        if self.current_key:
+            preselected = VaultEntry.create_keypair(
+                title=self.current_key.comment or f"{self.current_key.key_type.upper()} Key",
+                key_name=self.current_key.comment or "generated_key",
+                key_type=self.current_key.key_type,
+                public_key=self.current_key.public_key,
+                private_key=self.current_key.private_key,
+                fingerprint=self.current_key.fingerprint,
+            )
+        LocalKeyInstallerDialog(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            clipboard_mgr=self.clipboard_mgr,
+            preselected_entry=preselected,
+            on_vault_updated=lambda: self.on_save_to_vault(preselected) if (self.on_save_to_vault and preselected) else None,
+        )

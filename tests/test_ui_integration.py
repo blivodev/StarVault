@@ -267,4 +267,86 @@ def test_theme_switching_token_propagation():
     assert theme.get_current_theme() == "Dark"
 
 
+def test_theme_signature_fonts_and_overrides():
+    """Verify that applying a theme switches to its signature fonts unless overridden by user."""
+    from starvault.ui import theme
+    from starvault.app_config import AppConfigManager
+
+    cfg = AppConfigManager()
+    # Reset any existing override
+    cfg.data["user_has_custom_font"] = False
+    cfg.data.pop("ui_font", None)
+    cfg.data.pop("mono_font", None)
+    cfg._save()
+
+    # 1. Tokyo Night uses Plus Jakarta Sans and JetBrains Mono
+    theme.apply_theme("Tokyo Night", save_to_config=False)
+    assert theme.ACTIVE_UI_FONT == "Plus Jakarta Sans"
+    assert theme.ACTIVE_MONO_FONT == "JetBrains Mono"
+
+    # 2. Cyberpunk 2077 uses Rajdhani and Fira Code
+    theme.apply_theme("Cyberpunk 2077", save_to_config=False)
+    assert theme.ACTIVE_UI_FONT == "Rajdhani"
+    assert theme.ACTIVE_MONO_FONT == "Fira Code"
+
+    # 3. Solarized Light uses Roboto and Inconsolata
+    theme.apply_theme("Solarized Light", save_to_config=False)
+    assert theme.ACTIVE_UI_FONT == "Roboto"
+    assert theme.ACTIVE_MONO_FONT == "Inconsolata"
+
+    # 4. User locks custom font override
+    theme.set_ui_font_family("Inter", save_to_config=True, is_user_override=True)
+    cfg = AppConfigManager()
+    assert cfg.data.get("user_has_custom_font") is True
+
+    # Switching theme now preserves the user's custom font choice
+    theme.apply_theme("Tokyo Night", save_to_config=False)
+    assert theme.ACTIVE_UI_FONT == "Inter"
+
+    # 5. Clean up config
+    cfg.data["user_has_custom_font"] = False
+    cfg.data.pop("ui_font", None)
+    cfg.data.pop("mono_font", None)
+    cfg._save()
+    theme.apply_theme("Dark", save_to_config=False)
+
+
+def test_local_key_installer_dialog(app_instance):
+    """Verifies that LocalKeyInstallerDialog opens, populates keys, and switches tabs properly."""
+    from starvault.keys import generate_ed25519_key
+    from starvault.ui.local_key_installer_dialog import LocalKeyInstallerDialog
+
+    db = app_instance.db
+    key = app_instance.session.key
+    assert key is not None
+
+    k = generate_ed25519_key("ui-test-key")
+    entry = VaultEntry.create_keypair("UI Test Keypair", "ui_key", "ed25519", k.public_key, k.private_key, k.fingerprint)
+    db.save_entry(entry, key)
+
+    dlg = LocalKeyInstallerDialog(
+        app_instance,
+        database=db,
+        session_key=key,
+        clipboard_mgr=app_instance.clipboard_mgr,
+        preselected_entry=entry,
+    )
+    dlg.withdraw()
+
+    assert len(dlg.vault_keys) >= 1
+    assert entry.id in dlg.selected_key_ids
+
+    # Switch modes
+    dlg._on_mode_switched("📥 Import Local Keys")
+    assert hasattr(dlg, "import_scroll")
+
+    dlg._on_mode_switched("📤 Bulk Export")
+    dlg._on_mode_switched("🩺 Diagnostics")
+    dlg._on_mode_switched("🚀 Install to System")
+
+    dlg.destroy()
+
+
+
+
 

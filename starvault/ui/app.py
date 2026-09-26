@@ -19,7 +19,7 @@ from starvault.ui.hud import QuickSearchHUD
 from starvault.ui.icons import generate_vault_icon_image
 from starvault.ui.key_studio import KeyStudioDialog
 from starvault.ui.migration_dialog import MigrationDialog
-from starvault.ui.theme import BG_ROOT, apply_global_theme, register_theme_listener
+from starvault.ui.theme import BG_ROOT, apply_global_theme, register_font_listener, register_theme_listener
 from starvault.ui.unlock_view import UnlockView
 
 
@@ -84,8 +84,9 @@ class StarVaultApp(ctk.CTk):
         )
         self.extension_bridge.start()
 
-        # Register dynamic theme listener
+        # Register dynamic theme & typography listeners
         register_theme_listener(self._on_theme_changed)
+        register_font_listener(self._on_font_changed)
 
         # Window event bindings
         self.protocol("WM_DELETE_WINDOW", self._on_close_button_clicked)
@@ -173,6 +174,36 @@ class StarVaultApp(ctk.CTk):
         def safe_refresh():
             try:
                 self.configure(fg_color=BG_ROOT)
+                if self.session.is_unlocked and self.current_view:
+                    active_tab = "Credentials"
+                    selected_id = None
+                    if hasattr(self.current_view, "nav_var"):
+                        active_tab = self.current_view.nav_var.get()
+                    if hasattr(self.current_view, "selected_entry") and self.current_view.selected_entry:
+                        selected_id = self.current_view.selected_entry.id
+
+                    self._show_initial_view()
+
+                    if hasattr(self.current_view, "switch_to_tab"):
+                        self.current_view.switch_to_tab(active_tab)
+                    elif hasattr(self.current_view, "_on_nav_tab_changed"):
+                        self.current_view.nav_var.set(active_tab)
+                        self.current_view.tab_selector.set(active_tab)
+                        self.current_view._on_nav_tab_changed(active_tab)
+
+                    if selected_id and hasattr(self.current_view, "switch_to_credentials_tab"):
+                        if active_tab == "Credentials":
+                            self.current_view.switch_to_credentials_tab(selected_id)
+                else:
+                    self._show_initial_view()
+            except Exception:
+                pass
+
+        self.after(20, safe_refresh)
+    def _on_font_changed(self):
+        """Handles live typography switching and refreshes views."""
+        def safe_refresh():
+            try:
                 if self.session.is_unlocked and self.current_view:
                     active_tab = "Credentials"
                     selected_id = None

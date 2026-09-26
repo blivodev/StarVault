@@ -249,6 +249,19 @@ class SettingsDialog(ctk.CTkToplevel):
         )
         self.font_sample_mono_lbl.pack(fill="x", padx=10, pady=(2, 6))
 
+        # Reset button to theme default signature fonts
+        ctk.CTkButton(
+            self.font_sample_box,
+            text="Reset to Theme Signature Fonts",
+            font=get_font(11),
+            height=26,
+            corner_radius=4,
+            fg_color="transparent",
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_MUTED,
+            command=self._reset_theme_fonts,
+        ).pack(anchor="e", padx=10, pady=(0, 6))
+
         # 2. Master Password Change Card
         pwd_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         pwd_card.pack(fill="x", pady=(0, 16), padx=4)
@@ -888,7 +901,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 pass
 
     def _on_ui_font_selected(self, font_name: str):
-        set_ui_font_family(font_name)
+        set_ui_font_family(font_name, save_to_config=True, is_user_override=True)
         if hasattr(self, "font_sample_ui_lbl"):
             self.font_sample_ui_lbl.configure(
                 text=f"UI Sample: The quick brown fox jumps over the lazy dog ({font_name})",
@@ -896,10 +909,33 @@ class SettingsDialog(ctk.CTkToplevel):
             )
 
     def _on_mono_font_selected(self, font_name: str):
-        set_mono_font_family(font_name)
+        set_mono_font_family(font_name, save_to_config=True, is_user_override=True)
         if hasattr(self, "font_sample_mono_lbl"):
             self.font_sample_mono_lbl.configure(
                 text=f"Mono: 0123456789 • SHA-256: 4a2b9f... • ed25519 ({font_name})",
+                font=get_mono_font(11),
+            )
+
+    def _reset_theme_fonts(self):
+        from starvault.app_config import AppConfigManager
+        from starvault.ui.theme import ACTIVE_UI_FONT, ACTIVE_MONO_FONT, apply_theme, get_current_theme
+        cfg = AppConfigManager()
+        cfg.data["user_has_custom_font"] = False
+        cfg.data.pop("ui_font", None)
+        cfg.data.pop("mono_font", None)
+        cfg._save()
+        theme_name = get_current_theme()
+        apply_theme(theme_name, save_to_config=False)
+        self.uifont_combo.set(ACTIVE_UI_FONT)
+        self.monofont_combo.set(ACTIVE_MONO_FONT)
+        if hasattr(self, "font_sample_ui_lbl"):
+            self.font_sample_ui_lbl.configure(
+                text=f"UI Sample: The quick brown fox jumps over the lazy dog ({ACTIVE_UI_FONT})",
+                font=get_font(11),
+            )
+        if hasattr(self, "font_sample_mono_lbl"):
+            self.font_sample_mono_lbl.configure(
+                text=f"Mono: 0123456789 • SHA-256: 4a2b9f... • ed25519 ({ACTIVE_MONO_FONT})",
                 font=get_mono_font(11),
             )
 

@@ -55,6 +55,7 @@ from starvault.keys import (
     parse_and_import_key,
 )
 from starvault.models import VaultEntry
+from starvault.ui.local_key_installer_dialog import LocalKeyInstallerDialog
 from starvault.ui.theme import (
     ACCENT_HOVER,
     ACCENT_INDIGO,
@@ -294,6 +295,17 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             tb_inner,
+            text="💻 Local Key Installer...",
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=ACCENT_PRIMARY,
+            height=34,
+            command=self._open_local_key_installer,
+        ).pack(side="right", padx=4)
+
+        ctk.CTkButton(
+            tb_inner,
             text="📥 Import Key / Cert...",
             font=get_font(11, "bold"),
             fg_color=ACCENT_PRIMARY,
@@ -482,6 +494,18 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             btn_row,
+            text="💻 Install...",
+            font=get_font(10),
+            width=75,
+            height=26,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=ACCENT_PRIMARY,
+            command=lambda ent=entry: self._open_local_key_installer(preselected=ent),
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            btn_row,
             text="📤 Export...",
             font=get_font(10),
             width=75,
@@ -575,6 +599,17 @@ class CryptoToolsView(ctk.CTkFrame):
             text_color=TEXT_PRIMARY,
             height=34,
             command=lambda: self._use_key_for_sign_verify(entry),
+        ).pack(fill="x", pady=4)
+
+        ctk.CTkButton(
+            scroll,
+            text="💻 Install to Local System (~/.ssh)...",
+            font=get_font(12, "bold"),
+            fg_color=ACCENT_INDIGO,
+            hover_color=ACCENT_HOVER,
+            text_color="#ffffff",
+            height=34,
+            command=lambda: self._open_local_key_installer(preselected=entry),
         ).pack(fill="x", pady=4)
 
         ctk.CTkButton(
@@ -778,6 +813,33 @@ class CryptoToolsView(ctk.CTkFrame):
             self._render_key_details_empty()
             self.reload_keyring()
 
+    def _open_local_key_installer(self, preselected: Optional[VaultEntry] = None) -> None:
+        """Opens the Local Key Installer & Manager dialog."""
+        LocalKeyInstallerDialog(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            clipboard_mgr=self.clipboard_mgr,
+            preselected_entry=preselected,
+            on_vault_updated=self.reload_keyring,
+        )
+
+    def _install_generated_key_locally(self) -> None:
+        """Opens the local installer preloaded with the freshly generated keypair."""
+        if not self.current_generated_key:
+            messagebox.showwarning("No Key", "Please generate a keypair first.")
+            return
+        res = self.current_generated_key
+        temp_entry = VaultEntry.create_keypair(
+            title=res.key_name or f"{res.key_type.upper()} Key",
+            key_name=res.key_name or "generated_key",
+            key_type=res.key_type,
+            public_key=res.public_key,
+            private_key=res.private_key,
+            fingerprint=res.fingerprint,
+        )
+        self._open_local_key_installer(preselected=temp_entry)
+
     # -------------------------------------------------------------------------
     # 2. Integrated Key Generator Workbench
     # -------------------------------------------------------------------------
@@ -929,6 +991,17 @@ class CryptoToolsView(ctk.CTkFrame):
             text_color="#ffffff",
             height=32,
             command=self._export_generated_bundle,
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            exp_row,
+            text="💻 Install to System (~/.ssh)...",
+            font=get_font(11, "bold"),
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            height=32,
+            command=self._install_generated_key_locally,
         ).pack(side="left", padx=4)
 
 

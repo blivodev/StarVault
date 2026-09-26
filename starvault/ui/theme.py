@@ -17,7 +17,7 @@ _FONT_LISTENERS: List[Callable[[], None]] = []
 
 
 def _init_fonts() -> None:
-    """Discovers and registers bundled open-source fonts (Inter & JetBrains Mono)."""
+    """Discovers and registers bundled open-source fonts."""
     global _FONTS_INITIALIZED, ACTIVE_UI_FONT, ACTIVE_MONO_FONT
     if _FONTS_INITIALIZED:
         return
@@ -25,10 +25,11 @@ def _init_fonts() -> None:
     # Look for fonts directory in starvault/resources/fonts
     base_dir = Path(__file__).resolve().parent.parent / "resources" / "fonts"
     if base_dir.exists():
-        for font_file in base_dir.glob("*.ttf"):
+        for font_file in sorted(base_dir.glob("*.ttf")):
             try:
                 if sys.platform.startswith("win"):
-                    ctk.FontManager.windows_load_font(str(font_file), private=True, enumerable=False)
+                    # enumerable=True ensures Tkinter/GDI font enumeration discovers custom font families
+                    ctk.FontManager.windows_load_font(str(font_file), private=True, enumerable=True)
                 elif sys.platform.startswith("linux"):
                     ctk.FontManager.load_font(str(font_file))
             except Exception:
@@ -36,7 +37,6 @@ def _init_fonts() -> None:
 
     # Validate active UI font with graceful fallback
     try:
-        # Load user saved font if available
         from starvault.app_config import AppConfigManager
         cfg = AppConfigManager()
         saved_ui = cfg.data.get("ui_font", "")
@@ -59,9 +59,14 @@ def get_available_ui_fonts() -> List[str]:
     """Returns list of clean, open-source and system UI fonts."""
     return [
         "Inter",
-        "Source Sans Pro",
-        "Segoe UI",
+        "Plus Jakarta Sans",
+        "Outfit",
+        "Space Grotesk",
+        "Fira Sans",
         "Roboto",
+        "Rajdhani",
+        "Segoe UI",
+        "Source Sans Pro",
         "Arial",
     ]
 
@@ -70,14 +75,15 @@ def get_available_mono_fonts() -> List[str]:
     """Returns list of clean, open-source and system monospace fonts."""
     return [
         "JetBrains Mono",
+        "Fira Code",
+        "Inconsolata",
         "Cascadia Code",
-        "Cascadia Mono",
         "Consolas",
         "Courier New",
     ]
 
 
-def set_ui_font_family(family: str, save_to_config: bool = True) -> None:
+def set_ui_font_family(family: str, save_to_config: bool = True, is_user_override: bool = True) -> None:
     """Sets active application UI font family."""
     global ACTIVE_UI_FONT
     ACTIVE_UI_FONT = family
@@ -86,17 +92,19 @@ def set_ui_font_family(family: str, save_to_config: bool = True) -> None:
             from starvault.app_config import AppConfigManager
             cfg = AppConfigManager()
             cfg.data["ui_font"] = family
+            if is_user_override:
+                cfg.data["user_has_custom_font"] = True
             cfg._save()
         except Exception:
             pass
-    for listener in _FONT_LISTENERS:
+    for listener in list(_FONT_LISTENERS):
         try:
             listener()
         except Exception:
             pass
 
 
-def set_mono_font_family(family: str, save_to_config: bool = True) -> None:
+def set_mono_font_family(family: str, save_to_config: bool = True, is_user_override: bool = True) -> None:
     """Sets active monospace font family for credentials and code."""
     global ACTIVE_MONO_FONT
     ACTIVE_MONO_FONT = family
@@ -105,10 +113,12 @@ def set_mono_font_family(family: str, save_to_config: bool = True) -> None:
             from starvault.app_config import AppConfigManager
             cfg = AppConfigManager()
             cfg.data["mono_font"] = family
+            if is_user_override:
+                cfg.data["user_has_custom_font"] = True
             cfg._save()
         except Exception:
             pass
-    for listener in _FONT_LISTENERS:
+    for listener in list(_FONT_LISTENERS):
         try:
             listener()
         except Exception:
@@ -138,6 +148,8 @@ def get_mono_font(size: int = 12, weight: str = "normal") -> ctk.CTkFont:
 THEME_PALETTES: Dict[str, Dict[str, str]] = {
     # 1. Dark (Modern Zinc Dark - Linear / Raycast / VS Code clean aesthetic)
     "Dark": {
+        "UI_FONT": "Inter",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Dark",
         "BG_ROOT": "#09090b",
         "BG_SIDEBAR": "#111113",
@@ -164,6 +176,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 2. Midnight OLED (True Pure Black for OLED displays & maximum focus)
     "Midnight OLED": {
+        "UI_FONT": "Inter",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Dark",
         "BG_ROOT": "#000000",
         "BG_SIDEBAR": "#080808",
@@ -190,6 +204,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 3. Tokyo Night (Deep storm navy developer palette)
     "Tokyo Night": {
+        "UI_FONT": "Plus Jakarta Sans",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Dark",
         "BG_ROOT": "#1a1b26",
         "BG_SIDEBAR": "#16161e",
@@ -216,6 +232,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 4. Catppuccin Mocha (Smooth pastel dark palette)
     "Catppuccin Mocha": {
+        "UI_FONT": "Plus Jakarta Sans",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#11111b",
         "BG_SIDEBAR": "#181825",
@@ -242,6 +260,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 5. Gruvbox Dark (Warm artisan retro-modern dark)
     "Gruvbox Dark": {
+        "UI_FONT": "Space Grotesk",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#1d2021",
         "BG_SIDEBAR": "#282828",
@@ -268,6 +288,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 6. One Dark Pro (Atom / VS Code classic dark)
     "One Dark Pro": {
+        "UI_FONT": "Roboto",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Dark",
         "BG_ROOT": "#1e2227",
         "BG_SIDEBAR": "#17191d",
@@ -294,6 +316,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 7. Solarized Dark (Classic UNIX sysadmin precision)
     "Solarized Dark": {
+        "UI_FONT": "Roboto",
+        "MONO_FONT": "Inconsolata",
         "mode": "Dark",
         "BG_ROOT": "#002b36",
         "BG_SIDEBAR": "#073642",
@@ -320,6 +344,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 8. Nord (Arctic, elegant cold blue-gray)
     "Nord": {
+        "UI_FONT": "Inter",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Dark",
         "BG_ROOT": "#242933",
         "BG_SIDEBAR": "#2e3440",
@@ -346,6 +372,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 9. Dracula (Vampire high-contrast dark)
     "Dracula": {
+        "UI_FONT": "Fira Sans",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#1e1f29",
         "BG_SIDEBAR": "#242634",
@@ -372,6 +400,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 10. Console (Matrix phosphor terminal)
     "Console": {
+        "UI_FONT": "JetBrains Mono",
+        "MONO_FONT": "Inconsolata",
         "mode": "Dark",
         "BG_ROOT": "#050a05",
         "BG_SIDEBAR": "#081208",
@@ -398,6 +428,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 11. Trendy (Cyber Synthwave)
     "Trendy": {
+        "UI_FONT": "Outfit",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#0f0c1b",
         "BG_SIDEBAR": "#17122b",
@@ -424,6 +456,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 12. Light (Refined minimal daylight)
     "Light": {
+        "UI_FONT": "Inter",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Light",
         "BG_ROOT": "#f8fafc",
         "BG_SIDEBAR": "#f1f5f9",
@@ -450,6 +484,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 13. Catppuccin Latte (Warm soft cream light)
     "Catppuccin Latte": {
+        "UI_FONT": "Plus Jakarta Sans",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Light",
         "BG_ROOT": "#eff1f5",
         "BG_SIDEBAR": "#e6e9ef",
@@ -476,6 +512,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 14. GitHub Dark (Official GitHub developer dark mode)
     "GitHub Dark": {
+        "UI_FONT": "Inter",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#0d1117",
         "BG_SIDEBAR": "#010409",
@@ -502,6 +540,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 15. Monokai Pro (Sublime Text / Monokai classic perfection)
     "Monokai Pro": {
+        "UI_FONT": "Fira Sans",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#222426",
         "BG_SIDEBAR": "#1b1d1e",
@@ -528,6 +568,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 16. Rosé Pine (Minimalist Soho aesthetic pastel theme)
     "Rosé Pine": {
+        "UI_FONT": "Plus Jakarta Sans",
+        "MONO_FONT": "Inconsolata",
         "mode": "Dark",
         "BG_ROOT": "#191724",
         "BG_SIDEBAR": "#1f1d2e",
@@ -554,6 +596,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 17. Ayu Dark (Deep modern abyss with radiant gold & cyan)
     "Ayu Dark": {
+        "UI_FONT": "Outfit",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Dark",
         "BG_ROOT": "#0b0e14",
         "BG_SIDEBAR": "#0f131a",
@@ -580,6 +624,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 18. Kanagawa (Traditional Japanese watercolor & sumi ink)
     "Kanagawa": {
+        "UI_FONT": "Plus Jakarta Sans",
+        "MONO_FONT": "Inconsolata",
         "mode": "Dark",
         "BG_ROOT": "#1f1f28",
         "BG_SIDEBAR": "#16161d",
@@ -606,6 +652,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 19. Everforest Dark (Comforting natural sage & forest green)
     "Everforest Dark": {
+        "UI_FONT": "Plus Jakarta Sans",
+        "MONO_FONT": "JetBrains Mono",
         "mode": "Dark",
         "BG_ROOT": "#2d353b",
         "BG_SIDEBAR": "#272e33",
@@ -632,6 +680,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 20. Cyberpunk 2077 (High-voltage cyber yellow & laser cyan)
     "Cyberpunk 2077": {
+        "UI_FONT": "Rajdhani",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#0b0c10",
         "BG_SIDEBAR": "#12131a",
@@ -658,6 +708,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 21. Horizon Dark (Warm twilight space dark with sunset peach)
     "Horizon Dark": {
+        "UI_FONT": "Outfit",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#1c1e26",
         "BG_SIDEBAR": "#16171d",
@@ -684,6 +736,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 22. Cobalt2 (Royal navy blue with electric yellow)
     "Cobalt2": {
+        "UI_FONT": "Space Grotesk",
+        "MONO_FONT": "Fira Code",
         "mode": "Dark",
         "BG_ROOT": "#15232d",
         "BG_SIDEBAR": "#121b24",
@@ -710,6 +764,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 23. Solarized Light (Precision daytime sysadmin palette)
     "Solarized Light": {
+        "UI_FONT": "Roboto",
+        "MONO_FONT": "Inconsolata",
         "mode": "Light",
         "BG_ROOT": "#fdf6e3",
         "BG_SIDEBAR": "#eee8d5",
@@ -736,6 +792,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
     # 24. GitHub Light (Clean, crisp official GitHub daylight)
     "GitHub Light": {
+        "UI_FONT": "Inter",
+        "MONO_FONT": "Fira Code",
         "mode": "Light",
         "BG_ROOT": "#f6f8fa",
         "BG_SIDEBAR": "#eaeef2",
@@ -881,6 +939,21 @@ def apply_theme(theme_name: str, save_to_config: bool = True) -> None:
             cfg.set_theme(theme_name)
         except Exception:
             pass
+
+    # Apply signature font pair for the theme unless user has locked a custom font override
+    user_override = False
+    try:
+        from starvault.app_config import AppConfigManager
+        cfg = AppConfigManager()
+        user_override = bool(cfg.data.get("user_has_custom_font", False))
+    except Exception:
+        pass
+
+    if not user_override:
+        sig_ui = palette.get("UI_FONT", "Inter")
+        sig_mono = palette.get("MONO_FONT", "JetBrains Mono")
+        set_ui_font_family(sig_ui, save_to_config=False, is_user_override=False)
+        set_mono_font_family(sig_mono, save_to_config=False, is_user_override=False)
 
     # Notify listeners
     for listener in _THEME_LISTENERS:

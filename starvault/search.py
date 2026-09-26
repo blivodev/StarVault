@@ -37,8 +37,16 @@ def search_entries(
             continue
         elif selected_category in ("API Keys", "APIs") and e.entry_type != "apikey":
             continue
-        elif selected_category in ("Domains", "URLs", "Domains & URLs") and e.entry_type != "domain":
-            continue
+        elif selected_category in ("Domains", "URLs", "Domains & URLs"):
+            is_dom = (
+                e.entry_type == "domain"
+                or (getattr(e, "category", "") or "").lower() in ("domains", "domain", "urls", "domains & urls")
+                or any(g.lower() in ("domains", "domain") for g in getattr(e, "groups", []))
+                or any(t.lower() in ("domains", "domain") for t in getattr(e, "tags", []))
+                or bool(getattr(e, "domain_name", ""))
+            )
+            if not is_dom:
+                continue
         elif (
             selected_category not in ("All", "Favorites", "Servers", "Services", "Keys", "API Keys", "APIs", "Domains", "URLs", "Domains & URLs")
             and e.category != selected_category

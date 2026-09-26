@@ -6,9 +6,41 @@ This directory bundles open-source typefaces for StarVault:
    Copyright (c) 2016-2024 The Inter Project Authors (https://github.com/rsms/inter)
    License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
 
-2. JetBrains Mono
+2. Plus Jakarta Sans
+   Copyright (c) 2020-2024 Tokotype, Gumpita Rahayu (https://github.com/tokotype/PlusJakartaSans)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+3. Outfit
+   Copyright (c) 2021 On Brand Investments Pty Ltd (https://github.com/Outfitio/Outfit-Fonts)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+4. Space Grotesk
+   Copyright (c) 2020 Florian Karsten (https://github.com/floriankarsten/space-grotesk)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+5. Fira Sans
+   Copyright (c) 2012-2015 Mozilla Foundation and The Fira Sans Authors (https://github.com/bBoxType/FiraSans)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+6. Roboto
+   Copyright (c) 2011 Google Inc. (https://github.com/googlefonts/roboto)
+   License: Apache License 2.0 / SIL Open Font License
+
+7. Rajdhani
+   Copyright (c) 2014 Indian Type Foundry (https://github.com/itfoundry/rajdhani)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+8. JetBrains Mono
    Copyright (c) 2020 JetBrains s.r.o. (https://www.jetbrains.com/lp/mono/)
    License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+9. Fira Code
+   Copyright (c) 2014-2024 Nikita Prokopov (https://github.com/tonsky/FiraCode)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+10. Inconsolata
+    Copyright (c) 2006 Raph Levien (https://github.com/googlefonts/Inconsolata)
+    License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
 
 Permission is hereby granted, free of charge, to any person obtaining
 a copy of the Font Software, to use, study, copy, merge, embed, modify,
