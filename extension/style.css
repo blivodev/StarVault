@@ -286,6 +286,226 @@
   --badge-key: #6c71c4;
 }
 
+[data-theme="github dark" i], [data-theme="github" i] {
+  --bg-root: #0d1117;
+  --bg-header: #010409;
+  --bg-card: #161b22;
+  --bg-card-hover: #21262d;
+  --bg-input: #0d1117;
+  --border: #30363d;
+  --border-focus: #58a6ff;
+  --text-primary: #f0f6fc;
+  --text-secondary: #8b949e;
+  --text-muted: #6e7681;
+  --accent: #58a6ff;
+  --accent-hover: #79c0ff;
+  --accent-text: #0d1117;
+  --success: #3fb950;
+  --warning: #d29922;
+  --danger: #f85149;
+  --badge-server: #58a6ff;
+  --badge-service: #d29922;
+  --badge-key: #d2a8ff;
+}
+
+[data-theme="monokai" i], [data-theme="monokai pro" i] {
+  --bg-root: #222426;
+  --bg-header: #1b1d1e;
+  --bg-card: #2d3134;
+  --bg-card-hover: #373c40;
+  --bg-input: #191a1b;
+  --border: #40464b;
+  --border-focus: #ffd866;
+  --text-primary: #fcfcfa;
+  --text-secondary: #c1c0c0;
+  --text-muted: #727072;
+  --accent: #ffd866;
+  --accent-hover: #ff6188;
+  --accent-text: #222426;
+  --success: #a9dc76;
+  --warning: #fc9867;
+  --danger: #ff6188;
+  --badge-server: #78dce8;
+  --badge-service: #fc9867;
+  --badge-key: #ab9df2;
+}
+
+[data-theme="rose pine" i], [data-theme="rosé pine" i] {
+  --bg-root: #191724;
+  --bg-header: #1f1d2e;
+  --bg-card: #26233a;
+  --bg-card-hover: #312f44;
+  --bg-input: #161420;
+  --border: #393552;
+  --border-focus: #ebbcba;
+  --text-primary: #e0def4;
+  --text-secondary: #908caa;
+  --text-muted: #6e6a86;
+  --accent: #ebbcba;
+  --accent-hover: #f6c177;
+  --accent-text: #191724;
+  --success: #31748f;
+  --warning: #f6c177;
+  --danger: #eb6f92;
+  --badge-server: #9ccfd8;
+  --badge-service: #f6c177;
+  --badge-key: #c4a7e7;
+}
+
+[data-theme="ayu" i], [data-theme="ayu dark" i] {
+  --bg-root: #0b0e14;
+  --bg-header: #0f131a;
+  --bg-card: #131721;
+  --bg-card-hover: #1a202c;
+  --bg-input: #080a0f;
+  --border: #242936;
+  --border-focus: #e6b450;
+  --text-primary: #bfbdb6;
+  --text-secondary: #898e98;
+  --text-muted: #565b66;
+  --accent: #e6b450;
+  --accent-hover: #ffb454;
+  --accent-text: #0b0e14;
+  --success: #7fd962;
+  --warning: #ffb454;
+  --danger: #f07178;
+  --badge-server: #39bae6;
+  --badge-service: #ffb454;
+  --badge-key: #d2a6ff;
+}
+
+[data-theme="kanagawa" i] {
+  --bg-root: #1f1f28;
+  --bg-header: #16161d;
+  --bg-card: #2a2a37;
+  --bg-card-hover: #363646;
+  --bg-input: #181820;
+  --border: #49475c;
+  --border-focus: #7e9cd8;
+  --text-primary: #dcd7ba;
+  --text-secondary: #a3a19b;
+  --text-muted: #727169;
+  --accent: #7e9cd8;
+  --accent-hover: #7fb4ca;
+  --accent-text: #1f1f28;
+  --success: #76946a;
+  --warning: #e6c384;
+  --danger: #c34043;
+  --badge-server: #7e9cd8;
+  --badge-service: #e6c384;
+  --badge-key: #957fb8;
+}
+
+[data-theme="everforest" i], [data-theme="everforest dark" i] {
+  --bg-root: #2d353b;
+  --bg-header: #272e33;
+  --bg-card: #343f44;
+  --bg-card-hover: #3d484d;
+  --bg-input: #232a2e;
+  --border: #475258;
+  --border-focus: #a7c080;
+  --text-primary: #d3c6aa;
+  --text-secondary: #9da9a0;
+  --text-muted: #7a8478;
+  --accent: #a7c080;
+  --accent-hover: #83c092;
+  --accent-text: #272e33;
+  --success: #a7c080;
+  --warning: #dbbc7f;
+  --danger: #e67e80;
+  --badge-server: #7fbbb3;
+  --badge-service: #dbbc7f;
+  --badge-key: #d699b6;
+}
+
+[data-theme="horizon" i], [data-theme="horizon dark" i] {
+  --bg-root: #1c1e26;
+  --bg-header: #16171d;
+  --bg-card: #232530;
+  --bg-card-hover: #2e303e;
+  --bg-input: #17181f;
+  --border: #3c3e4f;
+  --border-focus: #e95678;
+  --text-primary: #d5d8da;
+  --text-secondary: #9da1a8;
+  --text-muted: #6c6f93;
+  --accent: #e95678;
+  --accent-hover: #fab795;
+  --accent-text: #1c1e26;
+  --success: #29d398;
+  --warning: #fab795;
+  --danger: #e95678;
+  --badge-server: #26bbd9;
+  --badge-service: #fab795;
+  --badge-key: #b877db;
+}
+
+[data-theme="cobalt2" i] {
+  --bg-root: #15232d;
+  --bg-header: #121b24;
+  --bg-card: #193549;
+  --bg-card-hover: #1f425c;
+  --bg-input: #0e1a24;
+  --border: #264f6d;
+  --border-focus: #ffc600;
+  --text-primary: #ffffff;
+  --text-secondary: #9eb3c2;
+  --text-muted: #5b778c;
+  --accent: #ffc600;
+  --accent-hover: #0088ff;
+  --accent-text: #15232d;
+  --success: #3ad900;
+  --warning: #ffc600;
+  --danger: #ff0033;
+  --badge-server: #0088ff;
+  --badge-service: #ffc600;
+  --badge-key: #ff9d00;
+}
+
+[data-theme="solarized light" i] {
+  --bg-root: #fdf6e3;
+  --bg-header: #eee8d5;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f5efdc;
+  --bg-input: #fcf5e0;
+  --border: #d3cbb7;
+  --border-focus: #268bd2;
+  --text-primary: #073642;
+  --text-secondary: #586e75;
+  --text-muted: #93a1a1;
+  --accent: #268bd2;
+  --accent-hover: #2aa198;
+  --accent-text: #ffffff;
+  --success: #859900;
+  --warning: #b58900;
+  --danger: #dc322f;
+  --badge-server: #268bd2;
+  --badge-service: #b58900;
+  --badge-key: #d33682;
+}
+
+[data-theme="github light" i] {
+  --bg-root: #f6f8fa;
+  --bg-header: #eaeef2;
+  --bg-card: #ffffff;
+  --bg-card-hover: #f3f4f6;
+  --bg-input: #ffffff;
+  --border: #d0d7de;
+  --border-focus: #0969da;
+  --text-primary: #1f2328;
+  --text-secondary: #57606a;
+  --text-muted: #8c959f;
+  --accent: #0969da;
+  --accent-hover: #218bff;
+  --accent-text: #ffffff;
+  --success: #1a7f37;
+  --warning: #9a6700;
+  --danger: #cf222e;
+  --badge-server: #0969da;
+  --badge-service: #9a6700;
+  --badge-key: #8250df;
+}
+
 .btn-subtle {
   background: var(--bg-input);
   border: 1px solid var(--border);

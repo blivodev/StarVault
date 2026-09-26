@@ -17,6 +17,16 @@ const THEMES = [
   "dracula",
   "console",
   "cyberpunk",
+  "github dark",
+  "monokai",
+  "rose pine",
+  "ayu",
+  "kanagawa",
+  "everforest",
+  "horizon",
+  "cobalt2",
+  "solarized light",
+  "github light",
   "light"
 ];
 
