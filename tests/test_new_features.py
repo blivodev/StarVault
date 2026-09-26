@@ -410,19 +410,51 @@ def test_theming_system(tmp_path: Path):
     assert "Console" in themes
     assert "Nord" in themes
     assert "Dracula" in themes
+    assert "GitHub Dark" in themes
+    assert "Monokai Pro" in themes
+    assert "Rosé Pine" in themes
+    assert "Ayu Dark" in themes
+    assert "Kanagawa" in themes
+    assert "Everforest Dark" in themes
+    assert "Cyberpunk 2077" in themes
+    assert "Horizon Dark" in themes
+    assert "Cobalt2" in themes
+    assert "Solarized Light" in themes
+    assert "GitHub Light" in themes
+    assert len(themes) >= 24
+
+    required_keys = [
+        "mode", "BG_ROOT", "BG_SIDEBAR", "BG_CARD", "BG_CARD_HOVER",
+        "BG_INPUT", "BG_SUBTLE", "BORDER_COLOR", "BORDER_FOCUS",
+        "ACCENT_PRIMARY", "ACCENT_HOVER", "ACCENT_INDIGO", "ACCENT_PURPLE",
+        "COLOR_SUCCESS", "COLOR_WARNING", "COLOR_DANGER", "COLOR_DANGER_HOVER",
+        "COLOR_FAVORITE", "TEXT_PRIMARY", "TEXT_SECONDARY", "TEXT_MUTED",
+        "TEXT_ACCENT", "TEXT_ON_ACCENT"
+    ]
+    for t_name, pal in THEME_PALETTES.items():
+        assert pal.get("mode") in ("Dark", "Light"), f"Invalid mode for theme {t_name}"
+        for k in required_keys:
+            assert k in pal, f"Missing token {k} in theme {t_name}"
+            val = pal[k]
+            if k != "mode":
+                assert val.startswith("#"), f"Token {k} in {t_name} is not a valid hex color: {val}"
 
     notified = []
     def listener(name):
         notified.append(name)
 
     register_theme_listener(listener)
-    apply_theme("Trendy", save_to_config=False)
-    assert get_current_theme() == "Trendy"
-    assert "Trendy" in notified
+    apply_theme("GitHub Dark", save_to_config=False)
+    assert get_current_theme() == "GitHub Dark"
+    assert "GitHub Dark" in notified
 
-    apply_theme("Console", save_to_config=False)
-    assert get_current_theme() == "Console"
-    assert "Console" in notified
+    apply_theme("Monokai Pro", save_to_config=False)
+    assert get_current_theme() == "Monokai Pro"
+    assert "Monokai Pro" in notified
+
+    apply_theme("GitHub Light", save_to_config=False)
+    assert get_current_theme() == "GitHub Light"
+    assert "GitHub Light" in notified
 
     unregister_theme_listener(listener)
     # Reset to Dark
