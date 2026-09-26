@@ -1,0 +1,16 @@
+SIL OPEN FONT LICENSE (OFL-1.1)
+
+This directory bundles open-source typefaces for StarVault:
+
+1. Inter
+   Copyright (c) 2016-2024 The Inter Project Authors (https://github.com/rsms/inter)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+2. JetBrains Mono
+   Copyright (c) 2020 JetBrains s.r.o. (https://www.jetbrains.com/lp/mono/)
+   License: SIL Open Font License 1.1 (http://scripts.sil.org/OFL)
+
+Permission is hereby granted, free of charge, to any person obtaining
+a copy of the Font Software, to use, study, copy, merge, embed, modify,
+redistribute, and sell modified and unmodified copies of the Font
+Software, subject to the conditions of the SIL Open Font License v1.1.

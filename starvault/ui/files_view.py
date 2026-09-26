@@ -90,7 +90,7 @@ class FilesView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             title_frame,
-            text="📁 Encrypted File Vault",
+            text="Encrypted File Vault",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -120,7 +120,7 @@ class FilesView(ctk.CTkFrame):
 
         ctk.CTkButton(
             act_box,
-            text="📥 Import / Upload File...",
+            text="Import / Upload File...",
             font=get_font(12, "bold"),
             height=34,
             fg_color=ACCENT_PRIMARY,
@@ -131,7 +131,7 @@ class FilesView(ctk.CTkFrame):
 
         ctk.CTkButton(
             act_box,
-            text="📤 Export All...",
+            text="Export All...",
             font=get_font(11, "bold"),
             height=34,
             fg_color=BG_INPUT,
@@ -259,7 +259,7 @@ class FilesView(ctk.CTkFrame):
         # Preview button
         ctk.CTkButton(
             btn_box,
-            text="👁️ Preview",
+            text="Preview",
             width=80,
             height=30,
             font=get_font(11, "bold"),
@@ -436,11 +436,11 @@ class FilesView(ctk.CTkFrame):
             def copy_contents():
                 pyperclip.copy(text_content)
                 copy_btn.configure(text="✓ Copied!", fg_color=COLOR_SUCCESS)
-                popup.after(1500, lambda: copy_btn.configure(text="📋 Copy All", fg_color=ACCENT_PRIMARY))
+                popup.after(1500, lambda: copy_btn.configure(text="Copy All", fg_color=ACCENT_PRIMARY))
 
             copy_btn = ctk.CTkButton(
                 top,
-                text="📋 Copy All",
+                text="Copy All",
                 font=get_font(11, "bold"),
                 width=100,
                 height=30,
@@ -479,7 +479,7 @@ class FilesView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 bin_frame,
-                text="💾 Extract to Disk",
+                text="Extract to Disk",
                 font=get_font(12, "bold"),
                 width=150,
                 height=36,

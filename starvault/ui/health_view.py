@@ -85,7 +85,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             title_frame,
-            text="🛡️ Vault Health & Remediation Advisor",
+            text="Vault Health & Remediation Advisor",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -103,7 +103,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             act_box,
-            text="🔄 Re-Scan Vault",
+            text="Re-Scan Vault",
             font=get_font(12, "bold"),
             width=130,
             height=34,
@@ -208,7 +208,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_btn,
-            text="⚡ Auto-Organize All",
+            text="Auto-Organize All",
             font=get_font(11, "bold"),
             height=32,
             fg_color=COLOR_SUCCESS,
@@ -219,7 +219,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_btn,
-            text="📁 Auto-Group",
+            text="Auto-Group",
             font=get_font(11),
             height=32,
             fg_color=BG_INPUT,
@@ -229,7 +229,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_btn,
-            text="🏷️ Auto-Tag",
+            text="Auto-Tag",
             font=get_font(11),
             height=32,
             fg_color=BG_INPUT,
@@ -239,7 +239,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_btn,
-            text="🧹 Merge Duplicates",
+            text="Merge Duplicates",
             font=get_font(11),
             height=32,
             fg_color=BG_INPUT,
@@ -249,7 +249,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_btn,
-            text="🗑️ Purge Ghosts",
+            text="Purge Ghosts",
             font=get_font(11),
             height=32,
             fg_color=BG_INPUT,
@@ -259,7 +259,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_btn,
-            text="📂 Organize Files",
+            text="Organize Files",
             font=get_font(11),
             height=32,
             fg_color=BG_INPUT,
@@ -297,7 +297,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_sort,
-            text="🔀 Apply Auto-Sort",
+            text="Apply Auto-Sort",
             font=get_font(11, "bold"),
             width=130,
             height=30,
@@ -322,7 +322,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             ai_header,
-            text="🧠 Neural & AI Security Advisor",
+            text="Neural & AI Security Advisor",
             font=get_font(13, "bold"),
             text_color=ACCENT_INDIGO,
         ).pack(side="left")
@@ -348,7 +348,7 @@ class HealthView(ctk.CTkFrame):
 
         self.neural_quick_btn = ctk.CTkButton(
             ai_header,
-            text="🧠 Run Neural Scan",
+            text="Run Neural Scan",
             width=150,
             height=30,
             font=get_font(11, "bold"),
@@ -416,7 +416,7 @@ class HealthView(ctk.CTkFrame):
 
         self.ai_run_btn = ctk.CTkButton(
             row2,
-            text="🚀 Run AI Audit",
+            text="Run AI Audit",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -477,7 +477,7 @@ class HealthView(ctk.CTkFrame):
 
     def _on_ai_audit_complete(self, result: Optional[AIAnalysisResult], error: Optional[str]) -> None:
         self._ai_scanning = False
-        self.ai_run_btn.configure(state="normal", text="🚀 Run AI Audit")
+        self.ai_run_btn.configure(state="normal", text="Run AI Audit")
 
         if error:
             self.status_banner.configure(text=f"AI Audit Error: {error}", text_color=COLOR_DANGER)
@@ -550,7 +550,7 @@ class HealthView(ctk.CTkFrame):
                 if act.action_type in ("set_category", "update_tags", "normalize_title", "merge_duplicate", "purge_ghost", "assign_groups", "assign_services"):
                     ctk.CTkButton(
                         act_row,
-                        text="⚡ Apply",
+                        text="Apply Fix",
                         font=get_font(10, "bold"),
                         width=70,
                         height=24,

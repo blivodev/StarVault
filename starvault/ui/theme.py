@@ -1,110 +1,324 @@
 """Color tokens, theme styling, typography, and dynamic theming system for StarVault."""
 
+import os
+import sys
+from pathlib import Path
 from typing import Callable, Dict, List, Optional
 import customtkinter as ctk
 
 # -----------------------------------------------------------------------------
-# Theme Color Palettes
+# Font Engine & Open-Source Typography Initializer
+# -----------------------------------------------------------------------------
+
+_FONTS_INITIALIZED = False
+ACTIVE_UI_FONT = "Inter"
+ACTIVE_MONO_FONT = "JetBrains Mono"
+_FONT_LISTENERS: List[Callable[[], None]] = []
+
+
+def _init_fonts() -> None:
+    """Discovers and registers bundled open-source fonts (Inter & JetBrains Mono)."""
+    global _FONTS_INITIALIZED, ACTIVE_UI_FONT, ACTIVE_MONO_FONT
+    if _FONTS_INITIALIZED:
+        return
+
+    # Look for fonts directory in starvault/resources/fonts
+    base_dir = Path(__file__).resolve().parent.parent / "resources" / "fonts"
+    if base_dir.exists():
+        for font_file in base_dir.glob("*.ttf"):
+            try:
+                if sys.platform.startswith("win"):
+                    ctk.FontManager.windows_load_font(str(font_file), private=True, enumerable=False)
+                elif sys.platform.startswith("linux"):
+                    ctk.FontManager.load_font(str(font_file))
+            except Exception:
+                pass
+
+    # Validate active UI font with graceful fallback
+    try:
+        # Load user saved font if available
+        from starvault.app_config import AppConfigManager
+        cfg = AppConfigManager()
+        saved_ui = cfg.data.get("ui_font", "")
+        saved_mono = cfg.data.get("mono_font", "")
+        if saved_ui:
+            ACTIVE_UI_FONT = saved_ui
+        if saved_mono:
+            ACTIVE_MONO_FONT = saved_mono
+    except Exception:
+        pass
+
+    _FONTS_INITIALIZED = True
+
+
+# Initialize font system on module import
+_init_fonts()
+
+
+def get_available_ui_fonts() -> List[str]:
+    """Returns list of clean, open-source and system UI fonts."""
+    return [
+        "Inter",
+        "Source Sans Pro",
+        "Segoe UI",
+        "Roboto",
+        "Arial",
+    ]
+
+
+def get_available_mono_fonts() -> List[str]:
+    """Returns list of clean, open-source and system monospace fonts."""
+    return [
+        "JetBrains Mono",
+        "Cascadia Code",
+        "Cascadia Mono",
+        "Consolas",
+        "Courier New",
+    ]
+
+
+def set_ui_font_family(family: str, save_to_config: bool = True) -> None:
+    """Sets active application UI font family."""
+    global ACTIVE_UI_FONT
+    ACTIVE_UI_FONT = family
+    if save_to_config:
+        try:
+            from starvault.app_config import AppConfigManager
+            cfg = AppConfigManager()
+            cfg.data["ui_font"] = family
+            cfg._save()
+        except Exception:
+            pass
+    for listener in _FONT_LISTENERS:
+        try:
+            listener()
+        except Exception:
+            pass
+
+
+def set_mono_font_family(family: str, save_to_config: bool = True) -> None:
+    """Sets active monospace font family for credentials and code."""
+    global ACTIVE_MONO_FONT
+    ACTIVE_MONO_FONT = family
+    if save_to_config:
+        try:
+            from starvault.app_config import AppConfigManager
+            cfg = AppConfigManager()
+            cfg.data["mono_font"] = family
+            cfg._save()
+        except Exception:
+            pass
+    for listener in _FONT_LISTENERS:
+        try:
+            listener()
+        except Exception:
+            pass
+
+
+def register_font_listener(callback: Callable[[], None]) -> None:
+    """Registers callback for font changes."""
+    if callback not in _FONT_LISTENERS:
+        _FONT_LISTENERS.append(callback)
+
+
+def get_font(size: int = 13, weight: str = "normal") -> ctk.CTkFont:
+    """Returns application UI font using modern open-source typography."""
+    return ctk.CTkFont(family=ACTIVE_UI_FONT, size=size, weight=weight)
+
+
+def get_mono_font(size: int = 12, weight: str = "normal") -> ctk.CTkFont:
+    """Returns monospace font for credentials, code, tokens, and keys."""
+    return ctk.CTkFont(family=ACTIVE_MONO_FONT, size=size, weight=weight)
+
+
+# -----------------------------------------------------------------------------
+# Curated Theme Color Palettes
 # -----------------------------------------------------------------------------
 
 THEME_PALETTES: Dict[str, Dict[str, str]] = {
+    # 1. Dark (Modern Zinc Dark - Linear / Raycast / VS Code clean aesthetic)
     "Dark": {
         "mode": "Dark",
-        "BG_ROOT": "#090d16",
-        "BG_SIDEBAR": "#0e1422",
-        "BG_CARD": "#141c2e",
-        "BG_CARD_HOVER": "#1a253c",
-        "BG_INPUT": "#0c1322",
-        "BG_SUBTLE": "#192238",
-        "BORDER_COLOR": "#23304c",
+        "BG_ROOT": "#09090b",
+        "BG_SIDEBAR": "#111113",
+        "BG_CARD": "#18181b",
+        "BG_CARD_HOVER": "#222226",
+        "BG_INPUT": "#0e0e11",
+        "BG_SUBTLE": "#1e1e24",
+        "BORDER_COLOR": "#27272a",
         "BORDER_FOCUS": "#38bdf8",
         "ACCENT_PRIMARY": "#38bdf8",
         "ACCENT_HOVER": "#0ea5e9",
         "ACCENT_INDIGO": "#6366f1",
-        "ACCENT_PURPLE": "#8b5cf6",
+        "ACCENT_PURPLE": "#a855f7",
         "COLOR_SUCCESS": "#10b981",
         "COLOR_WARNING": "#f59e0b",
         "COLOR_DANGER": "#ef4444",
         "COLOR_DANGER_HOVER": "#dc2626",
         "COLOR_FAVORITE": "#fbbf24",
-        "TEXT_PRIMARY": "#f8fafc",
-        "TEXT_SECONDARY": "#cbd5e1",
-        "TEXT_MUTED": "#94a3b8",
+        "TEXT_PRIMARY": "#f4f4f5",
+        "TEXT_SECONDARY": "#a1a1aa",
+        "TEXT_MUTED": "#71717a",
         "TEXT_ACCENT": "#38bdf8",
+        "TEXT_ON_ACCENT": "#09090b",
+    },
+    # 2. Midnight OLED (True Pure Black for OLED displays & maximum focus)
+    "Midnight OLED": {
+        "mode": "Dark",
+        "BG_ROOT": "#000000",
+        "BG_SIDEBAR": "#080808",
+        "BG_CARD": "#121212",
+        "BG_CARD_HOVER": "#1c1c1c",
+        "BG_INPUT": "#0a0a0a",
+        "BG_SUBTLE": "#171717",
+        "BORDER_COLOR": "#262626",
+        "BORDER_FOCUS": "#e4e4e7",
+        "ACCENT_PRIMARY": "#e4e4e7",
+        "ACCENT_HOVER": "#ffffff",
+        "ACCENT_INDIGO": "#818cf8",
+        "ACCENT_PURPLE": "#c084fc",
+        "COLOR_SUCCESS": "#22c55e",
+        "COLOR_WARNING": "#eab308",
+        "COLOR_DANGER": "#f43f5e",
+        "COLOR_DANGER_HOVER": "#e11d48",
+        "COLOR_FAVORITE": "#facc15",
+        "TEXT_PRIMARY": "#ffffff",
+        "TEXT_SECONDARY": "#a3a3a3",
+        "TEXT_MUTED": "#525252",
+        "TEXT_ACCENT": "#ffffff",
         "TEXT_ON_ACCENT": "#000000",
     },
-    "Light": {
-        "mode": "Light",
-        "BG_ROOT": "#f1f5f9",
-        "BG_SIDEBAR": "#e2e8f0",
-        "BG_CARD": "#ffffff",
-        "BG_CARD_HOVER": "#f8fafc",
-        "BG_INPUT": "#f8fafc",
-        "BG_SUBTLE": "#e2e8f0",
-        "BORDER_COLOR": "#cbd5e1",
-        "BORDER_FOCUS": "#0284c7",
-        "ACCENT_PRIMARY": "#0284c7",
-        "ACCENT_HOVER": "#0369a1",
-        "ACCENT_INDIGO": "#4f46e5",
-        "ACCENT_PURPLE": "#7c3aed",
-        "COLOR_SUCCESS": "#059669",
-        "COLOR_WARNING": "#d97706",
-        "COLOR_DANGER": "#dc2626",
-        "COLOR_DANGER_HOVER": "#b91c1c",
-        "COLOR_FAVORITE": "#d97706",
-        "TEXT_PRIMARY": "#0f172a",
-        "TEXT_SECONDARY": "#334155",
-        "TEXT_MUTED": "#64748b",
-        "TEXT_ACCENT": "#0284c7",
-    },
-    "Trendy": {
+    # 3. Tokyo Night (Deep storm navy developer palette)
+    "Tokyo Night": {
         "mode": "Dark",
-        "BG_ROOT": "#0f0c1b",
-        "BG_SIDEBAR": "#17122b",
-        "BG_CARD": "#1e163b",
-        "BG_CARD_HOVER": "#2a1e52",
-        "BG_INPUT": "#130f24",
-        "BG_SUBTLE": "#261c47",
-        "BORDER_COLOR": "#3c2a75",
-        "BORDER_FOCUS": "#00f0ff",
-        "ACCENT_PRIMARY": "#00f0ff",
-        "ACCENT_HOVER": "#ff007f",
-        "ACCENT_INDIGO": "#a855f7",
-        "ACCENT_PURPLE": "#b026ff",
-        "COLOR_SUCCESS": "#00ffaa",
-        "COLOR_WARNING": "#ffd000",
-        "COLOR_DANGER": "#ff2a85",
-        "COLOR_DANGER_HOVER": "#e0186f",
-        "COLOR_FAVORITE": "#ffb800",
-        "TEXT_PRIMARY": "#f5f3ff",
-        "TEXT_SECONDARY": "#c4b5fd",
-        "TEXT_MUTED": "#7c6f9f",
-        "TEXT_ACCENT": "#00f0ff",
+        "BG_ROOT": "#1a1b26",
+        "BG_SIDEBAR": "#16161e",
+        "BG_CARD": "#24283b",
+        "BG_CARD_HOVER": "#2f3549",
+        "BG_INPUT": "#13141c",
+        "BG_SUBTLE": "#1f2335",
+        "BORDER_COLOR": "#292e42",
+        "BORDER_FOCUS": "#7aa2f7",
+        "ACCENT_PRIMARY": "#7aa2f7",
+        "ACCENT_HOVER": "#89ddff",
+        "ACCENT_INDIGO": "#7dcfff",
+        "ACCENT_PURPLE": "#bb9af7",
+        "COLOR_SUCCESS": "#9ece6a",
+        "COLOR_WARNING": "#e0af68",
+        "COLOR_DANGER": "#f7768e",
+        "COLOR_DANGER_HOVER": "#db4b4b",
+        "COLOR_FAVORITE": "#e0af68",
+        "TEXT_PRIMARY": "#c0caf5",
+        "TEXT_SECONDARY": "#9aa5ce",
+        "TEXT_MUTED": "#565f89",
+        "TEXT_ACCENT": "#7aa2f7",
+        "TEXT_ON_ACCENT": "#16161e",
     },
-    "Console": {
+    # 4. Catppuccin Mocha (Smooth pastel dark palette)
+    "Catppuccin Mocha": {
         "mode": "Dark",
-        "BG_ROOT": "#050a05",
-        "BG_SIDEBAR": "#081208",
-        "BG_CARD": "#0d1a0d",
-        "BG_CARD_HOVER": "#132613",
-        "BG_INPUT": "#060d06",
-        "BG_SUBTLE": "#112211",
-        "BORDER_COLOR": "#1a381a",
-        "BORDER_FOCUS": "#00ff66",
-        "ACCENT_PRIMARY": "#00ff66",
-        "ACCENT_HOVER": "#33ff88",
-        "ACCENT_INDIGO": "#22cc66",
-        "ACCENT_PURPLE": "#11aa55",
-        "COLOR_SUCCESS": "#00ff66",
-        "COLOR_WARNING": "#ffcc00",
-        "COLOR_DANGER": "#ff3333",
-        "COLOR_DANGER_HOVER": "#cc2222",
-        "COLOR_FAVORITE": "#00ff66",
-        "TEXT_PRIMARY": "#e0ffe0",
-        "TEXT_SECONDARY": "#00cc55",
-        "TEXT_MUTED": "#007733",
-        "TEXT_ACCENT": "#00ff66",
+        "BG_ROOT": "#11111b",
+        "BG_SIDEBAR": "#181825",
+        "BG_CARD": "#1e1e2e",
+        "BG_CARD_HOVER": "#313244",
+        "BG_INPUT": "#141420",
+        "BG_SUBTLE": "#252538",
+        "BORDER_COLOR": "#313244",
+        "BORDER_FOCUS": "#b4befe",
+        "ACCENT_PRIMARY": "#b4befe",
+        "ACCENT_HOVER": "#cba6f7",
+        "ACCENT_INDIGO": "#89b4fa",
+        "ACCENT_PURPLE": "#cba6f7",
+        "COLOR_SUCCESS": "#a6e3a1",
+        "COLOR_WARNING": "#f9e2af",
+        "COLOR_DANGER": "#f38ba8",
+        "COLOR_DANGER_HOVER": "#eba0ac",
+        "COLOR_FAVORITE": "#fab387",
+        "TEXT_PRIMARY": "#cdd6f4",
+        "TEXT_SECONDARY": "#a6adc8",
+        "TEXT_MUTED": "#6c7086",
+        "TEXT_ACCENT": "#b4befe",
+        "TEXT_ON_ACCENT": "#11111b",
     },
+    # 5. Gruvbox Dark (Warm artisan retro-modern dark)
+    "Gruvbox Dark": {
+        "mode": "Dark",
+        "BG_ROOT": "#1d2021",
+        "BG_SIDEBAR": "#282828",
+        "BG_CARD": "#32302f",
+        "BG_CARD_HOVER": "#3c3836",
+        "BG_INPUT": "#181a1b",
+        "BG_SUBTLE": "#2d2b2a",
+        "BORDER_COLOR": "#504945",
+        "BORDER_FOCUS": "#fe8019",
+        "ACCENT_PRIMARY": "#fe8019",
+        "ACCENT_HOVER": "#fabd2f",
+        "ACCENT_INDIGO": "#8ec07c",
+        "ACCENT_PURPLE": "#d3869b",
+        "COLOR_SUCCESS": "#b8bb26",
+        "COLOR_WARNING": "#fabd2f",
+        "COLOR_DANGER": "#fb4934",
+        "COLOR_DANGER_HOVER": "#cc241d",
+        "COLOR_FAVORITE": "#fabd2f",
+        "TEXT_PRIMARY": "#ebdbb2",
+        "TEXT_SECONDARY": "#d5c4a1",
+        "TEXT_MUTED": "#928374",
+        "TEXT_ACCENT": "#fe8019",
+        "TEXT_ON_ACCENT": "#1d2021",
+    },
+    # 6. One Dark Pro (Atom / VS Code classic dark)
+    "One Dark Pro": {
+        "mode": "Dark",
+        "BG_ROOT": "#1e2227",
+        "BG_SIDEBAR": "#17191d",
+        "BG_CARD": "#282c34",
+        "BG_CARD_HOVER": "#323842",
+        "BG_INPUT": "#191c20",
+        "BG_SUBTLE": "#21252b",
+        "BORDER_COLOR": "#3e4451",
+        "BORDER_FOCUS": "#61afef",
+        "ACCENT_PRIMARY": "#61afef",
+        "ACCENT_HOVER": "#528bff",
+        "ACCENT_INDIGO": "#528bff",
+        "ACCENT_PURPLE": "#c678dd",
+        "COLOR_SUCCESS": "#98c379",
+        "COLOR_WARNING": "#e5c07b",
+        "COLOR_DANGER": "#e06c75",
+        "COLOR_DANGER_HOVER": "#be5046",
+        "COLOR_FAVORITE": "#e5c07b",
+        "TEXT_PRIMARY": "#abb2bf",
+        "TEXT_SECONDARY": "#828997",
+        "TEXT_MUTED": "#5c6370",
+        "TEXT_ACCENT": "#61afef",
+        "TEXT_ON_ACCENT": "#1e2227",
+    },
+    # 7. Solarized Dark (Classic UNIX sysadmin precision)
+    "Solarized Dark": {
+        "mode": "Dark",
+        "BG_ROOT": "#002b36",
+        "BG_SIDEBAR": "#073642",
+        "BG_CARD": "#094250",
+        "BG_CARD_HOVER": "#0e4d5c",
+        "BG_INPUT": "#002129",
+        "BG_SUBTLE": "#0a3c48",
+        "BORDER_COLOR": "#586e75",
+        "BORDER_FOCUS": "#2aa198",
+        "ACCENT_PRIMARY": "#2aa198",
+        "ACCENT_HOVER": "#268bd2",
+        "ACCENT_INDIGO": "#268bd2",
+        "ACCENT_PURPLE": "#6c71c4",
+        "COLOR_SUCCESS": "#859900",
+        "COLOR_WARNING": "#b58900",
+        "COLOR_DANGER": "#dc322f",
+        "COLOR_DANGER_HOVER": "#cb4b16",
+        "COLOR_FAVORITE": "#b58900",
+        "TEXT_PRIMARY": "#93a1a1",
+        "TEXT_SECONDARY": "#839496",
+        "TEXT_MUTED": "#586e75",
+        "TEXT_ACCENT": "#2aa198",
+        "TEXT_ON_ACCENT": "#002b36",
+    },
+    # 8. Nord (Arctic, elegant cold blue-gray)
     "Nord": {
         "mode": "Dark",
         "BG_ROOT": "#242933",
@@ -128,7 +342,9 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
         "TEXT_SECONDARY": "#d8dee9",
         "TEXT_MUTED": "#7b88a1",
         "TEXT_ACCENT": "#88c0d0",
+        "TEXT_ON_ACCENT": "#242933",
     },
+    # 9. Dracula (Vampire high-contrast dark)
     "Dracula": {
         "mode": "Dark",
         "BG_ROOT": "#1e1f29",
@@ -152,6 +368,111 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
         "TEXT_SECONDARY": "#bfbfd0",
         "TEXT_MUTED": "#6272a4",
         "TEXT_ACCENT": "#bd93f9",
+        "TEXT_ON_ACCENT": "#1e1f29",
+    },
+    # 10. Console (Matrix phosphor terminal)
+    "Console": {
+        "mode": "Dark",
+        "BG_ROOT": "#050a05",
+        "BG_SIDEBAR": "#081208",
+        "BG_CARD": "#0d1a0d",
+        "BG_CARD_HOVER": "#132613",
+        "BG_INPUT": "#060d06",
+        "BG_SUBTLE": "#112211",
+        "BORDER_COLOR": "#1a381a",
+        "BORDER_FOCUS": "#00ff66",
+        "ACCENT_PRIMARY": "#00ff66",
+        "ACCENT_HOVER": "#33ff88",
+        "ACCENT_INDIGO": "#22cc66",
+        "ACCENT_PURPLE": "#11aa55",
+        "COLOR_SUCCESS": "#00ff66",
+        "COLOR_WARNING": "#ffcc00",
+        "COLOR_DANGER": "#ff3333",
+        "COLOR_DANGER_HOVER": "#cc2222",
+        "COLOR_FAVORITE": "#00ff66",
+        "TEXT_PRIMARY": "#e0ffe0",
+        "TEXT_SECONDARY": "#00cc55",
+        "TEXT_MUTED": "#007733",
+        "TEXT_ACCENT": "#00ff66",
+        "TEXT_ON_ACCENT": "#050a05",
+    },
+    # 11. Trendy (Cyber Synthwave)
+    "Trendy": {
+        "mode": "Dark",
+        "BG_ROOT": "#0f0c1b",
+        "BG_SIDEBAR": "#17122b",
+        "BG_CARD": "#1e163b",
+        "BG_CARD_HOVER": "#2a1e52",
+        "BG_INPUT": "#130f24",
+        "BG_SUBTLE": "#261c47",
+        "BORDER_COLOR": "#3c2a75",
+        "BORDER_FOCUS": "#00f0ff",
+        "ACCENT_PRIMARY": "#00f0ff",
+        "ACCENT_HOVER": "#ff007f",
+        "ACCENT_INDIGO": "#a855f7",
+        "ACCENT_PURPLE": "#b026ff",
+        "COLOR_SUCCESS": "#00ffaa",
+        "COLOR_WARNING": "#ffd000",
+        "COLOR_DANGER": "#ff2a85",
+        "COLOR_DANGER_HOVER": "#e0186f",
+        "COLOR_FAVORITE": "#ffb800",
+        "TEXT_PRIMARY": "#f5f3ff",
+        "TEXT_SECONDARY": "#c4b5fd",
+        "TEXT_MUTED": "#7c6f9f",
+        "TEXT_ACCENT": "#00f0ff",
+        "TEXT_ON_ACCENT": "#0f0c1b",
+    },
+    # 12. Light (Refined minimal daylight)
+    "Light": {
+        "mode": "Light",
+        "BG_ROOT": "#f8fafc",
+        "BG_SIDEBAR": "#f1f5f9",
+        "BG_CARD": "#ffffff",
+        "BG_CARD_HOVER": "#f8fafc",
+        "BG_INPUT": "#ffffff",
+        "BG_SUBTLE": "#f1f5f9",
+        "BORDER_COLOR": "#e2e8f0",
+        "BORDER_FOCUS": "#0284c7",
+        "ACCENT_PRIMARY": "#0284c7",
+        "ACCENT_HOVER": "#0369a1",
+        "ACCENT_INDIGO": "#4f46e5",
+        "ACCENT_PURPLE": "#7c3aed",
+        "COLOR_SUCCESS": "#059669",
+        "COLOR_WARNING": "#d97706",
+        "COLOR_DANGER": "#dc2626",
+        "COLOR_DANGER_HOVER": "#b91c1c",
+        "COLOR_FAVORITE": "#d97706",
+        "TEXT_PRIMARY": "#0f172a",
+        "TEXT_SECONDARY": "#475569",
+        "TEXT_MUTED": "#64748b",
+        "TEXT_ACCENT": "#0284c7",
+        "TEXT_ON_ACCENT": "#ffffff",
+    },
+    # 13. Catppuccin Latte (Warm soft cream light)
+    "Catppuccin Latte": {
+        "mode": "Light",
+        "BG_ROOT": "#eff1f5",
+        "BG_SIDEBAR": "#e6e9ef",
+        "BG_CARD": "#ffffff",
+        "BG_CARD_HOVER": "#f4f5f8",
+        "BG_INPUT": "#ffffff",
+        "BG_SUBTLE": "#e6e9ef",
+        "BORDER_COLOR": "#ccd0da",
+        "BORDER_FOCUS": "#1e66f5",
+        "ACCENT_PRIMARY": "#1e66f5",
+        "ACCENT_HOVER": "#04a5e5",
+        "ACCENT_INDIGO": "#7287fd",
+        "ACCENT_PURPLE": "#8839ef",
+        "COLOR_SUCCESS": "#40a02b",
+        "COLOR_WARNING": "#df8e1d",
+        "COLOR_DANGER": "#d20f39",
+        "COLOR_DANGER_HOVER": "#e64553",
+        "COLOR_FAVORITE": "#fe640b",
+        "TEXT_PRIMARY": "#4c4f69",
+        "TEXT_SECONDARY": "#5c5f77",
+        "TEXT_MUTED": "#8c8fa1",
+        "TEXT_ACCENT": "#1e66f5",
+        "TEXT_ON_ACCENT": "#ffffff",
     },
 }
 
@@ -182,16 +503,16 @@ TEXT_PRIMARY = THEME_PALETTES["Dark"]["TEXT_PRIMARY"]
 TEXT_SECONDARY = THEME_PALETTES["Dark"]["TEXT_SECONDARY"]
 TEXT_MUTED = THEME_PALETTES["Dark"]["TEXT_MUTED"]
 TEXT_ACCENT = THEME_PALETTES["Dark"]["TEXT_ACCENT"]
-TEXT_ON_ACCENT = THEME_PALETTES["Dark"].get("TEXT_ON_ACCENT", "#000000")
+TEXT_ON_ACCENT = THEME_PALETTES["Dark"].get("TEXT_ON_ACCENT", "#09090b")
 
 ACCENT_EMERALD = "#10b981"
 
 TYPE_COLORS = {
-    "server": {"bg": "#1e293b", "text": "#38bdf8", "border": "#38bdf8"},
-    "service": {"bg": "#1e293b", "text": "#f59e0b", "border": "#f59e0b"},
-    "domain": {"bg": "#064e3b", "text": "#34d399", "border": "#10b981"},
-    "apikey": {"bg": "#1e1b4b", "text": "#818cf8", "border": "#6366f1"},
-    "keypair": {"bg": "#1e293b", "text": "#a855f7", "border": "#a855f7"},
+    "server": {"bg": "#18181b", "text": "#38bdf8", "border": "#27272a"},
+    "service": {"bg": "#18181b", "text": "#f59e0b", "border": "#27272a"},
+    "domain": {"bg": "#18181b", "text": "#10b981", "border": "#27272a"},
+    "apikey": {"bg": "#18181b", "text": "#818cf8", "border": "#27272a"},
+    "keypair": {"bg": "#18181b", "text": "#c084fc", "border": "#27272a"},
 }
 
 
@@ -255,10 +576,9 @@ def apply_theme(theme_name: str, save_to_config: bool = True) -> None:
     TEXT_SECONDARY = palette["TEXT_SECONDARY"]
     TEXT_MUTED = palette["TEXT_MUTED"]
     TEXT_ACCENT = palette["TEXT_ACCENT"]
-    TEXT_ON_ACCENT = palette.get("TEXT_ON_ACCENT", "#000000" if palette.get("mode") == "Dark" else "#ffffff")
+    TEXT_ON_ACCENT = palette.get("TEXT_ON_ACCENT", "#09090b" if palette.get("mode") == "Dark" else "#ffffff")
 
     # Propagate updated tokens into all loaded StarVault module namespaces
-    import sys
     for mod_name, mod in list(sys.modules.items()):
         if mod and (mod_name.startswith("starvault") or mod_name.startswith("tests")):
             for token_key, token_val in palette.items():
@@ -305,13 +625,3 @@ def apply_global_theme() -> None:
         pass
 
     apply_theme(saved_theme, save_to_config=False)
-
-
-def get_font(size: int = 13, weight: str = "normal") -> ctk.CTkFont:
-    """Returns application UI font."""
-    return ctk.CTkFont(family="Segoe UI", size=size, weight=weight)
-
-
-def get_mono_font(size: int = 12, weight: str = "normal") -> ctk.CTkFont:
-    """Returns monospace font for credentials, code, and keys."""
-    return ctk.CTkFont(family="Consolas", size=size, weight=weight)

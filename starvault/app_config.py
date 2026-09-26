@@ -40,12 +40,30 @@ class AppConfigManager:
         }
 
     def get_theme(self) -> str:
-        """Returns the saved UI theme preference (e.g. 'Dark', 'Light', 'Trendy', 'Console', 'Nord', 'Dracula')."""
+        """Returns the saved UI theme preference (e.g. 'Dark', 'Midnight OLED', 'Tokyo Night', etc.)."""
         return self.data.get("theme", "Dark")
 
     def set_theme(self, theme_name: str) -> None:
         """Saves UI theme preference."""
         self.data["theme"] = theme_name
+        self._save()
+
+    def get_ui_font(self) -> str:
+        """Returns saved open-source UI font preference (e.g. 'Inter')."""
+        return self.data.get("ui_font", "Inter")
+
+    def set_ui_font(self, font_name: str) -> None:
+        """Saves UI font preference."""
+        self.data["ui_font"] = font_name
+        self._save()
+
+    def get_mono_font(self) -> str:
+        """Returns saved open-source Monospace font preference (e.g. 'JetBrains Mono')."""
+        return self.data.get("mono_font", "JetBrains Mono")
+
+    def set_mono_font(self, font_name: str) -> None:
+        """Saves monospace font preference."""
+        self.data["mono_font"] = font_name
         self._save()
 
     def _save(self) -> None:

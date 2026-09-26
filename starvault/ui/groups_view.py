@@ -84,7 +84,7 @@ class GroupsView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             title_box,
-            text="🗂️ Group & Fast-Copy Explorer",
+            text="Groups & Infrastructure Explorer",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -243,7 +243,7 @@ class GroupsView(ctk.CTkFrame):
                     unassigned.append(e)
                 else:
                     for srv in entry_services:
-                        grouped.setdefault(f"🌐 Service: {srv}", []).append(e)
+                        grouped.setdefault(f"Service: {srv}", []).append(e)
             if unassigned:
                 grouped["(No Assigned Service)"] = unassigned
 
@@ -263,11 +263,11 @@ class GroupsView(ctk.CTkFrame):
             servers_map = {e.id: e for e in self.entries if e.entry_type == "server"}
             for e in filtered:
                 if e.entry_type == "server":
-                    grp_name = f"🖥️ Server: {e.title}"
+                    grp_name = f"Server: {e.title}"
                     grouped.setdefault(grp_name, []).append(e)
                 elif e.parent_server_id and e.parent_server_id in servers_map:
                     p = servers_map[e.parent_server_id]
-                    grp_name = f"🖥️ Server: {p.title}"
+                    grp_name = f"Server: {p.title}"
                     grouped.setdefault(grp_name, []).append(e)
                 else:
                     grouped.setdefault("Standalone Services & Keys", []).append(e)
@@ -279,12 +279,12 @@ class GroupsView(ctk.CTkFrame):
             for e in filtered:
                 if e.entry_type == "domain":
                     d_title = e.title or getattr(e, "domain_name", "") or e.url
-                    grp_name = f"🌐 Domain: {d_title}"
+                    grp_name = f"Domain: {d_title}"
                     grouped.setdefault(grp_name, []).append(e)
                 elif getattr(e, "parent_domain_id", None) and e.parent_domain_id in domains_map:
                     p = domains_map[e.parent_domain_id]
                     d_title = p.title or getattr(p, "domain_name", "") or p.url
-                    grp_name = f"🌐 Domain: {d_title}"
+                    grp_name = f"Domain: {d_title}"
                     grouped.setdefault(grp_name, []).append(e)
                 else:
                     unassigned_items.append(e)
@@ -434,7 +434,7 @@ class GroupsView(ctk.CTkFrame):
             if getattr(entry, "registrar", ""):
                 ctk.CTkButton(
                     btn_box,
-                    text="🏢 Reg",
+                    text="Registrar",
                     font=get_font(11),
                     width=60,
                     height=28,
@@ -446,7 +446,7 @@ class GroupsView(ctk.CTkFrame):
             if getattr(entry, "auth_code", ""):
                 ctk.CTkButton(
                     btn_box,
-                    text="🔐 EPP",
+                    text="EPP",
                     font=get_font(11, "bold"),
                     width=62,
                     height=28,
@@ -460,7 +460,7 @@ class GroupsView(ctk.CTkFrame):
         if entry.username:
             ctk.CTkButton(
                 btn_box,
-                text="👤 User",
+                text="User",
                 font=get_font(11),
                 width=65,
                 height=28,
@@ -472,7 +472,7 @@ class GroupsView(ctk.CTkFrame):
         # 2. Copy Password / API Key / Secret (if exists)
         secret_val = entry.password or entry.api_token or entry.private_key
         if secret_val:
-            btn_label = "🔑 Key" if entry.entry_type == "apikey" else "🔑 Pass"
+            btn_label = "Key" if entry.entry_type == "apikey" else "Pass"
             ctk.CTkButton(
                 btn_box,
                 text=btn_label,
@@ -488,7 +488,7 @@ class GroupsView(ctk.CTkFrame):
         # 3. Copy Host / URL (if exists)
         host_val = getattr(entry, "domain_name", "") or entry.url or entry.hostname
         if host_val:
-            btn_label = "🌐 Domain" if entry.entry_type == "domain" else "🌐 Host"
+            btn_label = "Domain" if entry.entry_type == "domain" else "Host"
             ctk.CTkButton(
                 btn_box,
                 text=btn_label,
@@ -511,7 +511,7 @@ class GroupsView(ctk.CTkFrame):
         if totp_sec:
             ctk.CTkButton(
                 btn_box,
-                text="🔢 2FA",
+                text="2FA",
                 font=get_font(11, "bold"),
                 width=60,
                 height=28,
@@ -525,7 +525,7 @@ class GroupsView(ctk.CTkFrame):
         if self.on_edit_entry:
             ctk.CTkButton(
                 btn_box,
-                text="✏️",
+                text="Edit",
                 font=get_font(11),
                 width=32,
                 height=28,
