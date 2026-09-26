@@ -26,6 +26,7 @@ from starvault.ui.files_view import FilesView
 from starvault.ui.groups_view import GroupsView
 from starvault.ui.health_view import HealthView
 from starvault.ui.key_studio import KeyStudioDialog
+from starvault.ui.local_key_installer_dialog import LocalKeyInstallerDialog
 from starvault.ui.settings_dialog import SettingsDialog
 from starvault.ui.totp_view import TotpView
 from starvault.ui.vault_export_dialog import VaultExportDialog
@@ -498,6 +499,18 @@ class DashboardView(ctk.CTkFrame):
             height=34,
             corner_radius=6,
             command=self._open_key_studio,
+        ).pack(side="left", padx=3)
+
+        ctk.CTkButton(
+            actions_frame,
+            text="Local Keys",
+            font=get_font(12),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=ACCENT_PRIMARY,
+            height=34,
+            corner_radius=6,
+            command=self._open_local_key_installer,
         ).pack(side="left", padx=3)
 
         ctk.CTkButton(
@@ -1879,6 +1892,17 @@ class DashboardView(ctk.CTkFrame):
             if entry.passphrase:
                 self._add_inspector_masked_field(box, "Passphrase", entry.passphrase, key_id=f"pass_{entry.id}")
 
+            ctk.CTkButton(
+                box,
+                text="💻 Install Key to Local System (~/.ssh)...",
+                font=get_font(11, "bold"),
+                fg_color=BG_CARD,
+                hover_color=BORDER_COLOR,
+                text_color=ACCENT_PRIMARY,
+                height=30,
+                command=lambda: self._open_local_key_installer(preselected=entry),
+            ).pack(fill="x", padx=12, pady=(6, 8))
+
         # Linked Domain indicator for ANY entry type
         if getattr(entry, "parent_domain_id", None):
             p_dom = next((e for e in self.entries if e.id == entry.parent_domain_id), None)
@@ -2626,6 +2650,17 @@ class DashboardView(ctk.CTkFrame):
         self._on_nav_tab_changed("⚡ Crypto Tools")
         if hasattr(self.crypto_tools_view, "switch_to_subtab"):
             self.crypto_tools_view.switch_to_subtab("⚡ Key Generator")
+
+    def _open_local_key_installer(self, preselected: Optional[VaultEntry] = None):
+        self.autolock_mgr.record_activity()
+        LocalKeyInstallerDialog(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            clipboard_mgr=self.clipboard_mgr,
+            preselected_entry=preselected,
+            on_vault_updated=self.reload_entries,
+        )
 
     def _open_settings(self):
         self.autolock_mgr.record_activity()
