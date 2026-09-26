@@ -5,7 +5,7 @@
  */
 
 const BRIDGE_URL = "http://127.0.0.1:8088";
-const THEMES = ["dark", "blue", "console", "cyberpunk", "light"];
+const THEMES = ["dark", "nord", "dracula", "console", "cyberpunk", "light"];
 
 let currentTabUrl = "";
 let currentTabDomain = "";
@@ -14,6 +14,7 @@ let activeFilterStatus = "all";
 let currentSortBy = "natural";
 let currentSortReverse = false;
 let genMode = "password";
+let searchDebounceTimer = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
@@ -33,7 +34,7 @@ function initTheme() {
 
 function cycleTheme() {
   const curr = document.documentElement.getAttribute("data-theme") || "dark";
-  const nextIdx = (THEMES.indexOf(curr) + 1) % THEMES.length;
+  const nextIdx = (THEMES.indexOf(curr.toLowerCase()) + 1) % THEMES.length;
   const nextTheme = THEMES[nextIdx];
   document.documentElement.setAttribute("data-theme", nextTheme);
   localStorage.setItem("starvault_theme", nextTheme);
@@ -59,7 +60,7 @@ function setupEventListeners() {
   document.getElementById("retryBtn").addEventListener("click", checkBridgeStatus);
   document.getElementById("connectRetryBtn").addEventListener("click", checkBridgeStatus);
 
-  // Search & Filter
+  // Search & Filter with Debounce
   const searchInput = document.getElementById("searchInput");
   const clearSearchBtn = document.getElementById("clearSearchBtn");
 
@@ -69,7 +70,8 @@ function setupEventListeners() {
     } else {
       clearSearchBtn.classList.add("hidden");
     }
-    triggerSearch();
+    clearTimeout(searchDebounceTimer);
+    searchDebounceTimer = setTimeout(triggerSearch, 120);
   });
 
   clearSearchBtn.addEventListener("click", () => {
@@ -135,6 +137,9 @@ function setupEventListeners() {
   // Smart Auto-Organize Drawer
   setupOrganizeDrawer();
 
+  // Vault Import Modal
+  setupImportModal();
+
   // CSV Export Modal
   setupExportModal();
 
@@ -148,9 +153,12 @@ function setupEventListeners() {
 function setupPasswordEyeToggles() {
   const pairs = [
     { inputId: "savePassInput", btnId: "toggleSavePassBtn" },
+    { inputId: "saveDomainPassInput", btnId: "toggleSaveDomainPassBtn" },
+    { inputId: "saveDomainAuthInput", btnId: "toggleSaveDomainAuthBtn" },
     { inputId: "exportMasterPassword", btnId: "toggleExportPassBtn" },
     { inputId: "exportKeyfileToken", btnId: "toggleExportKeyfileBtn" },
     { inputId: "cryptoKeyInput", btnId: "toggleCryptoKeyBtn" },
+    { inputId: "importPasswordInput", btnId: "toggleImportPassBtn" },
   ];
 
   pairs.forEach(({ inputId, btnId }) => {
@@ -173,6 +181,7 @@ function closeAllDrawers() {
   document.getElementById("genDrawer").classList.add("hidden");
   document.getElementById("cryptoDrawer").classList.add("hidden");
   document.getElementById("organizeDrawer").classList.add("hidden");
+  document.getElementById("importModal").classList.add("hidden");
   document.getElementById("exportModal").classList.add("hidden");
   document.getElementById("saveDrawer").classList.add("hidden");
 }
@@ -310,6 +319,49 @@ function setupCryptoDrawer() {
       showToast("Result copied!");
     }
   });
+
+  const importFileBtn = document.getElementById("cryptoImportFileBtn");
+  const fileInput = document.getElementById("cryptoFileInput");
+  const exportFileBtn = document.getElementById("cryptoExportFileBtn");
+
+  if (importFileBtn && fileInput) {
+    importFileBtn.addEventListener("click", () => fileInput.click());
+    fileInput.addEventListener("change", () => {
+      const file = fileInput.files[0];
+      if (file) {
+        const reader = new FileReader();
+        reader.onload = (e) => {
+          document.getElementById("cryptoTextInput").value = e.target.result;
+          showToast(`Loaded ${file.name}`);
+        };
+        reader.readAsText(file);
+      }
+    });
+  }
+
+  if (exportFileBtn) {
+    exportFileBtn.addEventListener("click", () => {
+      const out = document.getElementById("cryptoOutput").value;
+      if (!out) {
+        showToast("Output is empty");
+        return;
+      }
+      const op = cryptoOpSelect.value;
+      let ext = ".txt";
+      if (op.includes("enc") || op === "encrypt") ext = ".enc";
+      else if (op === "tls_cert") ext = ".crt";
+      const blob = new Blob([out], { type: "text/plain;charset=utf-8;" });
+      const url = URL.createObjectURL(blob);
+      const a = document.createElement("a");
+      a.href = url;
+      a.download = `starvault_crypto_output${ext}`;
+      document.body.appendChild(a);
+      a.click();
+      document.body.removeChild(a);
+      URL.revokeObjectURL(url);
+      showToast("Saved to file!");
+    });
+  }
 }
 
 function setupOrganizeDrawer() {
@@ -462,6 +514,92 @@ async function runNeuralHealthScan() {
   }
 }
 
+function setupImportModal() {
+  const importVaultBtn = document.getElementById("importVaultBtn");
+  const importModal = document.getElementById("importModal");
+  const closeImportBtn = document.getElementById("closeImportBtn");
+  const submitImportBtn = document.getElementById("submitImportBtn");
+  const importFileInput = document.getElementById("importFileInput");
+
+  if (!importVaultBtn || !importModal) return;
+
+  importVaultBtn.addEventListener("click", () => {
+    closeAllDrawers();
+    importModal.classList.remove("hidden");
+    const statusBox = document.getElementById("importStatus");
+    if (statusBox) statusBox.classList.add("hidden");
+  });
+  closeImportBtn.addEventListener("click", () => importModal.classList.add("hidden"));
+
+  submitImportBtn.addEventListener("click", async () => {
+    const file = importFileInput.files[0];
+    const statusBox = document.getElementById("importStatus");
+    const strategy = document.getElementById("importStrategySelect").value;
+    const pwd = document.getElementById("importPasswordInput").value.trim() || null;
+
+    if (!file) {
+      statusBox.classList.remove("hidden");
+      statusBox.style.color = "#EF4444";
+      statusBox.textContent = "Please select a file to import.";
+      return;
+    }
+
+    statusBox.classList.remove("hidden");
+    statusBox.style.color = "#00E5FF";
+    statusBox.textContent = `Reading & importing ${file.name}...`;
+
+    try {
+      const isBinary = file.name.endsWith(".db") || file.name.endsWith(".sqlite") || file.name.endsWith(".sqlite3") || file.name.endsWith(".sve");
+      let contentB64 = "";
+      let contentText = "";
+
+      if (isBinary) {
+        const buf = await file.arrayBuffer();
+        let binaryStr = "";
+        const bytes = new Uint8Array(buf);
+        const len = bytes.byteLength;
+        for (let i = 0; i < len; i++) {
+          binaryStr += String.fromCharCode(bytes[i]);
+        }
+        contentB64 = btoa(binaryStr);
+      } else {
+        contentText = await file.text();
+      }
+
+      const res = await fetch(`${BRIDGE_URL}/api/import_vault`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          filename: file.name,
+          content_base64: contentB64,
+          content_text: contentText,
+          collision_strategy: strategy,
+          file_password: pwd,
+        }),
+      });
+      const data = await res.json();
+
+      if (data.success) {
+        statusBox.style.color = "#10B981";
+        statusBox.textContent = `✓ Import successful! ${data.count || 0} items imported.`;
+        showToast("Vault Import Complete!");
+        triggerSearch();
+        setTimeout(() => {
+          importModal.classList.add("hidden");
+          importFileInput.value = "";
+          document.getElementById("importPasswordInput").value = "";
+        }, 2000);
+      } else {
+        statusBox.style.color = "#EF4444";
+        statusBox.textContent = `Import failed: ${data.error || "Unknown error"}`;
+      }
+    } catch (e) {
+      statusBox.style.color = "#EF4444";
+      statusBox.textContent = `Import error: ${e.message || "Bridge offline"}`;
+    }
+  });
+}
+
 function setupExportModal() {
   const exportCsvBtn = document.getElementById("exportCsvBtn");
   const exportModal = document.getElementById("exportModal");
@@ -528,20 +666,66 @@ function setupExportModal() {
   });
 }
 
+let saveDrawerMode = "service";
+
 function setupSaveDrawer() {
   const openSaveBtn = document.getElementById("openSaveBtn");
   const saveDrawer = document.getElementById("saveDrawer");
   const closeSaveBtn = document.getElementById("closeSaveBtn");
   const submitSaveBtn = document.getElementById("submitSaveBtn");
+  const modeServiceBtn = document.getElementById("saveModeService");
+  const modeDomainBtn = document.getElementById("saveModeDomain");
+  const serviceFields = document.getElementById("saveServiceFields");
+  const domainFields = document.getElementById("saveDomainFields");
 
-  openSaveBtn.addEventListener("click", () => {
+  if (modeServiceBtn && modeDomainBtn) {
+    modeServiceBtn.addEventListener("click", () => {
+      saveDrawerMode = "service";
+      modeServiceBtn.classList.add("active");
+      modeDomainBtn.classList.remove("active");
+      if (serviceFields) serviceFields.classList.remove("hidden");
+      if (domainFields) domainFields.classList.add("hidden");
+    });
+
+    modeDomainBtn.addEventListener("click", () => {
+      saveDrawerMode = "domain";
+      modeDomainBtn.classList.add("active");
+      modeServiceBtn.classList.remove("active");
+      if (domainFields) domainFields.classList.remove("hidden");
+      if (serviceFields) serviceFields.classList.add("hidden");
+    });
+  }
+
+  openSaveBtn.addEventListener("click", async () => {
     closeAllDrawers();
     saveDrawer.classList.remove("hidden");
     document.getElementById("saveUrlInput").value = currentTabUrl;
     document.getElementById("saveTitleInput").value = currentTabDomain;
+    const domInput = document.getElementById("saveDomainNameInput");
+    if (domInput) domInput.value = currentTabDomain;
+    await loadDomainsForSaveDropdown();
   });
   closeSaveBtn.addEventListener("click", () => saveDrawer.classList.add("hidden"));
   submitSaveBtn.addEventListener("click", saveNewLogin);
+}
+
+async function loadDomainsForSaveDropdown() {
+  const select = document.getElementById("saveParentDomainSelect");
+  if (!select) return;
+  try {
+    const res = await fetch(`${BRIDGE_URL}/api/domains`);
+    if (res.ok) {
+      const data = await res.json();
+      const doms = data.domains || [];
+      select.innerHTML = '<option value="">Attach to Domain: None (Standalone)</option>';
+      doms.forEach(d => {
+        const opt = document.createElement("option");
+        opt.value = d.id;
+        opt.textContent = `Attached to: ${d.title} (${d.domain_name || d.url})`;
+        select.appendChild(opt);
+      });
+    }
+  } catch (e) {}
 }
 
 // =============================================================================
@@ -576,6 +760,21 @@ async function checkBridgeStatus() {
     const res = await fetch(`${BRIDGE_URL}/api/status`);
     if (!res.ok) throw new Error("Bridge offline");
     const data = await res.json();
+
+    // Sync theme with desktop if available
+    try {
+      const themeRes = await fetch(`${BRIDGE_URL}/api/theme`);
+      if (themeRes.ok) {
+        const themeData = await themeRes.json();
+        if (themeData && themeData.theme) {
+          const tName = themeData.theme.toLowerCase();
+          if (THEMES.includes(tName)) {
+            document.documentElement.setAttribute("data-theme", tName);
+            localStorage.setItem("starvault_theme", tName);
+          }
+        }
+      }
+    } catch (te) {}
 
     if (data.unlocked) {
       badge.textContent = "Unlocked";
@@ -673,6 +872,9 @@ function renderLogins(items) {
     } else if (item.type === "keypair") {
       typeClass = "type-keypair";
       typeText = "KEY";
+    } else if (item.type === "domain") {
+      typeClass = "type-domain";
+      typeText = "DOMAIN";
     }
 
     // Mini status badges
@@ -687,6 +889,14 @@ function renderLogins(items) {
       statusBadgesHtml += '<span class="mini-badge mini-badge-totp">📱 2FA</span>';
     }
 
+    let subTextUser = item.username || item.url || item.hostname || "No user";
+    if (item.type === "domain") {
+      subTextUser = item.domain_name || item.url || item.title;
+      if (item.registrar) subTextUser += ` • ${item.registrar}`;
+      if (item.expires_at) subTextUser += ` • Exp: ${item.expires_at.slice(0, 10)}`;
+      if (item.username) subTextUser = `${item.username} @ ${subTextUser}`;
+    }
+
     card.innerHTML = `
       <div class="card-top-row">
         <div class="card-title-group">
@@ -699,8 +909,8 @@ function renderLogins(items) {
         </div>
       </div>
       <div class="card-sub-row">
-        <span class="card-user" title="${escapeHtml(item.username || item.url || "")}">
-          ${escapeHtml(item.username || item.url || item.hostname || "No user")}
+        <span class="card-user" title="${escapeHtml(subTextUser)}">
+          ${escapeHtml(subTextUser)}
         </span>
         <span class="card-category">${escapeHtml(item.category || "")}</span>
       </div>
@@ -709,6 +919,7 @@ function renderLogins(items) {
         ${(item.services && item.services.length > 0) ? item.services.map(s => `<span class="chip-service">🌐 ${escapeHtml(s)}</span>`).join("") : ""}
       </div>
       <div class="login-actions">
+        ${item.type === "domain" ? '<button class="btn-action btn-copy-dom" title="Copy Domain Name">🌐 Domain</button>' : ""}
         ${item.username ? '<button class="btn-action btn-copy-user" title="Copy Username">👤 User</button>' : ""}
         ${item.has_password ? '<button class="btn-action btn-copy-pass" title="Copy Password">🔑 Pass</button><button class="btn-action btn-reveal-pass" title="Show/Hide Password">👁</button>' : ""}
         ${item.type === "apikey" ? '<button class="btn-action btn-copy-key" title="Copy API Key">🎟️ Key</button>' : ""}
@@ -729,6 +940,8 @@ function renderLogins(items) {
 
     // Action clicks
     card.querySelector(".btn-fill").addEventListener("click", () => fillCredentials(item.id));
+    const domBtn = card.querySelector(".btn-copy-dom");
+    if (domBtn) domBtn.addEventListener("click", () => copyCredential(item.id, "domain_name"));
     const uBtn = card.querySelector(".btn-copy-user");
     if (uBtn) uBtn.addEventListener("click", () => copyCredential(item.id, "username"));
     const pBtn = card.querySelector(".btn-copy-pass");
@@ -886,12 +1099,15 @@ async function copyCredential(entryId, field) {
     else if (field === "api_token") val = creds.api_token;
     else if (field === "public_key") val = creds.public_key;
     else if (field === "totp") val = creds.totp_code;
+    else if (field === "domain_name") val = creds.domain_name || creds.url;
+    else if (field === "auth_code") val = creds.auth_code;
+    else if (field === "registrar") val = creds.registrar;
 
     if (val) {
       navigator.clipboard.writeText(val);
-      showToast(`${field.toUpperCase()} copied!`);
+      showToast(`${field.replace("_", " ").toUpperCase()} copied!`);
     } else {
-      showToast(`${field.toUpperCase()} is empty`);
+      showToast(`${field.replace("_", " ").toUpperCase()} is empty`);
     }
   } catch (e) {
     showToast("Copy failed");
@@ -1049,9 +1265,59 @@ async function runCryptoTool() {
 
 async function saveNewLogin() {
   const title = document.getElementById("saveTitleInput").value.trim();
+
+  if (saveDrawerMode === "domain") {
+    const domainName = document.getElementById("saveDomainNameInput").value.trim();
+    const registrar = document.getElementById("saveRegistrarSelect").value;
+    const expiresAt = document.getElementById("saveDomainExpiresInput").value.trim();
+    const username = document.getElementById("saveDomainUserInput").value.trim();
+    const password = document.getElementById("saveDomainPassInput").value;
+    const authCode = document.getElementById("saveDomainAuthInput").value.trim();
+    const autoRenew = document.getElementById("saveDomainAutoRenew").checked;
+
+    if (!domainName && !title) {
+      showToast("Domain name or title required");
+      return;
+    }
+
+    try {
+      const res = await fetch(`${BRIDGE_URL}/api/save_entry`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          type: "domain",
+          title: title || domainName,
+          domain_name: domainName,
+          url: domainName,
+          registrar,
+          expires_at: expiresAt,
+          username,
+          password,
+          auth_code: authCode,
+          auto_renew: autoRenew,
+          category: "Domains",
+          tags: ["domain", "browser-extension"],
+        }),
+      });
+      if (!res.ok) throw new Error("Save failed");
+      showToast("Domain saved to StarVault!");
+      document.getElementById("saveDrawer").classList.add("hidden");
+      document.getElementById("saveDomainNameInput").value = "";
+      document.getElementById("saveDomainPassInput").value = "";
+      document.getElementById("saveDomainAuthInput").value = "";
+      triggerSearch();
+    } catch (e) {
+      showToast("Failed to save domain");
+    }
+    return;
+  }
+
+  // Service / Web Login Mode
   const url = document.getElementById("saveUrlInput").value.trim();
   const username = document.getElementById("saveUserInput").value.trim();
   const password = document.getElementById("savePassInput").value;
+  const parentDomainSelect = document.getElementById("saveParentDomainSelect");
+  const parentDomainId = parentDomainSelect ? parentDomainSelect.value : "";
   const category = document.getElementById("saveCategorySelect").value;
   const tagsStr = document.getElementById("saveTagsInput").value.trim();
   const tags = tagsStr ? tagsStr.split(",").map((t) => t.trim()).filter(Boolean) : ["extension"];
@@ -1069,7 +1335,18 @@ async function saveNewLogin() {
     const res = await fetch(`${BRIDGE_URL}/api/save_entry`, {
       method: "POST",
       headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({ title, url, username, password, category, tags, groups, services }),
+      body: JSON.stringify({
+        type: "service",
+        title,
+        url,
+        username,
+        password,
+        parent_domain_id: parentDomainId || null,
+        category,
+        tags,
+        groups,
+        services,
+      }),
     });
     if (!res.ok) throw new Error("Save failed");
     showToast("Saved to StarVault!");

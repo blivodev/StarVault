@@ -409,8 +409,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.export_pub_btn = ctk.CTkButton(
             export_row,
-            text="💾 Save .pub",
-            width=110,
+            text="💾 Save Public Key / Cert...",
             height=34,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -420,19 +419,18 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.export_pem_btn = ctk.CTkButton(
             export_row,
-            text="💾 Save .pem",
-            width=110,
+            text="💾 Save Private Key...",
             height=34,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
-            command=lambda: self._export_file("pem"),
+            text_color=COLOR_WARNING,
+            command=lambda: self._export_file("priv"),
         )
         self.export_pem_btn.pack(side="left", padx=(0, 6))
 
         self.export_ppk_btn = ctk.CTkButton(
             export_row,
             text="💾 Save PuTTY .ppk",
-            width=130,
             height=34,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -440,16 +438,18 @@ class KeyStudioDialog(ctk.CTkToplevel):
         )
         self.export_ppk_btn.pack(side="left", padx=(0, 6))
 
-        self.export_asc_btn = ctk.CTkButton(
+        self.export_bundle_btn = ctk.CTkButton(
             export_row,
-            text="💾 Save PGP .asc",
-            width=120,
+            text="📦 Export Both to Folder...",
+            font=get_font(11, "bold"),
             height=34,
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            command=lambda: self._export_file("asc"),
+            fg_color=ACCENT_INDIGO,
+            hover_color=ACCENT_HOVER,
+            text_color="#ffffff",
+            command=self._export_both_to_folder,
         )
-        self.export_asc_btn.pack(side="left")
+        self.export_bundle_btn.pack(side="left")
+
 
         # Save into StarVault vault directly
         save_vault_frame = ctk.CTkFrame(insp_card, fg_color=BG_SUBTLE, corner_radius=8)
@@ -486,10 +486,29 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self._render_private_key_textbox()
 
-        # Update export buttons availability
-        is_gpg = key.key_type == "gpg"
-        self.export_ppk_btn.configure(state="disabled" if is_gpg else "normal")
-        self.export_asc_btn.configure(state="normal" if is_gpg else "disabled")
+        # Update export buttons labels & availability based on key algorithm
+        kt = key.key_type.lower()
+        if "tls" in kt:
+            self.export_pub_btn.configure(text="💾 Save Cert (.crt)", state="normal")
+            self.export_pem_btn.configure(text="💾 Save Key (.key)", state="normal")
+            self.export_ppk_btn.pack_forget()
+        elif "wireguard" in kt:
+            self.export_pub_btn.configure(text="💾 Save .wg.pub", state="normal")
+            self.export_pem_btn.configure(text="💾 Save .wg.key", state="normal")
+            self.export_ppk_btn.pack_forget()
+        elif "age" in kt:
+            self.export_pub_btn.configure(text="💾 Save .recipient.txt", state="normal")
+            self.export_pem_btn.configure(text="💾 Save .key", state="normal")
+            self.export_ppk_btn.pack_forget()
+        elif "gpg" in kt:
+            self.export_pub_btn.configure(text="💾 Save Public (.asc)", state="normal")
+            self.export_pem_btn.configure(text="💾 Save Private (.asc)", state="normal")
+            self.export_ppk_btn.pack_forget()
+        else:
+            self.export_pub_btn.configure(text="💾 Save .pub", state="normal")
+            self.export_pem_btn.configure(text="💾 Save .pem", state="normal")
+            self.export_ppk_btn.pack(side="left", padx=(0, 6))
+            self.export_bundle_btn.pack(side="left")
 
     def _render_private_key_textbox(self):
         if not self.current_key:
@@ -528,23 +547,60 @@ class KeyStudioDialog(ctk.CTkToplevel):
         if not self.current_key:
             return
 
-        def_name = self.current_key.comment or "key"
+        def_name = self.current_key.comment or self.current_key.key_name or "key"
         def_name = "".join(c for c in def_name if c.isalnum() or c in "-_") or "id_key"
+        kt = self.current_key.key_type.lower()
 
         if fmt == "pub":
-            path = filedialog.asksaveasfilename(
-                title="Export OpenSSH Public Key",
-                initialfile=f"{def_name}.pub",
-                filetypes=[("OpenSSH Public Key", "*.pub"), ("All Files", "*.*")],
-            )
+            if "tls" in kt:
+                ext = ".crt"
+                title = "Export TLS Certificate"
+                ft = [("Certificate", "*.crt;*.cer;*.pem"), ("All Files", "*.*")]
+            elif "wireguard" in kt:
+                ext = ".wg.pub"
+                title = "Export WireGuard Public Key"
+                ft = [("WireGuard Public Key", "*.wg.pub"), ("All Files", "*.*")]
+            elif "age" in kt:
+                ext = ".recipient.txt"
+                title = "Export Age Recipient Key"
+                ft = [("Age Recipient Key", "*.recipient.txt;*.txt"), ("All Files", "*.*")]
+            elif "gpg" in kt:
+                ext = ".asc"
+                title = "Export PGP Public Key"
+                ft = [("Armored PGP Key", "*.asc"), ("All Files", "*.*")]
+            else:
+                ext = ".pub"
+                title = "Export OpenSSH Public Key"
+                ft = [("OpenSSH Public Key", "*.pub"), ("All Files", "*.*")]
+
+            path = filedialog.asksaveasfilename(title=title, initialfile=f"{def_name}{ext}", filetypes=ft)
             content = self.current_key.public_key
-        elif fmt == "pem":
-            path = filedialog.asksaveasfilename(
-                title="Export OpenSSH Private Key",
-                initialfile=f"{def_name}.pem",
-                filetypes=[("PEM Private Key", "*.pem"), ("All Files", "*.*")],
-            )
+
+        elif fmt in ("pem", "priv"):
+            if "tls" in kt:
+                ext = ".key"
+                title = "Export TLS Private Key"
+                ft = [("Private Key", "*.key;*.pem"), ("All Files", "*.*")]
+            elif "wireguard" in kt:
+                ext = ".wg.key"
+                title = "Export WireGuard Private Key"
+                ft = [("WireGuard Private Key", "*.wg.key"), ("All Files", "*.*")]
+            elif "age" in kt:
+                ext = ".key"
+                title = "Export Age Private Key"
+                ft = [("Age Private Key", "*.key;*.txt"), ("All Files", "*.*")]
+            elif "gpg" in kt:
+                ext = "_private.asc"
+                title = "Export PGP Private Key"
+                ft = [("Armored PGP Key", "*.asc"), ("All Files", "*.*")]
+            else:
+                ext = ".pem"
+                title = "Export OpenSSH Private Key"
+                ft = [("PEM Private Key", "*.pem;*.key"), ("All Files", "*.*")]
+
+            path = filedialog.asksaveasfilename(title=title, initialfile=f"{def_name}{ext}", filetypes=ft)
             content = self.current_key.private_key
+
         elif fmt == "ppk":
             path = filedialog.asksaveasfilename(
                 title="Export PuTTY Private Key",
@@ -569,6 +625,48 @@ class KeyStudioDialog(ctk.CTkToplevel):
                 text=f"✓ Exported to {path.split('/')[-1]}",
                 text_color=COLOR_SUCCESS,
             )
+
+    def _export_both_to_folder(self):
+        if not self.current_key:
+            return
+
+        folder = filedialog.askdirectory(title="Select Destination Folder for Keypair Files")
+        if not folder:
+            return
+
+        def_name = self.current_key.comment or self.current_key.key_name or "key"
+        def_name = "".join(c for c in def_name if c.isalnum() or c in "-_") or "id_key"
+        kt = self.current_key.key_type.lower()
+        folder_p = Path(folder)
+
+        if "tls" in kt:
+            pub_path = folder_p / f"{def_name}.crt"
+            priv_path = folder_p / f"{def_name}.key"
+        elif "wireguard" in kt:
+            pub_path = folder_p / f"{def_name}.wg.pub"
+            priv_path = folder_p / f"{def_name}.wg.key"
+        elif "age" in kt:
+            pub_path = folder_p / f"{def_name}.recipient.txt"
+            priv_path = folder_p / f"{def_name}.key"
+        elif "gpg" in kt:
+            pub_path = folder_p / f"{def_name}_public.asc"
+            priv_path = folder_p / f"{def_name}_private.asc"
+        else:
+            pub_path = folder_p / f"{def_name}.pub"
+            priv_path = folder_p / f"{def_name}.pem"
+
+        pub_path.write_text(self.current_key.public_key, encoding="utf-8")
+        priv_path.write_text(self.current_key.private_key, encoding="utf-8")
+
+        self.gen_status_label.configure(
+            text=f"✓ Keypair exported to folder {folder_p.name}",
+            text_color=COLOR_SUCCESS,
+        )
+        messagebox.showinfo(
+            "Export Complete",
+            f"Successfully exported keypair:\n\n• {pub_path.name}\n• {priv_path.name}\n\nFolder: {folder}",
+        )
+
 
     def _save_into_vault(self):
         if not self.current_key:

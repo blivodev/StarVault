@@ -20,6 +20,7 @@ from starvault.database import Database
 from starvault.models import VaultEntry
 from starvault.totp import generate_totp_code
 from starvault.ui.theme import (
+    ACCENT_EMERALD,
     ACCENT_HOVER,
     ACCENT_INDIGO,
     ACCENT_PRIMARY,
@@ -99,7 +100,7 @@ class GroupsView(ctk.CTkFrame):
         self.mode_var = ctk.StringVar(value="By Group / Category")
         self.mode_selector = ctk.CTkSegmentedButton(
             header,
-            values=["By Group / Category", "By Service", "By Tag", "By Server Hierarchy"],
+            values=["By Group / Category", "By Service", "By Tag", "By Server Hierarchy", "By Domain / URL"],
             variable=self.mode_var,
             command=self._on_mode_changed,
             font=get_font(11, "bold"),
@@ -179,6 +180,8 @@ class GroupsView(ctk.CTkFrame):
             self.group_mode = "service"
         elif "Tag" in val:
             self.group_mode = "tag"
+        elif "Domain" in val or "URL" in val:
+            self.group_mode = "domain"
         else:
             self.group_mode = "hierarchy"
         self._render_groups()
@@ -211,6 +214,8 @@ class GroupsView(ctk.CTkFrame):
                     or any(q in s.lower() for s in getattr(e, "services", []))
                     or q in (e.hostname or "").lower()
                     or q in (e.url or "").lower()
+                    or q in (getattr(e, "domain_name", "") or "").lower()
+                    or q in (getattr(e, "registrar", "") or "").lower()
                     or q in e.username.lower()
                     or q in (getattr(e, "provider", "") or "").lower()
                     or any(q in t.lower() for t in e.tags)
@@ -266,6 +271,25 @@ class GroupsView(ctk.CTkFrame):
                     grouped.setdefault(grp_name, []).append(e)
                 else:
                     grouped.setdefault("Standalone Services & Keys", []).append(e)
+
+        elif self.group_mode == "domain":
+            # Grouping by Domain / URL Hierarchy
+            domains_map = {e.id: e for e in self.entries if e.entry_type == "domain"}
+            unassigned_items = []
+            for e in filtered:
+                if e.entry_type == "domain":
+                    d_title = e.title or getattr(e, "domain_name", "") or e.url
+                    grp_name = f"🌐 Domain: {d_title}"
+                    grouped.setdefault(grp_name, []).append(e)
+                elif getattr(e, "parent_domain_id", None) and e.parent_domain_id in domains_map:
+                    p = domains_map[e.parent_domain_id]
+                    d_title = p.title or getattr(p, "domain_name", "") or p.url
+                    grp_name = f"🌐 Domain: {d_title}"
+                    grouped.setdefault(grp_name, []).append(e)
+                else:
+                    unassigned_items.append(e)
+            if unassigned_items:
+                grouped["Standalone (Not Attached to Domain)"] = unassigned_items
 
         return grouped
 
@@ -341,9 +365,13 @@ class GroupsView(ctk.CTkFrame):
         row.pack(fill="x", pady=2)
 
         # Type badge
-        badge_color = ACCENT_PRIMARY if entry.entry_type == "server" else (
-            COLOR_WARNING if entry.entry_type == "service" else (
-                ACCENT_INDIGO if entry.entry_type == "apikey" else ACCENT_PURPLE
+        badge_color = (
+            ACCENT_EMERALD if entry.entry_type == "domain" else (
+                ACCENT_PRIMARY if entry.entry_type == "server" else (
+                    COLOR_WARNING if entry.entry_type == "service" else (
+                        ACCENT_INDIGO if entry.entry_type == "apikey" else ACCENT_PURPLE
+                    )
+                )
             )
         )
         badge_text = entry.entry_type.upper()
@@ -377,9 +405,18 @@ class GroupsView(ctk.CTkFrame):
         ).pack(side="left")
 
         # Details subtitle
-        sub_text = entry.hostname or entry.url or entry.provider or (f"port {entry.port}" if entry.port else "")
-        if entry.username:
-            sub_text = f"{entry.username} @ {sub_text}" if sub_text else entry.username
+        if entry.entry_type == "domain":
+            sub_text = getattr(entry, "domain_name", "") or entry.url or ""
+            if getattr(entry, "registrar", ""):
+                sub_text = f"{sub_text} • Registrar: {entry.registrar}" if sub_text else f"Registrar: {entry.registrar}"
+            if getattr(entry, "expires_at", ""):
+                sub_text = f"{sub_text} • Exp: {entry.expires_at}"
+            if getattr(entry, "auto_renew", False):
+                sub_text = f"{sub_text} (Auto-Renew)"
+        else:
+            sub_text = entry.hostname or entry.url or entry.provider or (f"port {entry.port}" if entry.port else "")
+            if entry.username:
+                sub_text = f"{entry.username} @ {sub_text}" if sub_text else entry.username
         if sub_text:
             ctk.CTkLabel(
                 info_col,
@@ -391,6 +428,33 @@ class GroupsView(ctk.CTkFrame):
         # Action Copy Buttons
         btn_box = ctk.CTkFrame(row, fg_color="transparent")
         btn_box.pack(side="right", padx=10, pady=6)
+
+        # Domain Specific Quick Copy: Registrar & Auth Code
+        if entry.entry_type == "domain":
+            if getattr(entry, "registrar", ""):
+                ctk.CTkButton(
+                    btn_box,
+                    text="🏢 Reg",
+                    font=get_font(11),
+                    width=60,
+                    height=28,
+                    fg_color=BG_CARD,
+                    hover_color=BORDER_COLOR,
+                    command=lambda r=entry.registrar, t=entry.title: self._copy_text(r, f"Registrar for {t}", is_secret=False),
+                ).pack(side="left", padx=3)
+
+            if getattr(entry, "auth_code", ""):
+                ctk.CTkButton(
+                    btn_box,
+                    text="🔐 EPP",
+                    font=get_font(11, "bold"),
+                    width=62,
+                    height=28,
+                    fg_color=BG_CARD,
+                    hover_color=ACCENT_PRIMARY,
+                    text_color=COLOR_WARNING,
+                    command=lambda c=entry.auth_code, t=entry.title: self._copy_text(c, f"Auth / EPP code for {t}", is_secret=True),
+                ).pack(side="left", padx=3)
 
         # 1. Copy Username (if exists)
         if entry.username:
@@ -422,13 +486,14 @@ class GroupsView(ctk.CTkFrame):
             ).pack(side="left", padx=3)
 
         # 3. Copy Host / URL (if exists)
-        host_val = entry.url or entry.hostname
+        host_val = getattr(entry, "domain_name", "") or entry.url or entry.hostname
         if host_val:
+            btn_label = "🌐 Domain" if entry.entry_type == "domain" else "🌐 Host"
             ctk.CTkButton(
                 btn_box,
-                text="🌐 Host",
+                text=btn_label,
                 font=get_font(11),
-                width=65,
+                width=68 if entry.entry_type == "domain" else 65,
                 height=28,
                 fg_color=BG_CARD,
                 hover_color=BORDER_COLOR,

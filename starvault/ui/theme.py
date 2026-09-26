@@ -155,6 +155,8 @@ THEME_PALETTES: Dict[str, Dict[str, str]] = {
     },
 }
 
+THEMES = THEME_PALETTES
+
 # Active theme tokens initialized to Dark
 CURRENT_THEME = "Dark"
 _THEME_LISTENERS: List[Callable[[str], None]] = []
@@ -182,9 +184,13 @@ TEXT_MUTED = THEME_PALETTES["Dark"]["TEXT_MUTED"]
 TEXT_ACCENT = THEME_PALETTES["Dark"]["TEXT_ACCENT"]
 TEXT_ON_ACCENT = THEME_PALETTES["Dark"].get("TEXT_ON_ACCENT", "#000000")
 
+ACCENT_EMERALD = "#10b981"
+
 TYPE_COLORS = {
     "server": {"bg": "#1e293b", "text": "#38bdf8", "border": "#38bdf8"},
     "service": {"bg": "#1e293b", "text": "#f59e0b", "border": "#f59e0b"},
+    "domain": {"bg": "#064e3b", "text": "#34d399", "border": "#10b981"},
+    "apikey": {"bg": "#1e1b4b", "text": "#818cf8", "border": "#6366f1"},
     "keypair": {"bg": "#1e293b", "text": "#a855f7", "border": "#a855f7"},
 }
 
@@ -250,6 +256,17 @@ def apply_theme(theme_name: str, save_to_config: bool = True) -> None:
     TEXT_MUTED = palette["TEXT_MUTED"]
     TEXT_ACCENT = palette["TEXT_ACCENT"]
     TEXT_ON_ACCENT = palette.get("TEXT_ON_ACCENT", "#000000" if palette.get("mode") == "Dark" else "#ffffff")
+
+    # Propagate updated tokens into all loaded StarVault module namespaces
+    import sys
+    for mod_name, mod in list(sys.modules.items()):
+        if mod and (mod_name.startswith("starvault") or mod_name.startswith("tests")):
+            for token_key, token_val in palette.items():
+                if hasattr(mod, token_key):
+                    try:
+                        setattr(mod, token_key, token_val)
+                    except Exception:
+                        pass
 
     if save_to_config:
         try:

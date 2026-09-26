@@ -202,3 +202,69 @@ def test_dashboard_sorting_and_filtering(app_instance):
     assert first_title == last_title
 
 
+def test_crypto_tools_subtabs_and_file_import_export(app_instance):
+    """Verify CryptoTools subtab switching renders distinct frames and File Encryption is not duplicate."""
+    db = app_instance.db
+    if not app_instance.session.is_unlocked:
+        key = db.initialize_vault("CryptoToolsPass123!")
+        app_instance.on_unlock_success(key)
+
+    dashboard: DashboardView = app_instance.current_view
+    dashboard.switch_to_tab("⚡ Crypto Tools")
+
+    crypto_tools = dashboard._get_crypto_tools_view()
+    assert crypto_tools is not None
+
+    def is_packed(w):
+        try:
+            target = getattr(w, "_parent_frame", w)
+            return bool(target.pack_info())
+        except Exception:
+            return False
+
+    # 1. Switch to File Encryption subtab
+    crypto_tools.switch_to_subtab("📁 File Encryption")
+    assert is_packed(crypto_tools.file_frame)
+    assert not is_packed(crypto_tools.crypt_frame)
+    assert hasattr(crypto_tools, "f_encrypt_btn")
+    assert hasattr(crypto_tools, "f_decrypt_btn")
+
+    # 2. Switch to Encrypt & Decrypt text subtab
+    crypto_tools.switch_to_subtab("🔐 Encrypt & Decrypt")
+    assert is_packed(crypto_tools.crypt_frame)
+    assert not is_packed(crypto_tools.file_frame)
+
+    # 3. Verify File Vault has Import/Upload and Export All actions
+    dashboard.switch_to_tab("📁 File Vault")
+    files_view = dashboard._get_files_view()
+    assert is_packed(files_view)
+    assert hasattr(files_view, "_open_upload_dialog")
+    assert hasattr(files_view, "_export_all_files")
+
+
+def test_theme_switching_token_propagation():
+    """Verify that apply_theme propagates color tokens across all starvault.ui modules."""
+    from starvault.ui import theme
+    import starvault.ui.dashboard as dash_mod
+    import starvault.ui.crypto_tools_view as crypto_mod
+
+    # Apply Light theme
+    theme.apply_theme("Light")
+    assert theme.get_current_theme() == "Light"
+    assert dash_mod.BG_ROOT == theme.THEMES["Light"]["BG_ROOT"]
+    assert crypto_mod.BG_ROOT == theme.THEMES["Light"]["BG_ROOT"]
+    assert dash_mod.TEXT_PRIMARY == theme.THEMES["Light"]["TEXT_PRIMARY"]
+
+    # Switch to Nord
+    theme.apply_theme("Nord")
+    assert theme.get_current_theme() == "Nord"
+    assert dash_mod.BG_ROOT == theme.THEMES["Nord"]["BG_ROOT"]
+    assert crypto_mod.BG_ROOT == theme.THEMES["Nord"]["BG_ROOT"]
+    assert dash_mod.ACCENT_PRIMARY == theme.THEMES["Nord"]["ACCENT_PRIMARY"]
+
+    # Switch back to Dark
+    theme.apply_theme("Dark")
+    assert theme.get_current_theme() == "Dark"
+
+
+

@@ -19,8 +19,12 @@ The StarVault Companion extension securely bridges your local desktop StarVault 
 ## 🌟 Companion Features
 
 - **⚡ Instant Domain Matching & 1-Click Auto-Fill**: Automatically identifies the active tab's domain or IP address and injects decrypted credentials cleanly into login forms.
+- **🌐 Owned Domains & URL Asset Management**:
+  - Filter chips include dedicated `🌐 Domains` view for tracking owned apex domains, URLs, registrars, and renewal expirations.
+  - Save owned domains directly from the browser popup with registrar account credentials (username, password, 2FA TOTP secret, and EPP auth codes).
+  - Attach services, servers, and logins to any owned domain as a relational grouping hierarchy.
 - **🔍 Multi-Dimensional Sorting & Quick Filters**:
-  - Filter chips: `All`, `🖥️ Servers`, `🌐 Services`, `🔑 API Keys`, `🛡️ Keys`, `⭐ Favorites`, `⏳ Expiring`, `⚠️ Weak`, `📱 TOTP`.
+  - Filter chips: `All`, `🖥️ Servers`, `🌐 Services`, `🌐 Domains`, `🔑 API Keys`, `🛡️ Keys`, `⭐ Favorites`, `⏳ Expiring`, `⚠️ Weak`, `📱 TOTP`.
   - Sorting: Natural Numeric (`vps1, vps2, vps10...`), Alphabetical (A → Z / Z → A), Date Created (Newest/Oldest), Date Modified, Category, and Security Risk with instant ascending/descending toggle.
 - **🔑 Key & Secret Studio**:
   - High-entropy password generator (8–64 chars with symbols & digits).

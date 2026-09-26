@@ -217,7 +217,7 @@ class StarVaultMCPServer:
                     "type": "object",
                     "properties": {
                         "identifier": {"type": "string", "description": "Entry ID or exact Title"},
-                        "secret_type": {"type": "string", "enum": ["password", "api_token", "private_key", "sudo_password", "totp_secret"], "description": "Which secret to retrieve"},
+                        "secret_type": {"type": "string", "enum": ["password", "api_token", "private_key", "sudo_password", "totp_secret", "auth_code"], "description": "Which secret to retrieve"},
                     },
                     "required": ["identifier"],
                 },
@@ -240,12 +240,12 @@ class StarVaultMCPServer:
             },
             {
                 "name": "starvault_add_entry",
-                "description": "Creates a new encrypted vault entry (server, service, apikey, keypair).",
+                "description": "Creates a new encrypted vault entry (server, service, apikey, keypair, domain).",
                 "inputSchema": {
                     "type": "object",
                     "properties": {
                         "title": {"type": "string", "description": "Title or label for the entry"},
-                        "entry_type": {"type": "string", "enum": ["server", "service", "apikey", "keypair"]},
+                        "entry_type": {"type": "string", "enum": ["server", "service", "apikey", "keypair", "domain"]},
                         "category": {"type": "string", "description": "Category name"},
                         "groups": {"type": "array", "items": {"type": "string"}, "description": "Multiple group assignments"},
                         "services": {"type": "array", "items": {"type": "string"}, "description": "Multiple service assignments"},
@@ -258,6 +258,14 @@ class StarVaultMCPServer:
                         "provider": {"type": "string"},
                         "environment": {"type": "string"},
                         "notes": {"type": "string"},
+                        "domain_name": {"type": "string", "description": "Domain name or FQDN"},
+                        "registrar": {"type": "string", "description": "Domain registrar"},
+                        "expires_at": {"type": "string", "description": "Expiry date (YYYY-MM-DD)"},
+                        "auto_renew": {"type": "boolean", "description": "Whether auto-renewal is enabled"},
+                        "dns_provider": {"type": "string", "description": "DNS management provider"},
+                        "nameservers": {"type": "string", "description": "Nameservers (comma-separated or string)"},
+                        "auth_code": {"type": "string", "description": "EPP/transfer authorization code"},
+                        "parent_domain_id": {"type": "string", "description": "ID of parent domain entry"},
                     },
                     "required": ["title", "entry_type"],
                 },
@@ -282,6 +290,14 @@ class StarVaultMCPServer:
                         "provider": {"type": "string"},
                         "environment": {"type": "string"},
                         "notes": {"type": "string"},
+                        "domain_name": {"type": "string", "description": "Domain name or FQDN"},
+                        "registrar": {"type": "string", "description": "Domain registrar"},
+                        "expires_at": {"type": "string", "description": "Expiry date (YYYY-MM-DD)"},
+                        "auto_renew": {"type": "boolean", "description": "Whether auto-renewal is enabled"},
+                        "dns_provider": {"type": "string", "description": "DNS management provider"},
+                        "nameservers": {"type": "string", "description": "Nameservers (comma-separated or string)"},
+                        "auth_code": {"type": "string", "description": "EPP/transfer authorization code"},
+                        "parent_domain_id": {"type": "string", "description": "ID of parent domain entry"},
                     },
                     "required": ["identifier"],
                 },
@@ -479,6 +495,45 @@ class StarVaultMCPServer:
                     },
                 },
             },
+            {
+                "name": "starvault_get_entry_versions",
+                "description": "Retrieves encrypted historical version snapshots, change summaries, and audit trail for a vault entry.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "identifier": {"type": "string", "description": "Entry ID or Title"},
+                        "decrypt": {"type": "boolean", "default": False, "description": "Whether to decrypt and return historical secrets in the response"},
+                    },
+                    "required": ["identifier"],
+                },
+            },
+            {
+                "name": "starvault_restore_entry_version",
+                "description": "Restores a vault entry to a specified historical version snapshot. StarVault automatically snapshots the pre-rollback state.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "identifier": {"type": "string", "description": "Entry ID or Title"},
+                        "version_id": {"type": "string", "description": "UUID of the version snapshot to restore"},
+                    },
+                    "required": ["identifier", "version_id"],
+                },
+            },
+            {
+                "name": "starvault_clean_old_versions",
+                "description": "Prunes historical credential versions and physical key files based on age and max versions criteria.",
+                "inputSchema": {
+                    "type": "object",
+                    "properties": {
+                        "max_age_days": {"type": "integer", "description": "Prune versions older than N days"},
+                        "max_versions_per_entry": {"type": "integer", "description": "Retain only the newest N versions per entry"},
+                        "entry_type": {"type": "string", "description": "Optional filter for entry type ('keypair', 'apikey', 'service', 'server')"},
+                        "delete_physical_files": {"type": "boolean", "default": False, "description": "Whether to securely wipe associated physical key files on disk"},
+                        "clean_keys_dir": {"type": "boolean", "default": False, "description": "Whether to scan keys directory for unreferenced stale key files"},
+                        "dry_run": {"type": "boolean", "default": True, "description": "If True, only previews what would be pruned without deleting"},
+                    },
+                },
+            },
         ]
 
     def _require_unlocked(self) -> bytes:
@@ -576,6 +631,13 @@ class StarVaultMCPServer:
                 "provider": e.provider,
                 "environment": e.environment,
                 "expires_at": e.expires_at,
+                "domain_name": getattr(e, "domain_name", ""),
+                "registrar": getattr(e, "registrar", ""),
+                "auto_renew": getattr(e, "auto_renew", False),
+                "dns_provider": getattr(e, "dns_provider", ""),
+                "nameservers": getattr(e, "nameservers", ""),
+                "parent_domain_id": getattr(e, "parent_domain_id", None),
+                "parent_server_id": getattr(e, "parent_server_id", None),
                 "notes": e.notes,
                 "created_at": e.created_at,
                 "updated_at": e.updated_at,
@@ -598,6 +660,8 @@ class StarVaultMCPServer:
                 val = e.sudo_password
             elif stype == "totp_secret":
                 val = e.totp_secret
+            elif stype == "auth_code":
+                val = getattr(e, "auth_code", "")
             else:
                 val = e.password
 
@@ -668,23 +732,46 @@ class StarVaultMCPServer:
             if isinstance(srvs, str):
                 srvs = [x.strip() for x in srvs.split(",") if x.strip()]
 
-            entry = VaultEntry(
-                title=title,
-                entry_type=etype,
-                category=args.get("category", "General"),
-                groups=list(grps) if grps else [],
-                services=list(srvs) if srvs else [],
-                tags=args.get("tags", []),
-                username=args.get("username", ""),
-                password=args.get("password", ""),
-                hostname=args.get("hostname_or_url", ""),
-                url=args.get("hostname_or_url", ""),
-                port=args.get("port", 22 if etype == "server" else 80),
-                api_token=args.get("api_token", ""),
-                provider=args.get("provider", ""),
-                environment=args.get("environment", "Production"),
-                notes=args.get("notes", ""),
-            )
+            if etype == "domain":
+                entry = VaultEntry.create_domain(
+                    title=title,
+                    domain_name=args.get("domain_name") or args.get("hostname_or_url", ""),
+                    registrar=args.get("registrar", ""),
+                    expires_at=args.get("expires_at", ""),
+                    auto_renew=bool(args.get("auto_renew", False)),
+                    dns_provider=args.get("dns_provider", ""),
+                    nameservers=args.get("nameservers", ""),
+                    auth_code=args.get("auth_code", ""),
+                    category=args.get("category", "Domains"),
+                    tags=args.get("tags", []),
+                    notes=args.get("notes", ""),
+                )
+                if grps:
+                    entry.groups = list(grps)
+                if srvs:
+                    entry.services = list(srvs)
+                if "parent_domain_id" in args:
+                    entry.parent_domain_id = args["parent_domain_id"]
+            else:
+                entry = VaultEntry(
+                    title=title,
+                    entry_type=etype,
+                    category=args.get("category", "General"),
+                    groups=list(grps) if grps else [],
+                    services=list(srvs) if srvs else [],
+                    tags=args.get("tags", []),
+                    username=args.get("username", ""),
+                    password=args.get("password", ""),
+                    hostname=args.get("hostname_or_url", ""),
+                    url=args.get("hostname_or_url", ""),
+                    port=args.get("port", 22 if etype == "server" else 80),
+                    api_token=args.get("api_token", ""),
+                    provider=args.get("provider", ""),
+                    environment=args.get("environment", "Production"),
+                    notes=args.get("notes", ""),
+                    expires_at=args.get("expires_at", ""),
+                    parent_domain_id=args.get("parent_domain_id"),
+                )
             self.db.save_entry(entry, key)
             return f"Successfully created {etype} entry '{entry.title}' (ID: {entry.id})."
 
@@ -722,6 +809,22 @@ class StarVaultMCPServer:
                 e.environment = args["environment"]
             if "notes" in args:
                 e.notes = args["notes"]
+            if "domain_name" in args:
+                e.domain_name = args["domain_name"]
+            if "registrar" in args:
+                e.registrar = args["registrar"]
+            if "expires_at" in args:
+                e.expires_at = args["expires_at"]
+            if "auto_renew" in args:
+                e.auto_renew = bool(args["auto_renew"])
+            if "dns_provider" in args:
+                e.dns_provider = args["dns_provider"]
+            if "nameservers" in args:
+                e.nameservers = args["nameservers"]
+            if "auth_code" in args:
+                e.auth_code = args["auth_code"]
+            if "parent_domain_id" in args:
+                e.parent_domain_id = args["parent_domain_id"]
             self.db.save_entry(e, key)
             return f"Successfully updated entry '{e.title}' (ID: {e.id})."
 
@@ -1107,6 +1210,60 @@ class StarVaultMCPServer:
                     }
                     for e in sorted_entries
                 ],
+            }, indent=2)
+
+        elif name == "starvault_get_entry_versions":
+            key = self._require_unlocked()
+            identifier = args.get("identifier", "").strip()
+            entry = self._find_entry(identifier, key)
+            if not entry:
+                raise ValueError(f"Entry '{identifier}' not found.")
+            decrypt = bool(args.get("decrypt", False))
+            versions = self.db.get_entry_versions(entry.id, key=key, decrypt=decrypt)
+            return json.dumps({
+                "success": True,
+                "entry_id": entry.id,
+                "title": entry.title,
+                "total_versions": len(versions),
+                "versions": [v.to_dict() for v in versions],
+            }, indent=2)
+
+        elif name == "starvault_restore_entry_version":
+            key = self._require_unlocked()
+            identifier = args.get("identifier", "").strip()
+            version_id = args.get("version_id", "").strip()
+            entry = self._find_entry(identifier, key)
+            if not entry:
+                raise ValueError(f"Entry '{identifier}' not found.")
+            restored = self.db.restore_entry_version(entry.id, version_id, key)
+            if not restored:
+                raise ValueError(f"Version '{version_id}' not found for entry '{entry.title}'.")
+            return json.dumps({
+                "success": True,
+                "message": f"Successfully restored '{restored.title}' to target historical version.",
+                "entry_id": restored.id,
+                "title": restored.title,
+                "updated_at": restored.updated_at,
+            }, indent=2)
+
+        elif name == "starvault_clean_old_versions":
+            max_age = args.get("max_age_days")
+            max_v = args.get("max_versions_per_entry")
+            etype = args.get("entry_type")
+            del_files = bool(args.get("delete_physical_files", False))
+            clean_keys = bool(args.get("clean_keys_dir", False))
+            dry_run = bool(args.get("dry_run", True))
+            res = self.db.clean_old_versions(
+                max_age_days=max_age,
+                max_versions_per_entry=max_v,
+                entry_type=etype,
+                delete_physical_files=del_files,
+                clean_keys_dir=clean_keys,
+                dry_run=dry_run,
+            )
+            return json.dumps({
+                "success": True,
+                "result": res.to_dict(),
             }, indent=2)
 
         else:
