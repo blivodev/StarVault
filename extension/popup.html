@@ -14,18 +14,30 @@
     </div>
     <div class="header-right">
       <span id="statusBadge" class="badge badge-offline">Connecting...</span>
-      <button id="neuralScanHeaderBtn" class="icon-btn" title="Run Local Neural Security Scan (Zero-Knowledge)">🧠</button>
-      <button id="themeToggleBtn" class="icon-btn" title="Cycle Themes (Dark / Blue / Matrix / Cyberpunk / Light)">🎨</button>
-      <button id="importVaultBtn" class="icon-btn" title="Import Vault (.db, .sqlite, .json, .csv)">📥</button>
-      <button id="exportCsvBtn" class="icon-btn" title="Export CSV (Master Password Protected)">📤</button>
-      <button id="lockBtn" class="icon-btn" title="Lock Vault">🔒</button>
+      <button id="neuralScanHeaderBtn" class="icon-btn" title="Run Local Neural Security Scan (Zero-Knowledge)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M12 2a4 4 0 0 1 4 4v1a4 4 0 0 1-4 4 4 4 0 0 1-4-4V6a4 4 0 0 1 4-4z"/><circle cx="12" cy="18" r="4"/><path d="M6 12h12"/></svg>
+      </button>
+      <button id="themeToggleBtn" class="icon-btn" title="Cycle Developer Themes (OLED, Tokyo, Catppuccin, Gruvbox, One Dark, Nord, Dracula, Light)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="12" cy="12" r="5"/><path d="M12 1v2M12 21v2M4.22 4.22l1.42 1.42M18.36 18.36l1.42 1.42M1 12h2M21 12h2M4.22 19.78l1.42-1.42M18.36 5.64l1.42-1.42"/></svg>
+      </button>
+      <button id="importVaultBtn" class="icon-btn" title="Import Vault (.db, .sqlite, .json, .csv)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="7 10 12 15 17 10"/><line x1="12" y1="15" x2="12" y2="3"/></svg>
+      </button>
+      <button id="exportCsvBtn" class="icon-btn" title="Export CSV (Master Password Protected)">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"/><polyline points="17 8 12 3 7 8"/><line x1="12" y1="3" x2="12" y2="15"/></svg>
+      </button>
+      <button id="lockBtn" class="icon-btn" title="Lock Vault">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="11" width="18" height="11" rx="2" ry="2"/><path d="M7 11V7a5 5 0 0 1 10 0v4"/></svg>
+      </button>
     </div>
   </div>
 
   <!-- Search & Filter Controls -->
   <div class="search-section">
     <div class="search-box">
-      <span class="search-icon">🔍</span>
+      <span class="search-icon">
+        <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><circle cx="11" cy="11" r="8"/><line x1="21" y1="21" x2="16.65" y2="16.65"/></svg>
+      </span>
       <input type="text" id="searchInput" placeholder="Search logins, hosts, or tags...">
       <button id="clearSearchBtn" class="clear-btn hidden">&times;</button>
     </div>
@@ -33,15 +45,15 @@
     <!-- Quick Filter Chips -->
     <div class="filter-chips" id="filterChips">
       <button class="chip active" data-filter="all">All</button>
-      <button class="chip" data-filter="server">🖥️ Servers</button>
-      <button class="chip" data-filter="service">🌐 Services</button>
-      <button class="chip" data-filter="domain">🌐 Domains</button>
-      <button class="chip" data-filter="apikey">🔑 API Keys</button>
-      <button class="chip" data-filter="keypair">🛡️ Keys</button>
-      <button class="chip" data-filter="favorite">⭐ Fav</button>
-      <button class="chip chip-warn" data-filter="expiring">⏳ Expiring</button>
-      <button class="chip chip-danger" data-filter="weak">⚠️ Weak</button>
-      <button class="chip chip-totp" data-filter="totp">📱 TOTP</button>
+      <button class="chip" data-filter="server">Servers</button>
+      <button class="chip" data-filter="service">Services</button>
+      <button class="chip" data-filter="domain">Domains</button>
+      <button class="chip" data-filter="apikey">API Keys</button>
+      <button class="chip" data-filter="keypair">Keys</button>
+      <button class="chip" data-filter="favorite">Fav</button>
+      <button class="chip chip-warn" data-filter="expiring">Expiring</button>
+      <button class="chip chip-danger" data-filter="weak">Weak</button>
+      <button class="chip chip-totp" data-filter="totp">TOTP</button>
     </div>
 
     <!-- Sorting Bar -->
@@ -66,16 +78,16 @@
 
   <!-- Locked State Notice -->
   <div id="lockedView" class="state-view hidden">
-    <div class="state-icon">🔒</div>
-    <h3>Vault is Locked</h3>
+    <div class="state-badge">VAULT LOCKED</div>
+    <h3>Session Protected</h3>
     <p>Unlock StarVault on your desktop to access your credentials.</p>
     <button id="retryBtn" class="btn btn-secondary">Check Status</button>
   </div>
 
   <!-- Disconnected State Notice -->
   <div id="disconnectedView" class="state-view hidden">
-    <div class="state-icon">⚠️</div>
-    <h3>StarVault Desktop Not Detected</h3>
+    <div class="state-badge state-badge-warn">BRIDGE OFFLINE</div>
+    <h3>Desktop App Not Detected</h3>
     <p>Please launch StarVault desktop app. Bridge runs on <code>127.0.0.1:8088</code>.</p>
     <button id="connectRetryBtn" class="btn btn-primary">Retry Connection</button>
   </div>
@@ -87,10 +99,10 @@
 
   <!-- Action Bar -->
   <div class="bottom-bar">
-    <button id="tabFillBtn" class="btn-tool" title="Auto-fill login fields on page">⚡ Fill</button>
-    <button id="openGenBtn" class="btn-tool" title="Generate Passwords, API Keys, SSH & WireGuard Keys">🔑 Keys/Gen</button>
-    <button id="openCryptoBtn" class="btn-tool" title="Crypto, Hashing, Encoders, TLS Certs">🛠️ Crypto</button>
-    <button id="openOrganizeBtn" class="btn-tool" title="Smart Auto-Organize & Deduplicate">✨ Organize</button>
+    <button id="tabFillBtn" class="btn-tool" title="Auto-fill login fields on page">Fill Page</button>
+    <button id="openGenBtn" class="btn-tool" title="Generate Passwords, API Keys, SSH & WireGuard Keys">Key Studio</button>
+    <button id="openCryptoBtn" class="btn-tool" title="Crypto, Hashing, Encoders, TLS Certs">Crypto</button>
+    <button id="openOrganizeBtn" class="btn-tool" title="Smart Auto-Organize & Deduplicate">Organize</button>
     <button id="openSaveBtn" class="btn-tool" title="Save New Login">+ Save</button>
   </div>
 
@@ -112,7 +124,9 @@
         <div class="gen-output-row">
           <input type="text" id="genPasswordInput" readonly placeholder="Generated password...">
           <button id="copyGenBtn" class="btn btn-accent">Copy</button>
-          <button id="refreshGenBtn" class="icon-btn" title="Refresh">🔄</button>
+          <button id="refreshGenBtn" class="icon-btn" title="Refresh">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
         </div>
         <div class="gen-options">
           <div class="slider-row">
@@ -127,7 +141,9 @@
         <div class="gen-output-row">
           <input type="text" id="genApiKeyInput" readonly placeholder="Generated API key...">
           <button id="copyApiKeyBtn" class="btn btn-accent">Copy</button>
-          <button id="refreshApiKeyBtn" class="icon-btn" title="Refresh">🔄</button>
+          <button id="refreshApiKeyBtn" class="icon-btn" title="Refresh">
+            <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><polyline points="23 4 23 10 17 10"/><polyline points="1 20 1 14 7 14"/><path d="M3.51 9a9 9 0 0 1 14.85-3.36L23 10M1 14l4.64 4.36A9 9 0 0 0 20.49 15"/></svg>
+          </button>
         </div>
         <div class="gen-options">
           <label>Format Preset:</label>
@@ -174,7 +190,7 @@
   <!-- Crypto & Certificate Helper Drawer -->
   <div id="cryptoDrawer" class="drawer hidden">
     <div class="drawer-header">
-      <h4>🛠️ Crypto & TLS Certificate Studio</h4>
+      <h4>Crypto & TLS Certificate Studio</h4>
       <button id="closeCryptoBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
@@ -202,7 +218,7 @@
       </div>
       <div id="cryptoKeyWrapper" class="input-with-eye hidden" style="margin-bottom: 6px;">
         <input type="password" id="cryptoKeyInput" placeholder="Passphrase / Secret Key...">
-        <button type="button" id="toggleCryptoKeyBtn" class="btn-eye-toggle" title="Show/Hide Key">👁</button>
+        <button type="button" id="toggleCryptoKeyBtn" class="btn-eye-toggle" title="Show/Hide Key">Show</button>
       </div>
       <div id="tlsOptions" class="hidden">
         <input type="text" id="tlsCommonName" placeholder="Common Name (e.g. localhost, *.vault.local)" value="localhost">
@@ -212,7 +228,7 @@
         <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">INPUT:</label>
         <div>
           <input type="file" id="cryptoFileInput" class="hidden">
-          <button type="button" id="cryptoImportFileBtn" class="btn-subtle" style="font-size: 10px; padding: 2px 6px;">📥 Import File...</button>
+          <button type="button" id="cryptoImportFileBtn" class="btn-subtle" style="font-size: 10px; padding: 2px 6px;">Import File...</button>
         </div>
       </div>
       <textarea id="cryptoTextInput" placeholder="Enter plaintext or ciphertext to process..."></textarea>
@@ -222,7 +238,7 @@
       </div>
       <div style="display: flex; gap: 6px;">
         <button id="copyCryptoBtn" class="btn btn-accent" style="flex: 1;">Copy Output</button>
-        <button id="cryptoExportFileBtn" class="btn btn-secondary" style="flex: 1;">📤 Export to File...</button>
+        <button id="cryptoExportFileBtn" class="btn btn-secondary" style="flex: 1;">Export to File...</button>
       </div>
     </div>
   </div>
@@ -230,7 +246,7 @@
   <!-- Smart Auto-Organize, Deduplicate & Neural Health Drawer -->
   <div id="organizeDrawer" class="drawer hidden">
     <div class="drawer-header">
-      <h4>✨ Organize & 🧠 Neural Health</h4>
+      <h4>Organize & Neural Health</h4>
       <button id="closeOrganizeBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
@@ -238,7 +254,6 @@
       <div class="neural-health-card">
         <div class="neural-header-row">
           <div class="neural-title">
-            <span class="neural-brain-icon">🧠</span>
             <span style="font-weight: 700; font-size: 12px;">Neural Security Engine</span>
           </div>
           <span id="neuralGradeBadge" class="mini-badge badge-online">100% Offline</span>
@@ -247,7 +262,7 @@
           Local multilayer perceptron audits entropy, blast radius, and anomalies in &lt;1ms.
         </p>
         <button id="btnRunNeuralScan" class="btn btn-primary" style="width: 100%; margin-bottom: 6px;">
-          🧠 Run Neural Security Audit
+          Run Neural Security Audit
         </button>
         <div id="neuralResultsBox" class="neural-results hidden"></div>
       </div>
@@ -259,10 +274,10 @@
       </p>
       <div style="display: flex; flex-direction: column; gap: 8px;">
         <button id="btnAutoOrganize" class="btn btn-secondary">
-          ✨ Auto-Organize & Tag Vault
+          Auto-Organize & Tag Vault
         </button>
         <button id="btnDeduplicate" class="btn btn-secondary">
-          🧹 Detect & Merge Duplicates
+          Detect & Merge Duplicates
         </button>
       </div>
       <div id="organizeStatusBox" class="organize-result hidden"></div>
@@ -272,7 +287,7 @@
   <!-- Vault Import Modal -->
   <div id="importModal" class="drawer hidden">
     <div class="drawer-header">
-      <h4>📥 Import Vault Backup / DB</h4>
+      <h4>Import Vault Backup / DB</h4>
       <button id="closeImportBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
@@ -293,7 +308,7 @@
       </div>
       <div class="input-with-eye" id="importPassWrapper" style="margin-bottom: 8px;">
         <input type="password" id="importPasswordInput" placeholder="Password (if DB or export is encrypted)...">
-        <button type="button" id="toggleImportPassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+        <button type="button" id="toggleImportPassBtn" class="btn-eye-toggle" title="Show/Hide Password">Show</button>
       </div>
       <button id="submitImportBtn" class="btn btn-primary" style="width: 100%; margin-top: 4px;">Import into Vault</button>
       <div id="importStatus" class="hidden" style="margin-top: 8px; font-size: 11px;"></div>
@@ -303,7 +318,7 @@
   <!-- CSV Export Modal -->
   <div id="exportModal" class="drawer hidden">
     <div class="drawer-header">
-      <h4>📤 Export Credentials (CSV)</h4>
+      <h4>Export Credentials (CSV)</h4>
       <button id="closeExportBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
@@ -312,11 +327,11 @@
       </p>
       <div class="input-with-eye" style="margin-bottom: 6px;">
         <input type="password" id="exportMasterPassword" placeholder="Enter Master Password...">
-        <button type="button" id="toggleExportPassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+        <button type="button" id="toggleExportPassBtn" class="btn-eye-toggle" title="Show/Hide Password">Show</button>
       </div>
       <div class="input-with-eye" style="margin-bottom: 6px;">
         <input type="password" id="exportKeyfileToken" placeholder="2FA Keyfile Token (if configured)...">
-        <button type="button" id="toggleExportKeyfileBtn" class="btn-eye-toggle" title="Show/Hide Keyfile Token">👁</button>
+        <button type="button" id="toggleExportKeyfileBtn" class="btn-eye-toggle" title="Show/Hide Keyfile Token">Show</button>
       </div>
       <button id="submitExportBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Authenticate & Download CSV</button>
       <div id="exportStatus" class="hidden" style="margin-top: 6px; font-size: 11px;"></div>
@@ -331,8 +346,8 @@
     </div>
     <div class="drawer-body">
       <div class="tab-btn-row" style="margin-bottom: 8px;">
-        <button id="saveModeService" class="btn-tab active" type="button">🌐 Service / Login</button>
-        <button id="saveModeDomain" class="btn-tab" type="button">🌐 Owned Domain</button>
+        <button id="saveModeService" class="btn-tab active" type="button">Service / Login</button>
+        <button id="saveModeDomain" class="btn-tab" type="button">Owned Domain</button>
       </div>
 
       <!-- Common Title -->
@@ -349,7 +364,7 @@
         <input type="text" id="saveUserInput" placeholder="Username / Email">
         <div class="input-with-eye" style="margin-bottom: 6px;">
           <input type="password" id="savePassInput" placeholder="Password">
-          <button type="button" id="toggleSavePassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+          <button type="button" id="toggleSavePassBtn" class="btn-eye-toggle" title="Show/Hide Password">Show</button>
         </div>
         <div style="display: flex; gap: 6px; margin-bottom: 6px;">
           <select id="saveCategorySelect" class="form-select" style="flex: 1;">
@@ -389,11 +404,11 @@
         <input type="text" id="saveDomainUserInput" placeholder="Registrar Account Username / Email">
         <div class="input-with-eye" style="margin-bottom: 6px;">
           <input type="password" id="saveDomainPassInput" placeholder="Registrar Account Password">
-          <button type="button" id="toggleSaveDomainPassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+          <button type="button" id="toggleSaveDomainPassBtn" class="btn-eye-toggle" title="Show/Hide Password">Show</button>
         </div>
         <div class="input-with-eye" style="margin-bottom: 6px;">
           <input type="password" id="saveDomainAuthInput" placeholder="Transfer / EPP Auth Code (Optional)">
-          <button type="button" id="toggleSaveDomainAuthBtn" class="btn-eye-toggle" title="Show/Hide Auth Code">👁</button>
+          <button type="button" id="toggleSaveDomainAuthBtn" class="btn-eye-toggle" title="Show/Hide Auth Code">Show</button>
         </div>
         <div class="checkbox-row" style="margin-top: 4px;">
           <label><input type="checkbox" id="saveDomainAutoRenew" checked> Auto-Renewal Enabled</label>

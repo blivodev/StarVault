@@ -893,13 +893,13 @@ function renderLogins(items) {
     // Mini status badges
     let statusBadgesHtml = "";
     if (item.is_expiring) {
-      statusBadgesHtml += '<span class="mini-badge mini-badge-warn">⏳ Expiring</span>';
+      statusBadgesHtml += '<span class="mini-badge mini-badge-warn">Expiring</span>';
     }
     if (item.is_weak) {
-      statusBadgesHtml += '<span class="mini-badge mini-badge-danger">⚠️ Weak</span>';
+      statusBadgesHtml += '<span class="mini-badge mini-badge-danger">Weak</span>';
     }
     if (item.has_totp) {
-      statusBadgesHtml += '<span class="mini-badge mini-badge-totp">📱 2FA</span>';
+      statusBadgesHtml += '<span class="mini-badge mini-badge-totp">2FA</span>';
     }
 
     let subTextUser = item.username || item.url || item.hostname || "No user";
@@ -928,18 +928,18 @@ function renderLogins(items) {
         <span class="card-category">${escapeHtml(item.category || "")}</span>
       </div>
       <div class="card-groups-services-row">
-        ${(item.groups && item.groups.length > 0) ? item.groups.map(g => `<span class="chip-group">📁 ${escapeHtml(g)}</span>`).join("") : ""}
-        ${(item.services && item.services.length > 0) ? item.services.map(s => `<span class="chip-service">🌐 ${escapeHtml(s)}</span>`).join("") : ""}
+        ${(item.groups && item.groups.length > 0) ? item.groups.map(g => `<span class="chip-group">${escapeHtml(g)}</span>`).join("") : ""}
+        ${(item.services && item.services.length > 0) ? item.services.map(s => `<span class="chip-service">${escapeHtml(s)}</span>`).join("") : ""}
       </div>
       <div class="login-actions">
-        ${item.type === "domain" ? '<button class="btn-action btn-copy-dom" title="Copy Domain Name">🌐 Domain</button>' : ""}
-        ${item.username ? '<button class="btn-action btn-copy-user" title="Copy Username">👤 User</button>' : ""}
-        ${item.has_password ? '<button class="btn-action btn-copy-pass" title="Copy Password">🔑 Pass</button><button class="btn-action btn-reveal-pass" title="Show/Hide Password">👁</button>' : ""}
-        ${item.type === "apikey" ? '<button class="btn-action btn-copy-key" title="Copy API Key">🎟️ Key</button>' : ""}
-        ${item.type === "keypair" ? '<button class="btn-action btn-copy-pub" title="Copy Public Key">📋 Pub</button>' : ""}
-        ${item.has_totp ? '<button class="btn-action btn-copy-totp" title="Copy 2FA TOTP Code">⏱️ 2FA</button>' : ""}
-        <button class="btn-action btn-neural-eval" title="Local Neural Security Evaluation">🧠 Risk</button>
-        <button class="btn-action btn-fill" title="Auto-fill login fields">⚡ Fill</button>
+        ${item.type === "domain" ? '<button class="btn-action btn-copy-dom" title="Copy Domain Name">Domain</button>' : ""}
+        ${item.username ? '<button class="btn-action btn-copy-user" title="Copy Username">User</button>' : ""}
+        ${item.has_password ? '<button class="btn-action btn-copy-pass" title="Copy Password">Password</button><button class="btn-action btn-reveal-pass" title="Show/Hide Password">Show</button>' : ""}
+        ${item.type === "apikey" ? '<button class="btn-action btn-copy-key" title="Copy API Key">API Key</button>' : ""}
+        ${item.type === "keypair" ? '<button class="btn-action btn-copy-pub" title="Copy Public Key">Public Key</button>' : ""}
+        ${item.has_totp ? '<button class="btn-action btn-copy-totp" title="Copy 2FA TOTP Code">2FA Code</button>' : ""}
+        <button class="btn-action btn-neural-eval" title="Local Neural Security Evaluation">Risk</button>
+        <button class="btn-action btn-fill" title="Auto-fill login fields">Fill</button>
       </div>
       <div class="revealed-pass-box hidden"></div>
       <div class="neural-entry-box hidden"></div>
