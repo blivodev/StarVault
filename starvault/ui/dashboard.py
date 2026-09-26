@@ -14,7 +14,9 @@ from starvault.quick_strings import (
     generate_curl_command,
     generate_db_cli_command,
     generate_db_url,
+    generate_dig_command,
     generate_ssh_command,
+    generate_whois_command,
 )
 from starvault.search import search_entries
 from starvault.ui.api_key_dialog import ApiKeyStudioDialog
@@ -26,7 +28,12 @@ from starvault.ui.health_view import HealthView
 from starvault.ui.key_studio import KeyStudioDialog
 from starvault.ui.settings_dialog import SettingsDialog
 from starvault.ui.totp_view import TotpView
+from starvault.ui.vault_export_dialog import VaultExportDialog
+from starvault.ui.vault_import_dialog import VaultImportDialog
+from starvault.ui.version_history_dialog import VersionHistoryDialog
+from starvault.health import parse_date_safely
 from starvault.ui.theme import (
+    ACCENT_EMERALD,
     ACCENT_HOVER,
     ACCENT_INDIGO,
     ACCENT_PRIMARY,
@@ -99,16 +106,18 @@ class DashboardView(ctk.CTkFrame):
 
     def update_session_key(self, new_key: bytes):
         self.session_key = new_key
-        if hasattr(self, "health_view"):
+        if self.health_view:
             self.health_view.encryption_key = new_key
-        if hasattr(self, "files_view"):
+        if self.files_view:
             self.files_view.encryption_key = new_key
-        if hasattr(self, "groups_view"):
+        if self.groups_view:
             self.groups_view.session_key = new_key
-        if hasattr(self, "totp_view"):
+        if self.totp_view:
             self.totp_view.session_key = new_key
-        if hasattr(self, "crypto_tools_view"):
+        if self.crypto_tools_view:
             self.crypto_tools_view.update_session_key(new_key)
+        if hasattr(self, "_dirty_views"):
+            self._dirty_views.update(["groups", "totp", "health", "files", "crypto"])
 
     def _build_ui(self):
         # 1. Top Global Navigation & Search Bar
@@ -221,7 +230,7 @@ class DashboardView(ctk.CTkFrame):
         self.type_filter_var = ctk.StringVar(value="All")
         self.type_selector = ctk.CTkSegmentedButton(
             self.quick_filter_bar,
-            values=["All", "🖥️ Servers", "🌐 Services", "🔑 API Keys", "🛡️ Keys", "⭐ Favorites"],
+            values=["All", "🌐 Domains", "🖥️ Servers", "⚙️ Services", "🔑 API Keys", "🛡️ Keys", "⭐ Favorites"],
             variable=self.type_filter_var,
             font=get_font(10, "bold"),
             selected_color=ACCENT_PRIMARY,
@@ -292,39 +301,65 @@ class DashboardView(ctk.CTkFrame):
         self.cards_scroll = ctk.CTkScrollableFrame(self.center_container, fg_color=BG_ROOT)
         self.cards_scroll.pack(fill="both", expand=True, padx=12, pady=(0, 12))
 
-        # 3. Vault Views (Health, Files, Groups, 2FA/QR - hidden by default)
-        self.health_view = HealthView(
-            self,
-            database=self.database,
-            encryption_key=self.session_key,
-            on_review_entry=self.switch_to_credentials_tab,
-            on_vault_updated=self.reload_entries,
-        )
-        self.files_view = FilesView(
-            self,
-            database=self.database,
-            encryption_key=self.session_key,
-        )
-        self.groups_view = GroupsView(
-            self,
-            database=self.database,
-            session_key=self.session_key,
-            clipboard_mgr=self.clipboard_mgr,
-            on_select_entry=self.switch_to_credentials_tab,
-        )
-        self.totp_view = TotpView(
-            self,
-            database=self.database,
-            session_key=self.session_key,
-            clipboard_mgr=self.clipboard_mgr,
-        )
-        self.crypto_tools_view = CryptoToolsView(
-            self,
-            clipboard_mgr=self.clipboard_mgr,
-            database=self.database,
-            session_key=self.session_key,
-            on_save_to_vault=self.reload_entries,
-        )
+        # 3. Vault Child Views (Initialized lazily on first tab access for instant startup)
+        self.health_view: Optional[HealthView] = None
+        self.files_view: Optional[FilesView] = None
+        self.groups_view: Optional[GroupsView] = None
+        self.totp_view: Optional[TotpView] = None
+        self.crypto_tools_view: Optional[CryptoToolsView] = None
+        self._dirty_views: Set[str] = set()
+
+    def _get_health_view(self) -> HealthView:
+        if self.health_view is None:
+            self.health_view = HealthView(
+                self,
+                database=self.database,
+                encryption_key=self.session_key,
+                on_review_entry=self.switch_to_credentials_tab,
+                on_vault_updated=self.reload_entries,
+            )
+        return self.health_view
+
+    def _get_files_view(self) -> FilesView:
+        if self.files_view is None:
+            self.files_view = FilesView(
+                self,
+                database=self.database,
+                encryption_key=self.session_key,
+            )
+        return self.files_view
+
+    def _get_groups_view(self) -> GroupsView:
+        if self.groups_view is None:
+            self.groups_view = GroupsView(
+                self,
+                database=self.database,
+                session_key=self.session_key,
+                clipboard_mgr=self.clipboard_mgr,
+                on_select_entry=self.switch_to_credentials_tab,
+            )
+        return self.groups_view
+
+    def _get_totp_view(self) -> TotpView:
+        if self.totp_view is None:
+            self.totp_view = TotpView(
+                self,
+                database=self.database,
+                session_key=self.session_key,
+                clipboard_mgr=self.clipboard_mgr,
+            )
+        return self.totp_view
+
+    def _get_crypto_tools_view(self) -> CryptoToolsView:
+        if self.crypto_tools_view is None:
+            self.crypto_tools_view = CryptoToolsView(
+                self,
+                clipboard_mgr=self.clipboard_mgr,
+                database=self.database,
+                session_key=self.session_key,
+                on_save_to_vault=self.reload_entries,
+            )
+        return self.crypto_tools_view
 
     def _build_top_navbar(self):
         top_bar = ctk.CTkFrame(self, fg_color=BG_CARD, height=64, corner_radius=0, border_width=1, border_color=BORDER_COLOR)
@@ -457,6 +492,29 @@ class DashboardView(ctk.CTkFrame):
 
         ctk.CTkButton(
             actions_frame,
+            text="📤 Export",
+            font=get_font(12),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            height=34,
+            command=self._open_vault_export_dialog,
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            actions_frame,
+            text="📥 Import",
+            font=get_font(12),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            height=34,
+            command=self._open_vault_import_dialog,
+        ).pack(side="left", padx=4)
+
+
+        ctk.CTkButton(
+            actions_frame,
             text="⚙️",
             width=36,
             height=34,
@@ -502,6 +560,7 @@ class DashboardView(ctk.CTkFrame):
         categories = [
             ("All", "🌐 All Entries"),
             ("Favorites", "⭐ Favorites"),
+            ("Domains", "🌐 Domains & URLs"),
             ("API Keys", "⚡ API Keys"),
             ("Servers", "🖥️ Servers & VPS"),
             ("Services", "⚙️ Services & DBs"),
@@ -595,6 +654,8 @@ class DashboardView(ctk.CTkFrame):
         self._update_expiry_status()
         self._apply_filters()
         self._refresh_tags_sidebar()
+        if hasattr(self, "_dirty_views"):
+            self._dirty_views.update(["groups", "totp", "health", "files", "crypto"])
 
     def _update_expiry_status(self):
         """Checks for expiring credentials and updates the navbar alert pill."""
@@ -712,9 +773,11 @@ class DashboardView(ctk.CTkFrame):
         candidates = [e for e, score in scored]
 
         # 1. Filter by Selected Entry Type / Favorites
-        if self.selected_type_filter == "🖥️ Servers":
+        if self.selected_type_filter in ("🌐 Domains", "🔗 Domains"):
+            candidates = [e for e in candidates if e.entry_type == "domain"]
+        elif self.selected_type_filter == "🖥️ Servers":
             candidates = [e for e in candidates if e.entry_type == "server"]
-        elif self.selected_type_filter == "🌐 Services":
+        elif self.selected_type_filter in ("⚙️ Services", "🌐 Services"):
             candidates = [e for e in candidates if e.entry_type == "service"]
         elif self.selected_type_filter == "🔑 API Keys":
             candidates = [e for e in candidates if e.entry_type == "apikey"]
@@ -872,6 +935,9 @@ class DashboardView(ctk.CTkFrame):
         if entry.entry_type == "server":
             badge_color = ACCENT_PRIMARY
             badge_text = "SERVER"
+        elif entry.entry_type == "domain":
+            badge_color = ACCENT_EMERALD
+            badge_text = "DOMAIN"
         elif entry.entry_type == "service":
             badge_color = COLOR_WARNING
             badge_text = "SERVICE"
@@ -944,6 +1010,49 @@ class DashboardView(ctk.CTkFrame):
                     pady=1,
                 ).pack(side="left", padx=2)
 
+        # Domain link chip on child items
+        if getattr(entry, "parent_domain_id", None):
+            p_dom = next((e for e in self.entries if e.id == entry.parent_domain_id), None)
+            if p_dom:
+                ctk.CTkLabel(
+                    top_row,
+                    text=f"🌐 {p_dom.title}",
+                    font=get_font(9, "bold"),
+                    text_color=ACCENT_EMERALD,
+                    fg_color=BG_INPUT,
+                    corner_radius=4,
+                    padx=4,
+                    pady=1,
+                ).pack(side="left", padx=2)
+
+        # Domain specific chips (attached count & host server)
+        if entry.entry_type == "domain":
+            attached_count = sum(1 for e in self.entries if getattr(e, "parent_domain_id", None) == entry.id)
+            if attached_count > 0:
+                ctk.CTkLabel(
+                    top_row,
+                    text=f"🔗 {attached_count} linked",
+                    font=get_font(9, "bold"),
+                    text_color=TEXT_PRIMARY,
+                    fg_color=BG_INPUT,
+                    corner_radius=4,
+                    padx=5,
+                    pady=1,
+                ).pack(side="left", padx=2)
+            if entry.parent_server_id:
+                p_svr = next((e for e in self.entries if e.id == entry.parent_server_id), None)
+                if p_svr:
+                    ctk.CTkLabel(
+                        top_row,
+                        text=f"🖥️ {p_svr.title}",
+                        font=get_font(9),
+                        text_color=ACCENT_PRIMARY,
+                        fg_color=BG_INPUT,
+                        corner_radius=4,
+                        padx=4,
+                        pady=1,
+                    ).pack(side="left", padx=2)
+
         # Middle row: Subtitle Info Preview
         mid_row = ctk.CTkFrame(inner, fg_color="transparent")
         mid_row.pack(fill="x", pady=(4, 6))
@@ -954,6 +1063,26 @@ class DashboardView(ctk.CTkFrame):
             preview_str = f"🖥️ {entry.username}@{entry.hostname}:{entry.port}"
             if entry.os_distro:
                 preview_str += f" ({entry.os_distro})"
+        elif entry.entry_type == "domain":
+            dom_display = entry.domain_name or entry.url or entry.title
+            reg_display = entry.registrar or "Self-Managed"
+            preview_str = f"🌐 {dom_display} • Bought: {reg_display}"
+            if entry.expires_at:
+                exp_date = parse_date_safely(entry.expires_at)
+                if exp_date:
+                    days_left = (exp_date - datetime.now(timezone.utc)).days
+                    if days_left < 0:
+                        preview_str += f" • ⚠️ EXPIRED ({abs(days_left)}d ago)"
+                    elif days_left <= 30:
+                        preview_str += f" • ⏳ Exp: {days_left}d ({entry.expires_at[:10]})"
+                    else:
+                        preview_str += f" • Exp: {entry.expires_at[:10]}"
+                else:
+                    preview_str += f" • Exp: {entry.expires_at[:10]}"
+            if getattr(entry, "auto_renew", False):
+                preview_str += " • 🔄 Auto-Renew"
+            if getattr(entry, "dns_provider", ""):
+                preview_str += f" • DNS: {entry.dns_provider}"
         elif entry.entry_type == "service":
             preview_str = f"⚙️ {entry.app_name} • {entry.url or entry.hostname}"
             if entry.port:
@@ -1017,6 +1146,77 @@ class DashboardView(ctk.CTkFrame):
                     text_color=COLOR_WARNING,
                     command=lambda e=entry: self._copy_val(e.password, "Password copied (30s wipe)", is_sensitive=True),
                 ).pack(side="left", padx=4)
+
+        elif entry.entry_type == "domain":
+            dom_val = entry.domain_name or entry.url or entry.title
+            if dom_val:
+                clean_url = dom_val if (dom_val.startswith("http://") or dom_val.startswith("https://")) else f"https://{dom_val}"
+                ctk.CTkButton(
+                    btn_row,
+                    text="📋 Copy URL",
+                    width=85,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    command=lambda u=clean_url: self._copy_val(u, "Domain URL copied"),
+                ).pack(side="left", padx=(0, 4))
+            if getattr(entry, "username", ""):
+                ctk.CTkButton(
+                    btn_row,
+                    text="👤 Copy User",
+                    width=85,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    command=lambda u=entry.username: self._copy_val(u, "Account username copied"),
+                ).pack(side="left", padx=4)
+            if getattr(entry, "password", ""):
+                ctk.CTkButton(
+                    btn_row,
+                    text="🔑 Copy Pass",
+                    width=85,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    text_color=COLOR_WARNING,
+                    font=get_font(11),
+                    command=lambda p=entry.password: self._copy_val(p, "Account password copied (30s wipe)", is_sensitive=True),
+                ).pack(side="left", padx=4)
+            if getattr(entry, "registrar", ""):
+                ctk.CTkButton(
+                    btn_row,
+                    text="🏢 Registrar",
+                    width=85,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    command=lambda r=entry.registrar: self._copy_val(r, "Registrar name copied"),
+                ).pack(side="left", padx=4)
+            if getattr(entry, "auth_code", ""):
+                ctk.CTkButton(
+                    btn_row,
+                    text="🔐 Auth Code",
+                    width=90,
+                    height=26,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    text_color=COLOR_WARNING,
+                    font=get_font(11),
+                    command=lambda c=entry.auth_code: self._copy_val(c, "Transfer auth code copied (30s wipe)", is_sensitive=True),
+                ).pack(side="left", padx=4)
+            ctk.CTkButton(
+                btn_row,
+                text="➕ Attach Item",
+                width=90,
+                height=26,
+                fg_color=BG_INPUT,
+                hover_color=ACCENT_HOVER,
+                font=get_font(11, "bold"),
+                command=lambda d=entry: self._create_linked_item_for_domain(d),
+            ).pack(side="left", padx=4)
 
         elif entry.entry_type == "service":
             if entry.url or entry.hostname:
@@ -1467,6 +1667,17 @@ class DashboardView(ctk.CTkFrame):
 
         ctk.CTkButton(
             top_bar,
+            text="🕒 History",
+            width=70,
+            height=30,
+            font=get_font(11),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._open_version_history(entry),
+        ).pack(side="right", padx=(4, 0))
+
+        ctk.CTkButton(
+            top_bar,
             text="✏️ Edit",
             width=65,
             height=30,
@@ -1518,9 +1729,11 @@ class DashboardView(ctk.CTkFrame):
         # Details Box
         self._build_inspector_details(entry)
 
-        # Embedded Sub-Credentials Table for Servers
+        # Embedded Sub-Credentials Table for Servers & Domains
         if entry.entry_type == "server":
             self._build_inspector_subcredentials(entry)
+        elif entry.entry_type == "domain":
+            self._build_inspector_domain_items(entry)
 
         # Custom Key-Value Fields Box
         self._build_inspector_custom_fields(entry)
@@ -1548,6 +1761,49 @@ class DashboardView(ctk.CTkFrame):
                 self._add_inspector_masked_field(box, "Password", entry.password, key_id=f"pwd_{entry.id}")
             if entry.sudo_password:
                 self._add_inspector_masked_field(box, "Sudo Password", entry.sudo_password, key_id=f"sudo_{entry.id}")
+
+        elif entry.entry_type == "domain":
+            dom_val = entry.domain_name or entry.url or entry.title
+            clean_url = dom_val if (dom_val.startswith("http://") or dom_val.startswith("https://")) else f"https://{dom_val}" if dom_val else ""
+            self._add_inspector_field(box, "Domain URL", clean_url, copyable=True)
+            self._add_inspector_field(box, "Registrar", entry.registrar or "Unassigned", copyable=bool(entry.registrar))
+
+            exp_text = entry.expires_at[:10] if entry.expires_at else ""
+            if exp_text:
+                exp_date = parse_date_safely(entry.expires_at)
+                if exp_date:
+                    days_left = (exp_date - datetime.now(timezone.utc)).days
+                    if days_left < 0:
+                        exp_text += f" (EXPIRED {abs(days_left)}d ago!)"
+                    elif days_left <= 30:
+                        exp_text += f" (Expiring in {days_left}d)"
+                    else:
+                        exp_text += f" ({days_left}d remaining)"
+            self._add_inspector_field(box, "Expires At", exp_text, copyable=False)
+            if getattr(entry, "registered_at", ""):
+                self._add_inspector_field(box, "Registered", entry.registered_at[:10], copyable=False)
+            if getattr(entry, "renewal_cost", ""):
+                self._add_inspector_field(box, "Renewal Cost", entry.renewal_cost, copyable=False)
+            self._add_inspector_field(box, "Auto-Renew", "Enabled (Active)" if getattr(entry, "auto_renew", False) else "Disabled (Manual)", copyable=False)
+            if getattr(entry, "dns_provider", ""):
+                self._add_inspector_field(box, "DNS Provider", entry.dns_provider, copyable=True)
+            if getattr(entry, "nameservers", ""):
+                self._add_inspector_field(box, "Nameservers", entry.nameservers, copyable=True)
+            if getattr(entry, "username", ""):
+                self._add_inspector_field(box, "Account Username", entry.username, copyable=True)
+            if getattr(entry, "password", ""):
+                self._add_inspector_masked_field(box, "Account Password", entry.password, key_id=f"pwd_{entry.id}")
+            if getattr(entry, "totp_secret", ""):
+                from starvault.totp import generate_totp, get_totp_remaining_seconds
+                code = generate_totp(entry.totp_secret)
+                rem = get_totp_remaining_seconds()
+                self._add_inspector_field(box, f"Registrar 2FA ({rem}s)", code, copyable=True, mono=True)
+            if getattr(entry, "auth_code", ""):
+                self._add_inspector_masked_field(box, "Auth Code", entry.auth_code, key_id=f"auth_{entry.id}")
+            if entry.parent_server_id:
+                p_svr = next((e for e in self.entries if e.id == entry.parent_server_id), None)
+                if p_svr:
+                    self._add_inspector_linked_entry_row(box, "Host Server", p_svr)
 
         elif entry.entry_type == "service":
             self._add_inspector_field(box, "App Name", entry.app_name, copyable=True)
@@ -1588,6 +1844,33 @@ class DashboardView(ctk.CTkFrame):
                 self._add_inspector_masked_field(box, "Private Key", entry.private_key, key_id=f"priv_{entry.id}")
             if entry.passphrase:
                 self._add_inspector_masked_field(box, "Passphrase", entry.passphrase, key_id=f"pass_{entry.id}")
+
+        # Linked Domain indicator for ANY entry type
+        if getattr(entry, "parent_domain_id", None):
+            p_dom = next((e for e in self.entries if e.id == entry.parent_domain_id), None)
+            if p_dom:
+                self._add_inspector_linked_entry_row(box, "Attached Domain", p_dom)
+
+        # Linked Server indicator for services / apikeys
+        if getattr(entry, "parent_server_id", None) and entry.entry_type != "domain":
+            p_svr = next((e for e in self.entries if e.id == entry.parent_server_id), None)
+            if p_svr:
+                self._add_inspector_linked_entry_row(box, "Host Server", p_svr)
+
+    def _add_inspector_linked_entry_row(self, parent, label: str, target_entry: VaultEntry):
+        row = ctk.CTkFrame(parent, fg_color="transparent")
+        row.pack(fill="x", padx=12, pady=3)
+        ctk.CTkLabel(row, text=label, font=get_font(11), text_color=TEXT_MUTED, width=80, anchor="w").pack(side="left")
+        ctk.CTkLabel(row, text=f"{target_entry.title}", font=get_font(12, "bold"), text_color=ACCENT_PRIMARY, anchor="w").pack(side="left", fill="x", expand=True, padx=4)
+        ctk.CTkButton(
+            row,
+            text="↗️",
+            width=28,
+            height=24,
+            fg_color="transparent",
+            hover_color=BORDER_COLOR,
+            command=lambda e=target_entry: self._select_entry(e),
+        ).pack(side="right")
 
     def _add_inspector_field(self, parent, label: str, val: str, copyable: bool = False, mono: bool = False):
         if not val:
@@ -1687,6 +1970,18 @@ class DashboardView(ctk.CTkFrame):
                 export_cmd = f"export API_KEY='{entry.api_token}'"
                 self._render_quick_string_row(q_card, "Shell Export", export_cmd, is_sensitive=True)
 
+        elif entry.entry_type == "domain":
+            whois_str = generate_whois_command(entry)
+            self._render_quick_string_row(q_card, "WHOIS Lookup", whois_str)
+            dig_str = generate_dig_command(entry, record_type="A")
+            self._render_quick_string_row(q_card, "DNS Query (A Record)", dig_str)
+            dig_ns = generate_dig_command(entry, record_type="NS")
+            self._render_quick_string_row(q_card, "Nameservers Query (NS)", dig_ns)
+            dig_mx = generate_dig_command(entry, record_type="MX")
+            self._render_quick_string_row(q_card, "Mail Exchange (MX)", dig_mx)
+            dig_txt = generate_dig_command(entry, record_type="TXT")
+            self._render_quick_string_row(q_card, "TXT / SPF / DMARC", dig_txt)
+
     def _render_quick_string_row(self, parent, label: str, text_val: str, is_sensitive: bool = False):
         frame = ctk.CTkFrame(parent, fg_color="transparent")
         frame.pack(fill="x", padx=12, pady=4)
@@ -1776,32 +2071,59 @@ class DashboardView(ctk.CTkFrame):
 
     def _on_nav_tab_changed(self, tab_name: str):
         self.autolock_mgr.record_activity()
-        # Hide all content frames
+        # Hide all active content frames
         self.body_frame.pack_forget()
-        self.groups_view.pack_forget()
-        self.totp_view.pack_forget()
-        self.health_view.pack_forget()
-        self.files_view.pack_forget()
-        self.crypto_tools_view.pack_forget()
+        if self.groups_view:
+            self.groups_view.pack_forget()
+        if self.totp_view:
+            self.totp_view.pack_forget()
+        if self.health_view:
+            self.health_view.pack_forget()
+        if self.files_view:
+            self.files_view.pack_forget()
+        if self.crypto_tools_view:
+            self.crypto_tools_view.pack_forget()
         self.search_container.pack_forget()
 
         if tab_name == "Credentials":
             self.body_frame.pack(fill="both", expand=True)
             self.search_container.pack(side="left", fill="x", expand=True, padx=(10, 16), pady=12)
         elif tab_name == "🗂️ Groups":
-            self.groups_view.pack(fill="both", expand=True)
-            self.groups_view.refresh()
+            gv = self._get_groups_view()
+            gv.pack(fill="both", expand=True)
+            if "groups" in self._dirty_views:
+                gv.refresh()
+                self._dirty_views.discard("groups")
         elif tab_name == "📱 2FA / QR":
-            self.totp_view.pack(fill="both", expand=True)
-            self.totp_view.refresh()
+            tv = self._get_totp_view()
+            tv.pack(fill="both", expand=True)
+            if "totp" in self._dirty_views:
+                tv.refresh()
+                self._dirty_views.discard("totp")
         elif tab_name == "🛡️ Vault Health":
-            self.health_view.pack(fill="both", expand=True)
-            self.health_view.refresh()
+            hv = self._get_health_view()
+            hv.pack(fill="both", expand=True)
+            if "health" in self._dirty_views:
+                hv.refresh()
+                self._dirty_views.discard("health")
         elif tab_name == "📁 File Vault":
-            self.files_view.pack(fill="both", expand=True)
-            self.files_view.refresh()
+            fv = self._get_files_view()
+            fv.pack(fill="both", expand=True)
+            if "files" in self._dirty_views:
+                fv.refresh()
+                self._dirty_views.discard("files")
         elif tab_name == "⚡ Crypto Tools":
-            self.crypto_tools_view.pack(fill="both", expand=True)
+            ctv = self._get_crypto_tools_view()
+            ctv.pack(fill="both", expand=True)
+            if "crypto" in self._dirty_views:
+                ctv.reload_keyring()
+                self._dirty_views.discard("crypto")
+
+    def switch_to_tab(self, tab_name: str):
+        """Switches to the specified top-level navigation tab."""
+        self.nav_var.set(tab_name)
+        self.tab_selector.set(tab_name)
+        self._on_nav_tab_changed(tab_name)
 
     def switch_to_credentials_tab(self, entry_id: Optional[str] = None):
         """Switches to Credentials tab and highlights/selects the given entry."""
@@ -1982,6 +2304,7 @@ class DashboardView(ctk.CTkFrame):
         """Creates a new child service entry directly pre-linked to the parent server."""
         self.autolock_mgr.record_activity()
         servers = [e for e in self.entries if e.entry_type == "server"]
+        domains = [e for e in self.entries if e.entry_type == "domain"]
         new_svc = VaultEntry.create_service(
             title=f"{server_entry.title} - Service",
             app_name="",
@@ -1994,6 +2317,127 @@ class DashboardView(ctk.CTkFrame):
             default_type="service",
             existing_tags=self.database.get_all_tags(),
             available_servers=servers,
+            available_domains=domains,
+            on_save=self._on_entry_saved,
+        )
+
+    def _build_inspector_domain_items(self, domain_entry: VaultEntry):
+        """Renders embedded table of all vault items/services/credentials attached to this domain."""
+        child_entries = self.database.get_child_entries_by_domain(domain_entry.id, self.session_key)
+
+        box = ctk.CTkFrame(self.inspector_panel, fg_color=BG_INPUT, corner_radius=8)
+        box.pack(fill="x", padx=12, pady=(0, 10))
+
+        header = ctk.CTkFrame(box, fg_color="transparent")
+        header.pack(fill="x", padx=12, pady=(8, 4))
+
+        ctk.CTkLabel(
+            header,
+            text=f"ATTACHED VAULT ITEMS ({len(child_entries)})",
+            font=get_font(10, "bold"),
+            text_color=ACCENT_EMERALD,
+        ).pack(side="left")
+
+        ctk.CTkButton(
+            header,
+            text="+ Attach Item",
+            font=get_font(10, "bold"),
+            width=90,
+            height=20,
+            fg_color="transparent",
+            hover_color=BORDER_COLOR,
+            command=lambda: self._create_linked_item_for_domain(domain_entry),
+        ).pack(side="right")
+
+        if not child_entries:
+            ctk.CTkLabel(
+                box,
+                text="No vault items attached to this domain yet.\nClick '+ Attach Item' to link services, API keys, or servers.",
+                font=get_font(11),
+                text_color=TEXT_MUTED,
+                justify="left",
+            ).pack(anchor="w", padx=12, pady=(4, 10))
+            return
+
+        table_container = ctk.CTkFrame(box, fg_color="transparent")
+        table_container.pack(fill="x", padx=8, pady=(2, 8))
+
+        col_hdr = ctk.CTkFrame(table_container, fg_color="transparent")
+        col_hdr.pack(fill="x", pady=(2, 4))
+        ctk.CTkLabel(col_hdr, text="Item / Title", font=get_font(10, "bold"), text_color=TEXT_MUTED, width=115, anchor="w").pack(side="left")
+        ctk.CTkLabel(col_hdr, text="Type", font=get_font(10, "bold"), text_color=TEXT_MUTED, width=65, anchor="w").pack(side="left")
+        ctk.CTkLabel(col_hdr, text="Secret / Role", font=get_font(10, "bold"), text_color=TEXT_MUTED, width=70, anchor="w").pack(side="left")
+        ctk.CTkLabel(col_hdr, text="Actions", font=get_font(10, "bold"), text_color=TEXT_MUTED, anchor="e").pack(side="right")
+
+        for child in child_entries:
+            row = ctk.CTkFrame(table_container, fg_color=BG_CARD, corner_radius=4)
+            row.pack(fill="x", pady=2)
+
+            display_title = child.title
+            if len(display_title) > 15:
+                display_title = display_title[:13] + ".."
+            ctk.CTkLabel(row, text=display_title, font=get_font(11, "bold"), text_color=TEXT_PRIMARY, width=115, anchor="w").pack(side="left", padx=(6, 2), pady=4)
+
+            t_disp = child.entry_type.upper()
+            t_color = ACCENT_PRIMARY if child.entry_type == "server" else (COLOR_WARNING if child.entry_type == "service" else (ACCENT_INDIGO if child.entry_type == "apikey" else ACCENT_PURPLE))
+            ctk.CTkLabel(row, text=t_disp, font=get_font(9, "bold"), text_color=t_color, width=65, anchor="w").pack(side="left", padx=2)
+
+            sec_disp = "••••••••" if (child.password or child.api_token or child.private_key) else (child.username or "-")
+            ctk.CTkLabel(row, text=sec_disp, font=get_mono_font(10), text_color=TEXT_MUTED, width=70, anchor="w").pack(side="left", padx=2)
+
+            act_box = ctk.CTkFrame(row, fg_color="transparent")
+            act_box.pack(side="right", padx=4)
+
+            sec_val = child.password or child.api_token or child.private_key
+            if sec_val:
+                ctk.CTkButton(
+                    act_box,
+                    text="🔑",
+                    width=24,
+                    height=24,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    command=lambda p=sec_val: self._copy_val(p, "Attached secret copied (30s wipe)", is_sensitive=True),
+                ).pack(side="left", padx=1)
+            elif child.username:
+                ctk.CTkButton(
+                    act_box,
+                    text="👤",
+                    width=24,
+                    height=24,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    command=lambda u=child.username: self._copy_val(u, "Attached username copied"),
+                ).pack(side="left", padx=1)
+
+            ctk.CTkButton(
+                act_box,
+                text="↗️",
+                width=24,
+                height=24,
+                fg_color=BG_INPUT,
+                hover_color=ACCENT_HOVER,
+                command=lambda c=child: self._select_entry(c),
+            ).pack(side="left", padx=1)
+
+    def _create_linked_item_for_domain(self, domain_entry: VaultEntry):
+        """Creates a new vault entry directly attached to this domain."""
+        self.autolock_mgr.record_activity()
+        servers = [e for e in self.entries if e.entry_type == "server"]
+        domains = [e for e in self.entries if e.entry_type == "domain"]
+        new_svc = VaultEntry.create_service(
+            title=f"{domain_entry.title} - Service",
+            app_name="",
+            url=domain_entry.url or domain_entry.domain_name,
+        )
+        new_svc.parent_domain_id = domain_entry.id
+        EntryDialog(
+            self,
+            entry=new_svc,
+            default_type="service",
+            existing_tags=self.database.get_all_tags(),
+            available_servers=servers,
+            available_domains=domains,
             on_save=self._on_entry_saved,
         )
 
@@ -2041,23 +2485,46 @@ class DashboardView(ctk.CTkFrame):
     def _open_new_entry_dialog(self):
         self.autolock_mgr.record_activity()
         servers = [e for e in self.entries if e.entry_type == "server"]
+        domains = [e for e in self.entries if e.entry_type == "domain"]
+        def_type = "domain" if self.selected_category == "Domains" or self.selected_type_filter in ("🌐 Domains", "🔗 Domains") else "server"
         EntryDialog(
             self,
+            default_type=def_type,
             existing_tags=self.database.get_all_tags(),
             available_servers=servers,
+            available_domains=domains,
             on_save=self._on_entry_saved,
         )
 
     def _edit_entry(self, entry: VaultEntry):
         self.autolock_mgr.record_activity()
         servers = [e for e in self.entries if e.entry_type == "server" and e.id != entry.id]
+        domains = [e for e in self.entries if e.entry_type == "domain" and e.id != entry.id]
         EntryDialog(
             self,
             entry=entry,
+            database=self.database,
+            session_key=self.session_key,
             existing_tags=self.database.get_all_tags(),
             available_servers=servers,
+            available_domains=domains,
             on_save=self._on_entry_saved,
         )
+
+    def _open_version_history(self, entry: VaultEntry):
+        self.autolock_mgr.record_activity()
+        VersionHistoryDialog(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            entry=entry,
+            clipboard_mgr=self.clipboard_mgr,
+            on_restored=self._on_entry_restored,
+        )
+
+    def _on_entry_restored(self, restored_entry: VaultEntry):
+        self.reload_entries()
+        self._select_entry(restored_entry)
 
     def _on_entry_saved(self, entry: VaultEntry):
         self.database.save_entry(entry, self.session_key)
@@ -2107,6 +2574,7 @@ class DashboardView(ctk.CTkFrame):
     def _on_use_generated_api_key(self, key_str: str, provider: str, key_fmt: str):
         self.autolock_mgr.record_activity()
         servers = [e for e in self.entries if e.entry_type == "server"]
+        domains = [e for e in self.entries if e.entry_type == "domain"]
         new_entry = VaultEntry.create_api_key(
             title=f"{provider} API Key",
             provider=provider,
@@ -2119,5 +2587,29 @@ class DashboardView(ctk.CTkFrame):
             default_type="apikey",
             existing_tags=self.database.get_all_tags(),
             available_servers=servers,
+            available_domains=domains,
             on_save=self._on_entry_saved,
         )
+
+    def _open_vault_export_dialog(self):
+        self.autolock_mgr.record_activity()
+        VaultExportDialog(self, database=self.database, session_key=self.session_key)
+
+    def _open_vault_import_dialog(self):
+        self.autolock_mgr.record_activity()
+        VaultImportDialog(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            on_import_completed=self._on_vault_imported,
+        )
+
+    def _on_vault_imported(self):
+        self.reload_entries()
+        if self.files_view:
+            self.files_view.refresh()
+        if self.health_view:
+            self.health_view.refresh()
+        if self.crypto_tools_view:
+            self.crypto_tools_view.reload_keyring()
+

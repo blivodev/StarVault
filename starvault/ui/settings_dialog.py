@@ -2,7 +2,7 @@
 
 import shutil
 from pathlib import Path
-from tkinter import filedialog
+from tkinter import filedialog, messagebox
 from typing import Callable, Dict, Optional
 import customtkinter as ctk
 
@@ -10,6 +10,9 @@ from starvault.app_config import AppConfigManager
 from starvault.database import Database
 from starvault.export_utils import export_vault_to_archive, export_vault_to_csv
 from starvault.gdrive_sync import GoogleDriveSync
+from starvault.ui.vault_export_dialog import VaultExportDialog
+from starvault.ui.vault_import_dialog import VaultImportDialog
+from starvault.versioning import parse_retention_days
 from starvault.ui.theme import (
     ACCENT_HOVER,
     ACCENT_PRIMARY,
@@ -332,6 +335,120 @@ class SettingsDialog(ctk.CTkToplevel):
         self.gdrive_btn_row.pack(fill="x", padx=16, pady=(0, 14))
         self._render_gdrive_buttons()
 
+        # 4.5 Credential Version Retention & Key Lifecycle Card
+        ret_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
+        ret_card.pack(fill="x", pady=(0, 16), padx=4)
+
+        ctk.CTkLabel(ret_card, text="📜 CREDENTIAL VERSION RETENTION & KEY LIFECYCLE", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
+
+        ctk.CTkLabel(
+            ret_card,
+            text="Automatically records zero-knowledge encrypted snapshots of rotated credentials and keys. Define retention policies to prune obsolete snapshots and wipe associated physical files.",
+            font=get_font(11),
+            text_color=TEXT_MUTED,
+            wraplength=520,
+            justify="left",
+        ).pack(fill="x", padx=16, pady=(0, 8))
+
+        # Auto-retention enable toggle
+        row_ret_enable = ctk.CTkFrame(ret_card, fg_color="transparent")
+        row_ret_enable.pack(fill="x", padx=16, pady=4)
+        self.var_retention_enabled = ctk.BooleanVar(value=self.settings.get("version_retention_enabled", False))
+        ctk.CTkCheckBox(
+            row_ret_enable,
+            text="Enable automatic historical version pruning on credential updates",
+            variable=self.var_retention_enabled,
+            font=get_font(12),
+        ).pack(side="left")
+
+        # Age Retention Row (Value + Unit)
+        row_ret_age = ctk.CTkFrame(ret_card, fg_color="transparent")
+        row_ret_age.pack(fill="x", padx=16, pady=4)
+
+        ctk.CTkLabel(row_ret_age, text="Maximum Snapshot Age", font=get_font(12), text_color=TEXT_PRIMARY).pack(side="left")
+
+        self.retention_val_entry = ctk.CTkEntry(
+            row_ret_age,
+            width=70,
+            height=32,
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            font=get_mono_font(11),
+        )
+        self.retention_val_entry.insert(0, str(self.settings.get("version_retention_value", 90)))
+        self.retention_val_entry.pack(side="right", padx=(8, 0))
+
+        curr_unit = str(self.settings.get("version_retention_unit", "days")).capitalize()
+        if curr_unit not in ["Days", "Months", "Years"]:
+            curr_unit = "Days"
+        self.retention_unit_combo = ctk.CTkComboBox(
+            row_ret_age,
+            values=["Days", "Months", "Years"],
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            width=100,
+            height=32,
+        )
+        self.retention_unit_combo.set(curr_unit)
+        self.retention_unit_combo.pack(side="right")
+
+        # Max Versions per Entry Row
+        row_max_v = ctk.CTkFrame(ret_card, fg_color="transparent")
+        row_max_v.pack(fill="x", padx=16, pady=4)
+
+        ctk.CTkLabel(row_max_v, text="Max Versions to Keep per Entry (0 for unlimited)", font=get_font(12), text_color=TEXT_PRIMARY).pack(side="left")
+
+        self.max_versions_entry = ctk.CTkEntry(
+            row_max_v,
+            width=70,
+            height=32,
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            font=get_mono_font(11),
+        )
+        self.max_versions_entry.insert(0, str(self.settings.get("max_versions_per_entry", 10)))
+        self.max_versions_entry.pack(side="right")
+
+        # Clean Physical Key Files Toggle
+        row_clean_files = ctk.CTkFrame(ret_card, fg_color="transparent")
+        row_clean_files.pack(fill="x", padx=16, pady=4)
+        self.var_clean_key_files = ctk.BooleanVar(value=self.settings.get("clean_physical_key_files", True))
+        ctk.CTkCheckBox(
+            row_clean_files,
+            text="Securely zero-wipe physical key files (.pem, .pub, .key) when versions are deleted",
+            variable=self.var_clean_key_files,
+            font=get_font(12),
+        ).pack(side="left")
+
+        # Retention Action Buttons
+        ret_btn_row = ctk.CTkFrame(ret_card, fg_color="transparent")
+        ret_btn_row.pack(fill="x", padx=16, pady=(8, 8))
+
+        ctk.CTkButton(
+            ret_btn_row,
+            text="🧹 Clean Stale Versions Now",
+            width=180,
+            height=32,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=COLOR_WARNING,
+            command=lambda: self._clean_versions_now(dry_run=False),
+        ).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            ret_btn_row,
+            text="🔍 Preview Pruning (Dry Run)",
+            width=180,
+            height=32,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_SECONDARY,
+            command=lambda: self._clean_versions_now(dry_run=True),
+        ).pack(side="left")
+
+        self.retention_status_label = ctk.CTkLabel(ret_card, text="", font=get_font(11))
+        self.retention_status_label.pack(anchor="w", padx=16, pady=(0, 10))
+
         # 5. Vault Storage & Manual Export Card
         backup_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         backup_card.pack(fill="x", pady=(0, 16), padx=4)
@@ -353,13 +470,37 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             b_row,
-            text="💾 Save Backup Copy (.db)",
-            width=160,
+            text="💾 Save Copy (.db)",
+            width=130,
             height=34,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             command=self._backup_db,
-        ).pack(side="left")
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            b_row,
+            text="📤 Export Vault (.sve / .zip)...",
+            width=180,
+            height=34,
+            font=get_font(11, "bold"),
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            command=self._open_vault_export_dialog,
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            b_row,
+            text="📥 Import Package...",
+            width=150,
+            height=34,
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            command=self._open_vault_import_dialog,
+        ).pack(side="left", padx=(0, 6))
 
         self.backup_status_label = ctk.CTkLabel(b_row, text="", font=get_font(12), text_color=COLOR_SUCCESS)
         self.backup_status_label.pack(side="left", padx=10)
@@ -524,6 +665,23 @@ class SettingsDialog(ctk.CTkToplevel):
                 self.backup_status_label.configure(text="✓ Backup saved successfully!")
             except Exception as e:
                 self.backup_status_label.configure(text=f"Backup error: {str(e)}", text_color=COLOR_DANGER)
+
+    def _open_vault_export_dialog(self):
+        VaultExportDialog(self, database=self.database, session_key=self.current_key)
+
+    def _open_vault_import_dialog(self):
+        def on_done():
+            self.backup_status_label.configure(text="✓ Vault data successfully imported!", text_color=COLOR_SUCCESS)
+            if hasattr(self.master, "reload_entries"):
+                self.master.reload_entries()
+
+        VaultImportDialog(
+            self,
+            database=self.database,
+            session_key=self.current_key,
+            on_import_completed=on_done,
+        )
+
 
     def _select_backup_dir(self):
         folder = filedialog.askdirectory(title="Select Passive Cloud Sync Folder (Google Drive, Dropbox, etc.)")
@@ -811,16 +969,84 @@ class SettingsDialog(ctk.CTkToplevel):
 
         self._prompt_master_password(on_auth)
 
+    def _clean_versions_now(self, dry_run: bool = False) -> None:
+        try:
+            val_str = self.retention_val_entry.get().strip() or "90"
+            val = max(1, int(val_str))
+            unit = self.retention_unit_combo.get().strip().lower()
+            days = parse_retention_days(val, unit)
+
+            max_v_str = self.max_versions_entry.get().strip() or "10"
+            max_v = max(0, int(max_v_str))
+            max_versions_param = max_v if max_v > 0 else None
+
+            del_files = self.var_clean_key_files.get()
+
+            if not dry_run:
+                confirm = messagebox.askyesno(
+                    "Confirm Retention Cleanup",
+                    f"Run pruning now?\n\n"
+                    f"• Prune snapshots older than {val} {unit} ({days} days)\n"
+                    f"• Retain maximum {max_v if max_v > 0 else 'Unlimited'} newest versions per entry\n"
+                    f"• Securely wipe physical key files: {'Yes' if del_files else 'No'}\n\n"
+                    f"Proceed?",
+                    parent=self,
+                )
+                if not confirm:
+                    return
+
+            res = self.database.clean_old_versions(
+                max_age_days=days,
+                max_versions_per_entry=max_versions_param,
+                delete_physical_files=del_files,
+                clean_keys_dir=True,
+                dry_run=dry_run,
+            )
+
+            action = "Previewed" if dry_run else "Cleaned"
+            status_text = (
+                f"✓ {action} {res.versions_deleted} versions across {res.entries_affected} entries."
+            )
+            if del_files:
+                status_text += f" {res.physical_files_deleted} physical key files."
+
+            self.retention_status_label.configure(
+                text=status_text,
+                text_color=COLOR_SUCCESS if not dry_run else COLOR_WARNING,
+            )
+
+            title = "Pruning Simulation (Dry Run)" if dry_run else "Retention Cleanup Finished"
+            msg = "\n".join(res.details) or status_text
+            messagebox.showinfo(title, msg, parent=self)
+
+        except Exception as ex:
+            messagebox.showerror("Retention Error", f"Failed to execute cleanup:\n{ex}", parent=self)
+
     def _save_preferences(self):
         # Parse timeouts
         lock_map = {"1 Minute": 60, "5 Minutes": 300, "15 Minutes": 900, "30 Minutes": 1800, "Never": 0}
         clip_map = {"10 Seconds": 10, "30 Seconds": 30, "60 Seconds": 60, "Never": 0}
+
+        try:
+            r_val = int(self.retention_val_entry.get().strip() or 90)
+        except ValueError:
+            r_val = 90
+
+        try:
+            m_v = int(self.max_versions_entry.get().strip() or 10)
+        except ValueError:
+            m_v = 10
 
         updated = {
             "autolock_timeout": lock_map.get(self.lock_combo.get(), 300),
             "lock_on_minimize": self.var_min_lock.get(),
             "clipboard_timeout": clip_map.get(self.clip_combo.get(), 30),
             "backup_dir": self.backup_dir_var.get().strip(),
+            "version_retention_enabled": self.var_retention_enabled.get(),
+            "version_retention_value": r_val,
+            "version_retention_unit": self.retention_unit_combo.get().strip().lower(),
+            "max_versions_per_entry": m_v,
+            "clean_physical_key_files": self.var_clean_key_files.get(),
         }
         self.database.update_settings(updated)
         if updated["backup_dir"]:

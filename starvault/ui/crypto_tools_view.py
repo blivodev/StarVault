@@ -231,14 +231,14 @@ class CryptoToolsView(ctk.CTkFrame):
             self.reload_keyring()
         elif "Generator" in mode:
             self.generator_frame.pack(fill="both", expand=True, padx=20, pady=16)
+        elif "File" in mode:
+            self.file_frame.pack(fill="both", expand=True, padx=20, pady=16)
         elif "Encrypt" in mode:
             self.crypt_frame.pack(fill="both", expand=True, padx=20, pady=16)
             self._refresh_vault_key_dropdown()
         elif "Sign" in mode:
             self.sign_frame.pack(fill="both", expand=True, padx=20, pady=16)
             self._refresh_sign_key_dropdown()
-        elif "File" in mode:
-            self.file_frame.pack(fill="both", expand=True, padx=20, pady=16)
         elif "Hashes" in mode:
             self.hash_frame.pack(fill="both", expand=True, padx=20, pady=16)
 
@@ -870,6 +870,46 @@ class CryptoToolsView(ctk.CTkFrame):
             command=lambda: self.clipboard_mgr.copy(self.gen_priv_text.get("1.0", "end").strip(), "Private key copied (auto-wipe)", is_sensitive=True),
         ).pack(side="left", padx=4)
 
+        # Local PC Export Bar
+        exp_row = ctk.CTkFrame(out_card, fg_color="transparent")
+        exp_row.pack(fill="x", padx=16, pady=(0, 16))
+
+        ctk.CTkLabel(exp_row, text="💾 Export to Local PC:", font=get_font(11, "bold"), text_color=TEXT_SECONDARY).pack(side="left", padx=(0, 8))
+
+        ctk.CTkButton(
+            exp_row,
+            text="Save Public Key / Cert...",
+            font=get_font(11),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            height=32,
+            command=lambda: self._export_generated_key("public"),
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            exp_row,
+            text="Save Private Key...",
+            font=get_font(11),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=COLOR_WARNING,
+            height=32,
+            command=lambda: self._export_generated_key("private"),
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            exp_row,
+            text="📦 Export Keypair Bundle to Folder...",
+            font=get_font(11, "bold"),
+            fg_color=ACCENT_INDIGO,
+            hover_color=ACCENT_HOVER,
+            text_color="#ffffff",
+            height=32,
+            command=self._export_generated_bundle,
+        ).pack(side="left", padx=4)
+
+
     def _on_gen_algo_changed(self, algo: str) -> None:
         self._render_gen_params(algo)
 
@@ -998,6 +1038,114 @@ class CryptoToolsView(ctk.CTkFrame):
         self.reload_keyring()
         messagebox.showinfo("Saved", f"'{entry.title}' saved to your vault keyring successfully!")
 
+    def _export_generated_key(self, which: str = "public") -> None:
+        if not self.current_generated_key:
+            messagebox.showwarning("No Key", "Please generate a keypair first.")
+            return
+
+        res = self.current_generated_key
+        raw_name = res.key_name or res.key_type
+        clean_name = "".join(c for c in raw_name if c.isalnum() or c in "-_") or "id_key"
+        kt = res.key_type.lower()
+
+        if which == "public":
+            content = res.public_key
+            if "tls" in kt:
+                ext = ".crt"
+                title = "Save TLS Certificate"
+                ft = [("Certificate", "*.crt;*.cer;*.pem"), ("All Files", "*.*")]
+            elif "wireguard" in kt:
+                ext = ".wg.pub"
+                title = "Save WireGuard Public Key"
+                ft = [("WireGuard Public Key", "*.wg.pub"), ("All Files", "*.*")]
+            elif "age" in kt:
+                ext = ".recipient.txt"
+                title = "Save Age Recipient Public Key"
+                ft = [("Age Recipient Key", "*.recipient.txt;*.txt"), ("All Files", "*.*")]
+            elif "gpg" in kt:
+                ext = ".asc"
+                title = "Save OpenPGP Public Key"
+                ft = [("Armored PGP Key", "*.asc"), ("All Files", "*.*")]
+            else:
+                ext = ".pub"
+                title = "Save OpenSSH Public Key"
+                ft = [("OpenSSH Public Key", "*.pub"), ("All Files", "*.*")]
+
+            p = filedialog.asksaveasfilename(title=title, initialfile=f"{clean_name}{ext}", filetypes=ft)
+            if p:
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(content)
+                messagebox.showinfo("Export Successful", f"Saved public key to:\n{p}")
+
+        else:
+            content = res.private_key
+            if "tls" in kt:
+                ext = ".key"
+                title = "Save Private Key"
+                ft = [("Private Key", "*.key;*.pem"), ("All Files", "*.*")]
+            elif "wireguard" in kt:
+                ext = ".wg.key"
+                title = "Save WireGuard Private Key"
+                ft = [("WireGuard Private Key", "*.wg.key"), ("All Files", "*.*")]
+            elif "age" in kt:
+                ext = ".key"
+                title = "Save Age Private Key"
+                ft = [("Age Private Key", "*.key;*.txt"), ("All Files", "*.*")]
+            elif "gpg" in kt:
+                ext = "_private.asc"
+                title = "Save OpenPGP Private Key"
+                ft = [("Armored PGP Key", "*.asc"), ("All Files", "*.*")]
+            else:
+                ext = ".pem"
+                title = "Save Private Key"
+                ft = [("PEM Private Key", "*.pem;*.key"), ("All Files", "*.*")]
+
+            p = filedialog.asksaveasfilename(title=title, initialfile=f"{clean_name}{ext}", filetypes=ft)
+            if p:
+                with open(p, "w", encoding="utf-8") as f:
+                    f.write(content)
+                messagebox.showinfo("Export Successful", f"Saved private key to:\n{p}")
+
+    def _export_generated_bundle(self) -> None:
+        if not self.current_generated_key:
+            messagebox.showwarning("No Key", "Please generate a keypair first.")
+            return
+
+        res = self.current_generated_key
+        raw_name = res.key_name or res.key_type
+        clean_name = "".join(c for c in raw_name if c.isalnum() or c in "-_") or "id_key"
+        kt = res.key_type.lower()
+
+        folder = filedialog.askdirectory(title="Select Destination Folder for Keypair Bundle")
+        if not folder:
+            return
+
+        folder_p = Path(folder)
+        if "tls" in kt:
+            pub_path = folder_p / f"{clean_name}.crt"
+            priv_path = folder_p / f"{clean_name}.key"
+        elif "wireguard" in kt:
+            pub_path = folder_p / f"{clean_name}.wg.pub"
+            priv_path = folder_p / f"{clean_name}.wg.key"
+        elif "age" in kt:
+            pub_path = folder_p / f"{clean_name}.recipient.txt"
+            priv_path = folder_p / f"{clean_name}.key"
+        elif "gpg" in kt:
+            pub_path = folder_p / f"{clean_name}_public.asc"
+            priv_path = folder_p / f"{clean_name}_private.asc"
+        else:
+            pub_path = folder_p / f"{clean_name}.pub"
+            priv_path = folder_p / f"{clean_name}.pem"
+
+        pub_path.write_text(res.public_key, encoding="utf-8")
+        priv_path.write_text(res.private_key, encoding="utf-8")
+
+        messagebox.showinfo(
+            "Bundle Exported",
+            f"Successfully exported keypair to:\n\n• {pub_path.name}\n• {priv_path.name}\n\nFolder: {folder}",
+        )
+
+
     # -------------------------------------------------------------------------
     # 3. Encrypt & Decrypt Workbench (Symmetric & Asymmetric)
     # -------------------------------------------------------------------------
@@ -1069,7 +1217,21 @@ class CryptoToolsView(ctk.CTkFrame):
         in_card = ctk.CTkFrame(self.crypt_frame, fg_color=BG_CARD, corner_radius=8, border_width=1, border_color=BORDER_COLOR)
         in_card.pack(fill="x", pady=(0, 12))
 
-        ctk.CTkLabel(in_card, text="INPUT (Plaintext to Encrypt OR Ciphertext to Decrypt):", font=get_font(11, "bold"), text_color=TEXT_PRIMARY).pack(anchor="w", padx=16, pady=(10, 4))
+        in_hdr = ctk.CTkFrame(in_card, fg_color="transparent")
+        in_hdr.pack(fill="x", padx=16, pady=(10, 4))
+        ctk.CTkLabel(in_hdr, text="INPUT (Plaintext to Encrypt OR Ciphertext to Decrypt):", font=get_font(11, "bold"), text_color=TEXT_PRIMARY).pack(side="left")
+
+        ctk.CTkButton(
+            in_hdr,
+            text="📥 Import File into Input...",
+            font=get_font(10, "bold"),
+            height=26,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=ACCENT_PRIMARY,
+            command=self._load_file_into_crypt_input,
+        ).pack(side="right")
+
         self.crypt_in_text = ctk.CTkTextbox(in_card, height=130, fg_color=BG_INPUT, border_color=BORDER_COLOR, font=get_mono_font(11))
         self.crypt_in_text.pack(fill="x", padx=16, pady=(0, 10))
 
@@ -1084,10 +1246,10 @@ class CryptoToolsView(ctk.CTkFrame):
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
             text_color="#000000",
-            width=130,
+            width=120,
             height=38,
             command=self._do_encrypt,
-        ).pack(side="left", padx=(0, 8))
+        ).pack(side="left", padx=(0, 6))
 
         ctk.CTkButton(
             action_row,
@@ -1096,21 +1258,43 @@ class CryptoToolsView(ctk.CTkFrame):
             fg_color=ACCENT_INDIGO,
             hover_color=ACCENT_HOVER,
             text_color="#ffffff",
-            width=130,
+            width=120,
             height=38,
             command=self._do_decrypt,
         ).pack(side="left", padx=4)
 
         ctk.CTkButton(
             action_row,
-            text="🔄 Swap Input / Output",
+            text="📁 Encrypt File Directly...",
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=ACCENT_PRIMARY,
+            height=38,
+            command=self._do_encrypt_single_file_direct,
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            action_row,
+            text="📁 Decrypt File Directly...",
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=COLOR_SUCCESS,
+            height=38,
+            command=self._do_decrypt_single_file_direct,
+        ).pack(side="left", padx=4)
+
+        ctk.CTkButton(
+            action_row,
+            text="🔄 Swap",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=38,
             command=self._swap_crypt_text,
-        ).pack(side="left", padx=6)
+        ).pack(side="left", padx=4)
 
         ctk.CTkButton(
             action_row,
@@ -1138,13 +1322,24 @@ class CryptoToolsView(ctk.CTkFrame):
             out_hdr,
             text="📋 Copy Result",
             font=get_font(10, "bold"),
-            width=110,
+            width=100,
             height=26,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=COLOR_SUCCESS,
             command=lambda: self.clipboard_mgr.copy(self.crypt_out_text.get("1.0", "end").strip(), "Output copied to clipboard"),
         ).pack(side="right")
+
+        ctk.CTkButton(
+            out_hdr,
+            text="📤 Export Output to File...",
+            font=get_font(10, "bold"),
+            height=26,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=ACCENT_PRIMARY,
+            command=self._save_crypt_output_to_file,
+        ).pack(side="right", padx=(0, 6))
 
         self.crypt_out_text = ctk.CTkTextbox(out_card, height=140, fg_color=BG_INPUT, border_color=BORDER_COLOR, font=get_mono_font(11))
         self.crypt_out_text.pack(fill="x", padx=16, pady=(0, 14))
@@ -1244,6 +1439,143 @@ class CryptoToolsView(ctk.CTkFrame):
             self.crypt_status_lbl.configure(text="✓ Decrypted successfully!", text_color=COLOR_SUCCESS)
         except Exception as ex:
             self.crypt_status_lbl.configure(text=f"Decryption failed: {ex}", text_color=COLOR_DANGER)
+
+    def _load_file_into_crypt_input(self) -> None:
+        p = filedialog.askopenfilename(
+            title="Load File into Encrypt / Decrypt Input",
+            filetypes=[
+                ("All Supported Files", "*.txt;*.asc;*.b64;*.enc;*.json;*.yaml;*.env;*.*"),
+                ("Text & Armored Files", "*.txt;*.asc;*.b64;*.json;*.yaml;*.env"),
+                ("Encrypted Files", "*.enc;*.bin;*.dat"),
+                ("All Files", "*.*"),
+            ],
+        )
+        if not p:
+            return
+
+        file_p = Path(p)
+        try:
+            raw_bytes = file_p.read_bytes()
+            # If valid utf-8 text, insert text directly
+            try:
+                text_content = raw_bytes.decode("utf-8")
+                self.crypt_in_text.delete("1.0", "end")
+                self.crypt_in_text.insert("1.0", text_content)
+                self.crypt_status_lbl.configure(
+                    text=f"✓ Loaded text from '{file_p.name}' ({len(text_content)} chars)",
+                    text_color=COLOR_SUCCESS,
+                )
+            except UnicodeDecodeError:
+                # Binary file: encode as base64 so it can be encrypted or decrypted
+                b64_content = base64.b64encode(raw_bytes).decode("ascii")
+                self.crypt_in_text.delete("1.0", "end")
+                self.crypt_in_text.insert("1.0", b64_content)
+                self.crypt_status_lbl.configure(
+                    text=f"✓ Loaded binary as Base64 from '{file_p.name}' ({len(raw_bytes)} bytes)",
+                    text_color=ACCENT_PRIMARY,
+                )
+        except Exception as ex:
+            messagebox.showerror("Read Error", f"Could not load file:\n{ex}")
+
+    def _save_crypt_output_to_file(self) -> None:
+        content = self.crypt_out_text.get("1.0", "end").strip()
+        if not content:
+            messagebox.showwarning("No Output", "There is no output result to save.")
+            return
+
+        p = filedialog.asksaveasfilename(
+            title="Save Output to Local File",
+            initialfile="decrypted_output.txt",
+            filetypes=[
+                ("All Files", "*.*"),
+                ("Text Files", "*.txt"),
+                ("Encrypted / Armored Files", "*.enc;*.asc"),
+                ("JSON / Config", "*.json;*.env;*.yaml"),
+            ],
+        )
+        if not p:
+            return
+
+        try:
+            is_b64 = False
+            decoded_bytes = None
+            if len(content) > 16 and not any(c in content for c in " \t\r\n"):
+                try:
+                    decoded_bytes = base64.b64decode(content, validate=True)
+                    is_b64 = True
+                except Exception:
+                    is_b64 = False
+
+            if is_b64 and decoded_bytes and (Path(p).suffix.lower() in (".bin", ".dat", ".enc", ".iso", ".zip", ".tar") or messagebox.askyesno("Binary Detected", "The output looks like Base64 encoded binary data. Would you like to save it as raw decoded binary?")):
+                Path(p).write_bytes(decoded_bytes)
+            else:
+                Path(p).write_text(content, encoding="utf-8")
+
+            messagebox.showinfo("Saved", f"Output written to:\n{p}")
+        except Exception as ex:
+            messagebox.showerror("Save Error", f"Failed to save file:\n{ex}")
+
+    def _do_encrypt_single_file_direct(self) -> None:
+        src = filedialog.askopenfilename(title="Select File to Encrypt Directly")
+        if not src:
+            return
+        pwd = self.crypt_key_entry.get().strip()
+        if not pwd:
+            messagebox.showwarning("Missing Key", "Please provide an encryption passphrase or key.")
+            return
+
+        src_p = Path(src)
+        dst = filedialog.asksaveasfilename(
+            title="Save Encrypted File As",
+            initialfile=f"{src_p.name}.enc",
+            filetypes=[("Encrypted File", "*.enc"), ("All Files", "*.*")],
+        )
+        if not dst:
+            return
+
+        algo = self.crypt_algo_var.get()
+        cipher = "AES-256-GCM"
+        if "ChaCha20" in algo:
+            cipher = "ChaCha20-Poly1305"
+        elif "CBC" in algo:
+            cipher = "AES-256-CBC"
+
+        try:
+            written = encrypt_file(src_p, Path(dst), pwd, cipher=cipher)
+            self.crypt_status_lbl.configure(text=f"✓ Encrypted {src_p.name} ({written} bytes)", text_color=COLOR_SUCCESS)
+            messagebox.showinfo("Encrypted Successfully", f"File encrypted:\n{dst}\n({written} bytes)")
+        except Exception as ex:
+            messagebox.showerror("Encryption Error", f"Failed to encrypt file:\n{ex}")
+
+    def _do_decrypt_single_file_direct(self) -> None:
+        src = filedialog.askopenfilename(
+            title="Select Encrypted File to Decrypt",
+            filetypes=[("Encrypted Files", "*.enc;*.svf;*.bin"), ("All Files", "*.*")],
+        )
+        if not src:
+            return
+        pwd = self.crypt_key_entry.get().strip()
+        if not pwd:
+            messagebox.showwarning("Missing Key", "Please provide the decryption passphrase or key.")
+            return
+
+        src_p = Path(src)
+        default_name = src_p.stem if src_p.suffix == ".enc" else f"decrypted_{src_p.name}"
+        dst = filedialog.asksaveasfilename(
+            title="Save Decrypted File As",
+            initialfile=default_name,
+            filetypes=[("All Files", "*.*")],
+        )
+        if not dst:
+            return
+
+        try:
+            written = decrypt_file(src_p, Path(dst), pwd)
+            self.crypt_status_lbl.configure(text=f"✓ Decrypted {src_p.name} ({written} bytes)", text_color=COLOR_SUCCESS)
+            messagebox.showinfo("Decrypted Successfully", f"File decrypted:\n{dst}\n({written} bytes)")
+        except Exception as ex:
+            messagebox.showerror("Decryption Error", f"Failed to decrypt file:\n{ex}")
+
 
     # -------------------------------------------------------------------------
     # 4. Sign & Verify Workbench
@@ -1457,37 +1789,64 @@ class CryptoToolsView(ctk.CTkFrame):
     def _build_file_workbench(self) -> None:
         self.file_frame = ctk.CTkScrollableFrame(self.content_frame, fg_color=BG_ROOT)
 
-        # File Selection Card
+        # File Selection & Interactive Queue Card
         f_card = ctk.CTkFrame(self.file_frame, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
-        f_card.pack(fill="x", pady=(0, 16), padx=4)
+        f_card.pack(fill="x", pady=(0, 14), padx=4)
 
-        ctk.CTkLabel(f_card, text="📁 FILE SELECTION (SINGLE OR BULK)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 6))
+        ctk.CTkLabel(f_card, text="📁 FILE SELECTION & QUEUE (SINGLE OR BULK)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 6))
 
         row_sel = ctk.CTkFrame(f_card, fg_color="transparent")
-        row_sel.pack(fill="x", padx=16, pady=4)
+        row_sel.pack(fill="x", padx=16, pady=(0, 8))
 
         ctk.CTkButton(
             row_sel,
-            text="📂 Select Files...",
-            font=get_font(12, "bold"),
+            text="📥 Add / Import File(s)...",
+            font=get_font(11, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
-            height=36,
+            height=32,
             command=self._choose_files_for_encryption,
-        ).pack(side="left", padx=(0, 10))
+        ).pack(side="left", padx=(0, 6))
 
-        self.f_count_lbl = ctk.CTkLabel(row_sel, text="0 files selected", font=get_font(12), text_color=TEXT_MUTED)
-        self.f_count_lbl.pack(side="left")
+        ctk.CTkButton(
+            row_sel,
+            text="📁 Add / Import Folder...",
+            font=get_font(11),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            height=32,
+            command=self._add_folder_for_encryption,
+        ).pack(side="left", padx=4)
 
-        # Passphrase Row with Eye Toggle
+        ctk.CTkButton(
+            row_sel,
+            text="🧹 Clear Queue",
+            font=get_font(11),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_SECONDARY,
+            height=32,
+            command=self._clear_files_queue,
+        ).pack(side="left", padx=4)
+
+        self.f_count_lbl = ctk.CTkLabel(row_sel, text="0 files queued", font=get_font(12), text_color=TEXT_MUTED)
+        self.f_count_lbl.pack(side="left", padx=10)
+
+        # Scrollable file list container
+        self.f_queue_scroll = ctk.CTkScrollableFrame(f_card, height=130, fg_color=BG_INPUT, corner_radius=6)
+        self.f_queue_scroll.pack(fill="x", padx=16, pady=(0, 14))
+        self._render_file_queue()
+
+        # Passphrase & Cipher Card
         p_card = ctk.CTkFrame(self.file_frame, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
-        p_card.pack(fill="x", pady=(0, 16), padx=4)
+        p_card.pack(fill="x", pady=(0, 14), padx=4)
 
-        ctk.CTkLabel(p_card, text="ENCRYPTION PASSPHRASE & CIPHER", font=get_font(11, "bold"), text_color=COLOR_WARNING).pack(anchor="w", padx=16, pady=(12, 6))
+        ctk.CTkLabel(p_card, text="ENCRYPTION PASSPHRASE, CIPHER & OUTPUT", font=get_font(11, "bold"), text_color=COLOR_WARNING).pack(anchor="w", padx=16, pady=(12, 6))
 
         p_row = ctk.CTkFrame(p_card, fg_color="transparent")
-        p_row.pack(fill="x", padx=16, pady=(0, 12))
+        p_row.pack(fill="x", padx=16, pady=(0, 8))
 
         self.f_key_entry = ctk.CTkEntry(
             p_row,
@@ -1510,31 +1869,54 @@ class CryptoToolsView(ctk.CTkFrame):
         )
         self.f_cipher_combo.pack(side="right", padx=(6, 0))
 
+        # Destination choice
+        dest_row = ctk.CTkFrame(p_card, fg_color="transparent")
+        dest_row.pack(fill="x", padx=16, pady=(0, 12))
+
+        self.f_dest_mode_var = ctk.StringVar(value="prompt")
+        ctk.CTkRadioButton(
+            dest_row,
+            text="Prompt for output directory on start",
+            variable=self.f_dest_mode_var,
+            value="prompt",
+            font=get_font(11),
+        ).pack(side="left", padx=(0, 16))
+
+        ctk.CTkRadioButton(
+            dest_row,
+            text="Save in same folder as original files",
+            variable=self.f_dest_mode_var,
+            value="same_folder",
+            font=get_font(11),
+        ).pack(side="left")
+
         # Action Buttons
         act_row = ctk.CTkFrame(self.file_frame, fg_color="transparent")
-        act_row.pack(fill="x", padx=4, pady=(0, 16))
+        act_row.pack(fill="x", padx=4, pady=(0, 14))
 
-        ctk.CTkButton(
+        self.f_encrypt_btn = ctk.CTkButton(
             act_row,
-            text="🔐 Encrypt Selected Files",
+            text="🔐 Encrypt Queued Files",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
             text_color="#000000",
             height=40,
             command=self._do_encrypt_files,
-        ).pack(side="left", padx=(0, 10))
+        )
+        self.f_encrypt_btn.pack(side="left", padx=(0, 10))
 
-        ctk.CTkButton(
+        self.f_decrypt_btn = ctk.CTkButton(
             act_row,
-            text="🔓 Decrypt Selected Files",
+            text="🔓 Decrypt Queued Files",
             font=get_font(12, "bold"),
             fg_color=ACCENT_INDIGO,
             hover_color=ACCENT_HOVER,
             text_color="#ffffff",
             height=40,
             command=self._do_decrypt_files,
-        ).pack(side="left", padx=4)
+        )
+        self.f_decrypt_btn.pack(side="left", padx=4)
 
         # Log Output Box
         log_card = ctk.CTkFrame(self.file_frame, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
@@ -1544,22 +1926,98 @@ class CryptoToolsView(ctk.CTkFrame):
         self.f_log_text = ctk.CTkTextbox(log_card, height=130, fg_color=BG_INPUT, border_color=BORDER_COLOR, font=get_mono_font(11))
         self.f_log_text.pack(fill="x", padx=16, pady=(0, 14))
 
+    def _render_file_queue(self) -> None:
+        if not hasattr(self, "f_queue_scroll"):
+            return
+        for w in self.f_queue_scroll.winfo_children():
+            w.destroy()
+
+        if not self.selected_files:
+            ctk.CTkLabel(
+                self.f_queue_scroll,
+                text="No files queued. Use 'Add File(s)...' or 'Add Folder...' to queue files.",
+                font=get_font(11),
+                text_color=TEXT_MUTED,
+            ).pack(anchor="w", padx=8, pady=8)
+            self.f_count_lbl.configure(text="0 files queued")
+            return
+
+        total_size = 0
+        for fp in self.selected_files:
+            try:
+                sz = fp.stat().st_size
+                total_size += sz
+            except Exception:
+                sz = 0
+
+            row = ctk.CTkFrame(self.f_queue_scroll, fg_color="transparent")
+            row.pack(fill="x", pady=2, padx=4)
+
+            icon = "🔒" if fp.name.endswith(".enc") or fp.name.endswith(".svf") else "📄"
+            ctk.CTkLabel(row, text=icon, font=get_font(12)).pack(side="left", padx=(0, 6))
+
+            name_box = ctk.CTkLabel(row, text=fp.name, font=get_font(11, "bold"), text_color=TEXT_PRIMARY)
+            name_box.pack(side="left", padx=(0, 8))
+
+            parent_box = ctk.CTkLabel(row, text=f"({str(fp.parent)})", font=get_font(10), text_color=TEXT_MUTED)
+            parent_box.pack(side="left", fill="x", expand=True)
+
+            sz_str = f"{sz / 1024:.1f} KB" if sz < 1024 * 1024 else f"{sz / (1024*1024):.2f} MB"
+            ctk.CTkLabel(row, text=sz_str, font=get_mono_font(10), text_color=TEXT_SECONDARY).pack(side="left", padx=8)
+
+            ctk.CTkButton(
+                row,
+                text="✕",
+                width=24,
+                height=22,
+                font=get_font(10, "bold"),
+                fg_color="transparent",
+                hover_color=COLOR_DANGER,
+                text_color=COLOR_DANGER,
+                command=lambda p=fp: self._remove_file_from_queue(p),
+            ).pack(side="right")
+
+        total_mb = total_size / (1024 * 1024)
+        self.f_count_lbl.configure(text=f"{len(self.selected_files)} files queued ({total_mb:.2f} MB total)")
+
     def _choose_files_for_encryption(self) -> None:
         paths = filedialog.askopenfilenames(title="Select Files to Encrypt or Decrypt")
         if paths:
-            self.selected_files = [Path(p) for p in paths]
-            self.f_count_lbl.configure(text=f"{len(self.selected_files)} files selected")
-            self.f_log_text.delete("1.0", "end")
-            for p in self.selected_files:
-                self.f_log_text.insert("end", f"• {p.name} ({p.stat().st_size} bytes)\n")
+            for p in paths:
+                file_p = Path(p)
+                if file_p not in self.selected_files:
+                    self.selected_files.append(file_p)
+            self._render_file_queue()
+
+    def _add_folder_for_encryption(self) -> None:
+        folder = filedialog.askdirectory(title="Select Folder to Add Files From")
+        if folder:
+            f_p = Path(folder)
+            added = 0
+            for item in f_p.rglob("*"):
+                if item.is_file() and item not in self.selected_files:
+                    self.selected_files.append(item)
+                    added += 1
+            self._render_file_queue()
+            if added:
+                self.f_log_text.insert("end", f"✓ Added {added} files from folder: {folder}\n")
+
+    def _remove_file_from_queue(self, fp: Path) -> None:
+        if fp in self.selected_files:
+            self.selected_files.remove(fp)
+            self._render_file_queue()
+
+    def _clear_files_queue(self) -> None:
+        self.selected_files.clear()
+        self._render_file_queue()
 
     def _do_encrypt_files(self) -> None:
         if not self.selected_files:
-            messagebox.showwarning("No Files", "Please select files first.")
+            messagebox.showwarning("No Files", "Please select or add files to the queue first.")
             return
         pwd = self.f_key_entry.get().strip()
         if not pwd:
-            messagebox.showwarning("No Passphrase", "Please provide a passphrase.")
+            messagebox.showwarning("No Passphrase", "Please provide an encryption passphrase.")
             return
 
         cipher = "AES-256-GCM"
@@ -1568,40 +2026,104 @@ class CryptoToolsView(ctk.CTkFrame):
         elif "CBC" in self.f_cipher_combo.get():
             cipher = "AES-256-CBC"
 
-        dest_dir = filedialog.askdirectory(title="Select Output Directory for Encrypted Files")
-        if not dest_dir:
-            return
+        dest_mode = getattr(self, "f_dest_mode_var", None)
+        mode = dest_mode.get() if dest_mode else "prompt"
+
+        if mode == "prompt":
+            dest_dir = filedialog.askdirectory(title="Select Output Directory for Encrypted Files")
+            if not dest_dir:
+                return
+            dest_p = Path(dest_dir)
+        else:
+            dest_p = None
+
+        self.f_encrypt_btn.configure(state="disabled")
+        self.f_decrypt_btn.configure(state="disabled")
+        self.f_log_text.insert("end", f"\n🔐 Starting bulk encryption of {len(self.selected_files)} file(s)...\n")
 
         def worker():
-            success, fail, paths = bulk_encrypt_files(self.selected_files, Path(dest_dir), pwd, cipher=cipher)
+            if dest_p:
+                success_count, errors = bulk_encrypt_files(self.selected_files, dest_p, pwd, cipher=cipher)
+            else:
+                success_count = 0
+                errors = []
+                for fp in self.selected_files:
+                    dst = fp.parent / (fp.name + ".enc")
+                    try:
+                        encrypt_file(fp, dst, pwd, cipher=cipher)
+                        success_count += 1
+                    except Exception as ex:
+                        errors.append(f"{fp.name}: {str(ex)}")
+
             def done():
-                self.f_log_text.insert("end", f"\n✓ Finished: {success} encrypted, {fail} failed.\nSaved to: {dest_dir}\n")
-                messagebox.showinfo("Done", f"Encrypted {success} files to {dest_dir}")
+                self.f_encrypt_btn.configure(state="normal")
+                self.f_decrypt_btn.configure(state="normal")
+                self.f_log_text.insert("end", f"✓ Finished encryption: {success_count} succeeded, {len(errors)} failed.\n")
+                if errors:
+                    for err in errors:
+                        self.f_log_text.insert("end", f"  ✗ {err}\n")
+                messagebox.showinfo("Encryption Complete", f"Successfully encrypted {success_count} files.")
             self.after(0, done)
 
         threading.Thread(target=worker, daemon=True).start()
 
     def _do_decrypt_files(self) -> None:
         if not self.selected_files:
-            messagebox.showwarning("No Files", "Please select files first.")
+            messagebox.showwarning("No Files", "Please select or add files to the queue first.")
             return
         pwd = self.f_key_entry.get().strip()
         if not pwd:
-            messagebox.showwarning("No Passphrase", "Please provide a passphrase.")
+            messagebox.showwarning("No Passphrase", "Please provide a decryption passphrase.")
             return
 
-        dest_dir = filedialog.askdirectory(title="Select Output Directory for Decrypted Files")
-        if not dest_dir:
-            return
+        cipher = "AES-256-GCM"
+        if "ChaCha20" in self.f_cipher_combo.get():
+            cipher = "ChaCha20-Poly1305"
+        elif "CBC" in self.f_cipher_combo.get():
+            cipher = "AES-256-CBC"
+
+        dest_mode = getattr(self, "f_dest_mode_var", None)
+        mode = dest_mode.get() if dest_mode else "prompt"
+
+        if mode == "prompt":
+            dest_dir = filedialog.askdirectory(title="Select Output Directory for Decrypted Files")
+            if not dest_dir:
+                return
+            dest_p = Path(dest_dir)
+        else:
+            dest_p = None
+
+        self.f_encrypt_btn.configure(state="disabled")
+        self.f_decrypt_btn.configure(state="disabled")
+        self.f_log_text.insert("end", f"\n🔓 Starting bulk decryption of {len(self.selected_files)} file(s)...\n")
 
         def worker():
-            success, fail, paths = bulk_decrypt_files(self.selected_files, Path(dest_dir), pwd)
+            if dest_p:
+                success_count, errors = bulk_decrypt_files(self.selected_files, dest_p, pwd, cipher=cipher)
+            else:
+                success_count = 0
+                errors = []
+                for fp in self.selected_files:
+                    out_name = fp.name[:-4] if fp.name.endswith(".enc") else f"{fp.stem}_decrypted{fp.suffix}"
+                    dst = fp.parent / out_name
+                    try:
+                        decrypt_file(fp, dst, pwd, cipher=cipher)
+                        success_count += 1
+                    except Exception as ex:
+                        errors.append(f"{fp.name}: {str(ex)}")
+
             def done():
-                self.f_log_text.insert("end", f"\n✓ Finished: {success} decrypted, {fail} failed.\nSaved to: {dest_dir}\n")
-                messagebox.showinfo("Done", f"Decrypted {success} files to {dest_dir}")
+                self.f_encrypt_btn.configure(state="normal")
+                self.f_decrypt_btn.configure(state="normal")
+                self.f_log_text.insert("end", f"✓ Finished decryption: {success_count} succeeded, {len(errors)} failed.\n")
+                if errors:
+                    for err in errors:
+                        self.f_log_text.insert("end", f"  ✗ {err}\n")
+                messagebox.showinfo("Decryption Complete", f"Successfully decrypted {success_count} files.")
             self.after(0, done)
 
         threading.Thread(target=worker, daemon=True).start()
+
 
     # -------------------------------------------------------------------------
     # 6. Hashes & Encoders Workbench

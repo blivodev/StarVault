@@ -1,7 +1,7 @@
 // Content script for StarVault Autofill
 
 chrome.runtime.onMessage.addListener((request, sender, sendResponse) => {
-  if (request.action === "autofill") {
+  if (request.action === "autofill" || request.action === "FILL_CREDENTIALS") {
     const success = performAutofill(request.username, request.password);
     sendResponse({ success });
   }

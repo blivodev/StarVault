@@ -29,6 +29,12 @@ def get_default_db_path() -> Path:
     DEFAULT_DATA_DIR.mkdir(parents=True, exist_ok=True)
     return DEFAULT_DATA_DIR / "starvault.db"
 
+def get_default_keys_dir() -> Path:
+    """Returns the dedicated directory where physical key files are stored and managed."""
+    keys_dir = DEFAULT_DATA_DIR / "keys"
+    keys_dir.mkdir(parents=True, exist_ok=True)
+    return keys_dir
+
 # KDF Parameters (Argon2id RFC 9106 recommended)
 ARGON2_TIME_COST = 3
 ARGON2_MEMORY_COST = 65536  # 64 MB

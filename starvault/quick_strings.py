@@ -124,3 +124,21 @@ def generate_curl_command(entry: VaultEntry) -> str:
     elif entry.username and entry.password:
         return f'curl -u "{entry.username}:{entry.password}" {url}'
     return f"curl {url}"
+
+
+def generate_whois_command(entry: VaultEntry) -> str:
+    """Generates a whois terminal command for a domain entry."""
+    domain = (getattr(entry, "domain_name", "") or entry.url or entry.title).strip()
+    if "://" in domain:
+        domain = urllib.parse.urlparse(domain).netloc or domain
+    domain = domain.split("/")[0].split(":")[0]
+    return f"whois {domain}" if domain else "whois example.com"
+
+
+def generate_dig_command(entry: VaultEntry, record_type: str = "A") -> str:
+    """Generates a dig terminal query command for a domain."""
+    domain = (getattr(entry, "domain_name", "") or entry.url or entry.title).strip()
+    if "://" in domain:
+        domain = urllib.parse.urlparse(domain).netloc or domain
+    domain = domain.split("/")[0].split(":")[0]
+    return f"dig +nocmd {domain} {record_type} +multiline +noall +answer" if domain else f"dig example.com {record_type}"

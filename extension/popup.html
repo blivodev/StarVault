@@ -16,6 +16,7 @@
       <span id="statusBadge" class="badge badge-offline">Connecting...</span>
       <button id="neuralScanHeaderBtn" class="icon-btn" title="Run Local Neural Security Scan (Zero-Knowledge)">🧠</button>
       <button id="themeToggleBtn" class="icon-btn" title="Cycle Themes (Dark / Blue / Matrix / Cyberpunk / Light)">🎨</button>
+      <button id="importVaultBtn" class="icon-btn" title="Import Vault (.db, .sqlite, .json, .csv)">📥</button>
       <button id="exportCsvBtn" class="icon-btn" title="Export CSV (Master Password Protected)">📤</button>
       <button id="lockBtn" class="icon-btn" title="Lock Vault">🔒</button>
     </div>
@@ -34,6 +35,7 @@
       <button class="chip active" data-filter="all">All</button>
       <button class="chip" data-filter="server">🖥️ Servers</button>
       <button class="chip" data-filter="service">🌐 Services</button>
+      <button class="chip" data-filter="domain">🌐 Domains</button>
       <button class="chip" data-filter="apikey">🔑 API Keys</button>
       <button class="chip" data-filter="keypair">🛡️ Keys</button>
       <button class="chip" data-filter="favorite">⭐ Fav</button>
@@ -206,12 +208,22 @@
         <input type="text" id="tlsCommonName" placeholder="Common Name (e.g. localhost, *.vault.local)" value="localhost">
         <input type="text" id="tlsSans" placeholder="SANs (comma separated, e.g. 127.0.0.1, dev.local)" value="localhost, 127.0.0.1">
       </div>
+      <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 4px;">
+        <label style="font-size: 11px; color: var(--text-muted); font-weight: 600;">INPUT:</label>
+        <div>
+          <input type="file" id="cryptoFileInput" class="hidden">
+          <button type="button" id="cryptoImportFileBtn" class="btn-subtle" style="font-size: 10px; padding: 2px 6px;">📥 Import File...</button>
+        </div>
+      </div>
       <textarea id="cryptoTextInput" placeholder="Enter plaintext or ciphertext to process..."></textarea>
       <button id="runCryptoBtn" class="btn btn-primary" style="width: 100%; margin-bottom: 6px;">Calculate / Process</button>
       <div class="gen-output-row">
         <textarea id="cryptoOutput" readonly placeholder="Output result..." style="height: 65px;"></textarea>
       </div>
-      <button id="copyCryptoBtn" class="btn btn-accent" style="width: 100%;">Copy Output</button>
+      <div style="display: flex; gap: 6px;">
+        <button id="copyCryptoBtn" class="btn btn-accent" style="flex: 1;">Copy Output</button>
+        <button id="cryptoExportFileBtn" class="btn btn-secondary" style="flex: 1;">📤 Export to File...</button>
+      </div>
     </div>
   </div>
 
@@ -257,6 +269,37 @@
     </div>
   </div>
 
+  <!-- Vault Import Modal -->
+  <div id="importModal" class="drawer hidden">
+    <div class="drawer-header">
+      <h4>📥 Import Vault Backup / DB</h4>
+      <button id="closeImportBtn" class="close-btn">&times;</button>
+    </div>
+    <div class="drawer-body">
+      <p style="font-size: 11px; color: #9CA3AF; margin-bottom: 8px;">
+        Import SQLite database (.db, .sqlite), JSON, or CSV into StarVault.
+      </p>
+      <div style="margin-bottom: 8px;">
+        <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px;">Choose File (.db, .sqlite, .json, .csv):</label>
+        <input type="file" id="importFileInput" accept=".db,.sqlite,.sqlite3,.json,.csv,.sve" style="font-size: 11px; width: 100%;">
+      </div>
+      <div style="margin-bottom: 8px;">
+        <label style="font-size: 11px; color: var(--text-secondary); display: block; margin-bottom: 4px;">Conflict Resolution:</label>
+        <select id="importStrategySelect" class="form-select">
+          <option value="skip">Skip duplicates (Keep existing)</option>
+          <option value="overwrite">Overwrite duplicates</option>
+          <option value="copy">Keep both (Create copy)</option>
+        </select>
+      </div>
+      <div class="input-with-eye" id="importPassWrapper" style="margin-bottom: 8px;">
+        <input type="password" id="importPasswordInput" placeholder="Password (if DB or export is encrypted)...">
+        <button type="button" id="toggleImportPassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+      </div>
+      <button id="submitImportBtn" class="btn btn-primary" style="width: 100%; margin-top: 4px;">Import into Vault</button>
+      <div id="importStatus" class="hidden" style="margin-top: 8px; font-size: 11px;"></div>
+    </div>
+  </div>
+
   <!-- CSV Export Modal -->
   <div id="exportModal" class="drawer hidden">
     <div class="drawer-header">
@@ -280,37 +323,83 @@
     </div>
   </div>
 
-  <!-- Save Login Drawer -->
+  <!-- Save Entry Drawer -->
   <div id="saveDrawer" class="drawer hidden">
     <div class="drawer-header">
       <h4>Save Entry to StarVault</h4>
       <button id="closeSaveBtn" class="close-btn">&times;</button>
     </div>
     <div class="drawer-body">
-      <input type="text" id="saveTitleInput" placeholder="Title (e.g. GitHub)">
-      <input type="text" id="saveUrlInput" placeholder="URL or Hostname">
-      <input type="text" id="saveUserInput" placeholder="Username / Email">
-      <div class="input-with-eye" style="margin-bottom: 6px;">
-        <input type="password" id="savePassInput" placeholder="Password">
-        <button type="button" id="toggleSavePassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+      <div class="tab-btn-row" style="margin-bottom: 8px;">
+        <button id="saveModeService" class="btn-tab active" type="button">🌐 Service / Login</button>
+        <button id="saveModeDomain" class="btn-tab" type="button">🌐 Owned Domain</button>
       </div>
-      <div style="display: flex; gap: 6px; margin-bottom: 6px;">
-        <select id="saveCategorySelect" class="form-select" style="flex: 1;">
-          <option value="Work & Productivity">Work & Productivity</option>
-          <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
-          <option value="Dev & Repositories">Dev & Repositories</option>
-          <option value="Databases & Storage">Databases & Storage</option>
-          <option value="AI & LLM Services">AI & LLM Services</option>
-          <option value="Finance & Payments">Finance & Payments</option>
-          <option value="Security & Networking">Security & Networking</option>
-          <option value="Personal & Entertainment">Personal & Entertainment</option>
-        </select>
-        <input type="text" id="saveTagsInput" placeholder="Tags (e.g. prod, aws)" style="flex: 1;">
+
+      <!-- Common Title -->
+      <input type="text" id="saveTitleInput" placeholder="Title (e.g. GitHub, My Domain)">
+
+      <!-- Service Specific Fields -->
+      <div id="saveServiceFields">
+        <input type="text" id="saveUrlInput" placeholder="URL or Hostname">
+        <div style="margin-bottom: 6px;">
+          <select id="saveParentDomainSelect" class="form-select" style="width: 100%;">
+            <option value="">Attach to Domain: None (Standalone)</option>
+          </select>
+        </div>
+        <input type="text" id="saveUserInput" placeholder="Username / Email">
+        <div class="input-with-eye" style="margin-bottom: 6px;">
+          <input type="password" id="savePassInput" placeholder="Password">
+          <button type="button" id="toggleSavePassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+        </div>
+        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+          <select id="saveCategorySelect" class="form-select" style="flex: 1;">
+            <option value="Work & Productivity">Work & Productivity</option>
+            <option value="Cloud & Infrastructure">Cloud & Infrastructure</option>
+            <option value="Dev & Repositories">Dev & Repositories</option>
+            <option value="Databases & Storage">Databases & Storage</option>
+            <option value="AI & LLM Services">AI & LLM Services</option>
+            <option value="Finance & Payments">Finance & Payments</option>
+            <option value="Security & Networking">Security & Networking</option>
+            <option value="Personal & Entertainment">Personal & Entertainment</option>
+          </select>
+          <input type="text" id="saveTagsInput" placeholder="Tags (e.g. prod, aws)" style="flex: 1;">
+        </div>
+        <div style="display: flex; gap: 6px;">
+          <input type="text" id="saveGroupsInput" placeholder="Groups (comma separated)" style="flex: 1;">
+          <input type="text" id="saveServicesInput" placeholder="Services (comma separated)" style="flex: 1;">
+        </div>
       </div>
-      <div style="display: flex; gap: 6px;">
-        <input type="text" id="saveGroupsInput" placeholder="Groups (comma separated)" style="flex: 1;">
-        <input type="text" id="saveServicesInput" placeholder="Services (comma separated)" style="flex: 1;">
+
+      <!-- Domain Specific Fields -->
+      <div id="saveDomainFields" class="hidden">
+        <input type="text" id="saveDomainNameInput" placeholder="Domain Name / Apex URL (e.g. example.com)">
+        <div style="display: flex; gap: 6px; margin-bottom: 6px;">
+          <select id="saveRegistrarSelect" class="form-select" style="flex: 1;">
+            <option value="Cloudflare">Cloudflare</option>
+            <option value="Namecheap">Namecheap</option>
+            <option value="Porkbun">Porkbun</option>
+            <option value="GoDaddy">GoDaddy</option>
+            <option value="AWS Route 53">AWS Route 53</option>
+            <option value="Google Domains / Squarespace">Google Domains</option>
+            <option value="NameSilo">NameSilo</option>
+            <option value="Other">Other Registrar</option>
+          </select>
+          <input type="text" id="saveDomainExpiresInput" placeholder="Expiry (YYYY-MM-DD)" style="flex: 1;">
+        </div>
+        <input type="text" id="saveDomainUserInput" placeholder="Registrar Account Username / Email">
+        <div class="input-with-eye" style="margin-bottom: 6px;">
+          <input type="password" id="saveDomainPassInput" placeholder="Registrar Account Password">
+          <button type="button" id="toggleSaveDomainPassBtn" class="btn-eye-toggle" title="Show/Hide Password">👁</button>
+        </div>
+        <div class="input-with-eye" style="margin-bottom: 6px;">
+          <input type="password" id="saveDomainAuthInput" placeholder="Transfer / EPP Auth Code (Optional)">
+          <button type="button" id="toggleSaveDomainAuthBtn" class="btn-eye-toggle" title="Show/Hide Auth Code">👁</button>
+        </div>
+        <div class="checkbox-row" style="margin-top: 4px;">
+          <label><input type="checkbox" id="saveDomainAutoRenew" checked> Auto-Renewal Enabled</label>
+        </div>
       </div>
+
       <button id="submitSaveBtn" class="btn btn-primary" style="width: 100%; margin-top: 8px;">Save to Vault</button>
     </div>
   </div>

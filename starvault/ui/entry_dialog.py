@@ -2,13 +2,14 @@
 
 import random
 import string
-from typing import Callable, List, Optional
+from typing import Any, Callable, List, Optional
 import customtkinter as ctk
 
 from starvault.api_keys import SUPPORTED_KEY_FORMATS, generate_api_key
 from starvault.crypto import generate_secure_password
 from starvault.models import VaultEntry
 from starvault.ui.theme import (
+    ACCENT_EMERALD,
     ACCENT_HOVER,
     ACCENT_INDIGO,
     ACCENT_PRIMARY,
@@ -77,17 +78,24 @@ class EntryDialog(ctk.CTkToplevel):
         default_type: str = "server",
         existing_tags: Optional[List[str]] = None,
         available_servers: Optional[List[VaultEntry]] = None,
+        available_domains: Optional[List[VaultEntry]] = None,
         on_save: Optional[Callable[[VaultEntry], None]] = None,
+        database: Optional[Any] = None,
+        session_key: Optional[bytes] = None,
         **kwargs,
     ):
         super().__init__(parent, **kwargs)
         self.entry = entry
+        self.database = database
+        self.session_key = session_key
         self.default_type = entry.entry_type if entry else default_type
         self.existing_tags = existing_tags or []
         self.available_servers = available_servers or []
+        self.available_domains = available_domains or []
         self.on_save = on_save
         self.custom_field_rows: List[dict] = []
         self.server_id_map: dict = {}
+        self.domain_id_map: dict = {}
 
         self.title("Edit Entry" if entry else "New Vault Entry")
         self.geometry("740x840")
@@ -120,7 +128,7 @@ class EntryDialog(ctk.CTkToplevel):
         self.type_var = ctk.StringVar(value=self.default_type)
         self.type_segmented = ctk.CTkSegmentedButton(
             header_frame,
-            values=["server", "service", "apikey", "keypair"],
+            values=["server", "service", "domain", "apikey", "keypair"],
             variable=self.type_var,
             command=self._on_type_changed,
             font=get_font(12, "bold"),
@@ -164,6 +172,19 @@ class EntryDialog(ctk.CTkToplevel):
                 font=get_font(11),
                 text_color=TEXT_MUTED,
             ).pack(side="left", padx=20, pady=12)
+
+            if self.database and self.session_key:
+                ctk.CTkButton(
+                    bottom_bar,
+                    text="🕒 History / Rollback",
+                    width=135,
+                    height=34,
+                    font=get_font(11),
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    text_color=ACCENT_PRIMARY,
+                    command=self._open_history_dialog,
+                ).pack(side="left", padx=(8, 0), pady=12)
 
         ctk.CTkButton(
             bottom_bar,
@@ -261,7 +282,7 @@ class EntryDialog(ctk.CTkToplevel):
         ctk.CTkLabel(col_cat, text="Primary Category Preset", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
         self.category_entry = ctk.CTkComboBox(
             col_cat,
-            values=["Infrastructure", "Services", "Databases", "Keys", "Homelab", "Production", "Security & Networking", "Finance & Payments"],
+            values=["Domains", "Infrastructure", "Services", "Databases", "Keys", "Homelab", "Production", "Security & Networking", "Finance & Payments"],
             fg_color=BG_INPUT,
             border_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
@@ -314,6 +335,8 @@ class EntryDialog(ctk.CTkToplevel):
             self._render_server_form(card)
         elif entry_type == "service":
             self._render_service_form(card)
+        elif entry_type == "domain":
+            self._render_domain_form(card)
         elif entry_type == "apikey":
             self._render_apikey_form(card)
         elif entry_type == "keypair":
@@ -408,10 +431,365 @@ class EntryDialog(ctk.CTkToplevel):
 
         # SSH Key box
         ssh_box = ctk.CTkFrame(container, fg_color="transparent")
-        ssh_box.pack(fill="x", padx=16, pady=(0, 14))
+        ssh_box.pack(fill="x", padx=16, pady=(0, 6))
         ctk.CTkLabel(ssh_box, text="SSH Private Key (Optional, Encrypted)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
         self.server_key_text = ctk.CTkTextbox(ssh_box, height=80, fg_color=BG_INPUT, border_color=BORDER_COLOR, font=get_mono_font(11))
         self.server_key_text.pack(fill="x", pady=(4, 0))
+
+        # Parent Domain Dropdown
+        self._create_parent_domain_dropdown(container, "🌐 Associated Primary Domain / URL (Optional)")
+
+    def _create_parent_domain_dropdown(self, parent_container, label_text="🌐 Attached Domain / URL (Grouping)"):
+        row_domain = ctk.CTkFrame(parent_container, fg_color="transparent")
+        row_domain.pack(fill="x", padx=16, pady=(4, 10))
+        ctk.CTkLabel(row_domain, text=label_text, font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+
+        domain_options = ["None (Standalone)"]
+        self.domain_id_map = {"None (Standalone)": None}
+        for d in self.available_domains:
+            d_title = d.title or d.domain_name or "Untitled Domain"
+            d_url = d.domain_name or d.url or ""
+            label = f"{d_title} ({d_url})" if d_url and d_url != d_title else d_title
+            if getattr(d, "registrar", ""):
+                label += f" • {d.registrar}"
+            domain_options.append(label)
+            self.domain_id_map[label] = d.id
+
+        self.parent_domain_combo = ctk.CTkComboBox(
+            row_domain,
+            values=domain_options,
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.parent_domain_combo.set("None (Standalone)")
+        self.parent_domain_combo.pack(fill="x", pady=(4, 0))
+        return self.parent_domain_combo
+
+    def _render_domain_form(self, container):
+        ctk.CTkLabel(
+            container,
+            text="🌐 DOMAIN ASSET & REGISTRATION DETAILS",
+            font=get_font(11, "bold"),
+            text_color=ACCENT_EMERALD,
+        ).pack(anchor="w", padx=16, pady=(12, 6))
+
+        # Row 1: Domain Name / URL & Registrar
+        row1 = ctk.CTkFrame(container, fg_color="transparent")
+        row1.pack(fill="x", padx=16, pady=4)
+
+        col_dom = ctk.CTkFrame(row1, fg_color="transparent")
+        col_dom.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_dom, text="Domain Name / URL *", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.domain_url_entry = ctk.CTkEntry(
+            col_dom,
+            placeholder_text="example.com, myproject.org",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_url_entry.pack(fill="x", pady=(4, 0))
+        self.domain_url_entry.bind("<KeyRelease>", self._on_domain_url_changed)
+
+        col_reg = ctk.CTkFrame(row1, fg_color="transparent", width=220)
+        col_reg.pack(side="right")
+        ctk.CTkLabel(col_reg, text="Registrar (Bought From) *", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.domain_registrar_combo = ctk.CTkComboBox(
+            col_reg,
+            values=[
+                "Cloudflare",
+                "Namecheap",
+                "Porkbun",
+                "GoDaddy",
+                "AWS Route 53",
+                "Google Domains / Squarespace",
+                "NameSilo",
+                "Gandi",
+                "Hostinger",
+                "OVHcloud",
+                "Dynadot",
+                "Other / Self-Managed",
+            ],
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+            width=210,
+        )
+        self.domain_registrar_combo.set("Cloudflare")
+        self.domain_registrar_combo.pack(fill="x", pady=(4, 0))
+
+        # Row 2: Expiration Date & Auto-Renew Toggle
+        row2 = ctk.CTkFrame(container, fg_color="transparent")
+        row2.pack(fill="x", padx=16, pady=4)
+
+        col_exp = ctk.CTkFrame(row2, fg_color="transparent")
+        col_exp.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_exp, text="Expiry Date (YYYY-MM-DD)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+
+        exp_input_frame = ctk.CTkFrame(col_exp, fg_color="transparent")
+        exp_input_frame.pack(fill="x", pady=(4, 0))
+
+        self.domain_expires_entry = ctk.CTkEntry(
+            exp_input_frame,
+            placeholder_text="YYYY-MM-DD (e.g. 2027-10-15)",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_expires_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+
+        ctk.CTkButton(
+            exp_input_frame,
+            text="+1 Yr",
+            width=48,
+            height=36,
+            font=get_font(10, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._quick_add_years(1),
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            exp_input_frame,
+            text="+2 Yrs",
+            width=50,
+            height=36,
+            font=get_font(10, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._quick_add_years(2),
+        ).pack(side="left", padx=2)
+
+        ctk.CTkButton(
+            exp_input_frame,
+            text="+5 Yrs",
+            width=50,
+            height=36,
+            font=get_font(10, "bold"),
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._quick_add_years(5),
+        ).pack(side="left", padx=2)
+
+        col_renew = ctk.CTkFrame(row2, fg_color="transparent", width=220)
+        col_renew.pack(side="right", padx=(8, 0))
+        ctk.CTkLabel(col_renew, text="Auto-Renewal Status", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+
+        self.domain_autorenew_var = ctk.BooleanVar(value=True)
+        self.domain_autorenew_switch = ctk.CTkSwitch(
+            col_renew,
+            text="Auto-Renew Enabled",
+            variable=self.domain_autorenew_var,
+            font=get_font(11),
+            progress_color=ACCENT_EMERALD,
+            height=36,
+        )
+        self.domain_autorenew_switch.pack(anchor="w", pady=(8, 0))
+
+        # Row 2b: Registration Date & Renewal Cost
+        row2b = ctk.CTkFrame(container, fg_color="transparent")
+        row2b.pack(fill="x", padx=16, pady=4)
+
+        col_reg_date = ctk.CTkFrame(row2b, fg_color="transparent")
+        col_reg_date.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_reg_date, text="Registration / Purchase Date (YYYY-MM-DD)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.domain_registered_entry = ctk.CTkEntry(
+            col_reg_date,
+            placeholder_text="2023-01-15",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_registered_entry.pack(fill="x", pady=(4, 0))
+
+        col_cost = ctk.CTkFrame(row2b, fg_color="transparent", width=220)
+        col_cost.pack(side="right", padx=(8, 0))
+        ctk.CTkLabel(col_cost, text="Renewal Cost (e.g. $10.99 / yr)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.domain_cost_entry = ctk.CTkEntry(
+            col_cost,
+            placeholder_text="$12.99 / yr",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+            width=210,
+        )
+        self.domain_cost_entry.pack(fill="x", pady=(4, 0))
+
+        # Row 3: DNS Provider & Nameservers
+        row3 = ctk.CTkFrame(container, fg_color="transparent")
+        row3.pack(fill="x", padx=16, pady=4)
+
+        col_dns = ctk.CTkFrame(row3, fg_color="transparent")
+        col_dns.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_dns, text="DNS Provider (e.g. Cloudflare, Route 53)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.domain_dns_entry = ctk.CTkEntry(
+            col_dns,
+            placeholder_text="Cloudflare, Route 53, Namecheap DNS",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_dns_entry.pack(fill="x", pady=(4, 0))
+
+        col_ns = ctk.CTkFrame(row3, fg_color="transparent")
+        col_ns.pack(side="right", fill="x", expand=True, padx=(8, 0))
+        ctk.CTkLabel(col_ns, text="Nameservers", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.domain_ns_entry = ctk.CTkEntry(
+            col_ns,
+            placeholder_text="ns1.cloudflare.com, ns2.cloudflare.com",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_ns_entry.pack(fill="x", pady=(4, 0))
+
+        # Registrar / Portal Credentials & Passwords
+        ctk.CTkLabel(
+            container,
+            text="🔐 REGISTRAR / PORTAL LOGIN & PASSWORDS",
+            font=get_font(11, "bold"),
+            text_color=ACCENT_EMERALD,
+        ).pack(anchor="w", padx=16, pady=(12, 4))
+
+        # Row 3b: Account Username & Password
+        row_creds = ctk.CTkFrame(container, fg_color="transparent")
+        row_creds.pack(fill="x", padx=16, pady=4)
+
+        col_dom_user = ctk.CTkFrame(row_creds, fg_color="transparent")
+        col_dom_user.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_dom_user, text="Account Username / Email", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        self.domain_user_entry = ctk.CTkEntry(
+            col_dom_user,
+            placeholder_text="admin@domain.com, registrar_username",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_user_entry.pack(fill="x", pady=(4, 0))
+
+        col_dom_pass = ctk.CTkFrame(row_creds, fg_color="transparent")
+        col_dom_pass.pack(side="right", fill="x", expand=True, padx=(8, 0))
+        ctk.CTkLabel(col_dom_pass, text="Account Password (Encrypted)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+
+        dom_pass_row = ctk.CTkFrame(col_dom_pass, fg_color="transparent")
+        dom_pass_row.pack(fill="x", pady=(4, 0))
+        self.domain_pass_entry = ctk.CTkEntry(dom_pass_row, show="•", fg_color=BG_INPUT, border_color=BORDER_COLOR, height=36)
+        self.domain_pass_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(dom_pass_row, self.domain_pass_entry)
+
+        ctk.CTkButton(
+            dom_pass_row,
+            text="⚡ Use New",
+            font=get_font(11, "bold"),
+            width=78,
+            height=36,
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color="#000000",
+            command=lambda: self._quick_fill_generated_password(self.domain_pass_entry),
+        ).pack(side="right", padx=(4, 0))
+
+        ctk.CTkButton(
+            dom_pass_row,
+            text="🎲",
+            width=36,
+            height=36,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            command=lambda: self._open_password_generator_popup(self.domain_pass_entry),
+        ).pack(side="right")
+
+        # Row 3c: 2FA TOTP Secret & Transfer / EPP Auth Code
+        row_sec = ctk.CTkFrame(container, fg_color="transparent")
+        row_sec.pack(fill="x", padx=16, pady=4)
+
+        col_totp = ctk.CTkFrame(row_sec, fg_color="transparent")
+        col_totp.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_totp, text="Registrar 2FA / TOTP Secret (Base32)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        totp_row = ctk.CTkFrame(col_totp, fg_color="transparent")
+        totp_row.pack(fill="x", pady=(4, 0))
+        self.domain_totp_entry = ctk.CTkEntry(
+            totp_row,
+            show="•",
+            placeholder_text="JBSWY3DPEHPK3PXP",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_totp_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(totp_row, self.domain_totp_entry)
+
+        col_auth = ctk.CTkFrame(row_sec, fg_color="transparent")
+        col_auth.pack(side="right", fill="x", expand=True, padx=(8, 0))
+        ctk.CTkLabel(col_auth, text="Transfer Auth / EPP Code (Encrypted)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        auth_row = ctk.CTkFrame(col_auth, fg_color="transparent")
+        auth_row.pack(fill="x", pady=(4, 0))
+        self.domain_auth_entry = ctk.CTkEntry(
+            auth_row,
+            show="•",
+            placeholder_text="EPP Transfer Authorization Code",
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_auth_entry.pack(side="left", fill="x", expand=True, padx=(0, 4))
+        add_password_toggle(auth_row, self.domain_auth_entry)
+
+        # Row 4: Pointing Server / VPS
+        row4 = ctk.CTkFrame(container, fg_color="transparent")
+        row4.pack(fill="x", padx=16, pady=4)
+
+        col_svr = ctk.CTkFrame(row4, fg_color="transparent")
+        col_svr.pack(fill="x")
+        ctk.CTkLabel(col_svr, text="Pointing Server / VPS (Optional Host)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+
+        server_options = ["None (Unassigned)"]
+        self.domain_server_id_map = {"None (Unassigned)": None}
+        for s in self.available_servers:
+            label = f"{s.title} ({s.hostname or 'No IP'})"
+            server_options.append(label)
+            self.domain_server_id_map[label] = s.id
+
+        self.domain_server_combo = ctk.CTkComboBox(
+            col_svr,
+            values=server_options,
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.domain_server_combo.set("None (Unassigned)")
+        self.domain_server_combo.pack(fill="x", pady=(4, 0))
+
+        # Bottom space
+        ctk.CTkFrame(container, fg_color="transparent", height=10).pack()
+
+    def _quick_add_years(self, years: int):
+        from datetime import datetime, timezone, timedelta
+        current_txt = self.domain_expires_entry.get().strip()
+        base_dt = None
+        if current_txt:
+            try:
+                base_dt = datetime.strptime(current_txt[:10], "%Y-%m-%d").replace(tzinfo=timezone.utc)
+            except Exception:
+                pass
+        if not base_dt:
+            base_dt = datetime.now(timezone.utc)
+
+        try:
+            new_year = base_dt.year + years
+            new_dt = base_dt.replace(year=new_year)
+        except ValueError:
+            new_dt = base_dt + timedelta(days=365 * years)
+
+        self.domain_expires_entry.delete(0, "end")
+        self.domain_expires_entry.insert(0, new_dt.strftime("%Y-%m-%d"))
+
+    def _on_domain_url_changed(self, event=None):
+        cur_title = self.title_entry.get().strip()
+        val = self.domain_url_entry.get().strip()
+        if not cur_title or cur_title.startswith("Untitled"):
+            self.title_entry.delete(0, "end")
+            self.title_entry.insert(0, val)
 
     def _render_service_form(self, container):
         ctk.CTkLabel(
@@ -421,10 +799,13 @@ class EntryDialog(ctk.CTkToplevel):
             text_color=COLOR_WARNING,
         ).pack(anchor="w", padx=16, pady=(12, 6))
 
-        # Host / Parent Server Dropdown
+        # Host / Parent Server & Domain Hierarchy
         row_parent = ctk.CTkFrame(container, fg_color="transparent")
         row_parent.pack(fill="x", padx=16, pady=4)
-        ctk.CTkLabel(row_parent, text="Parent Server / VPS (Relational Hierarchy)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+
+        col_server = ctk.CTkFrame(row_parent, fg_color="transparent")
+        col_server.pack(side="left", fill="x", expand=True, padx=(0, 8))
+        ctk.CTkLabel(col_server, text="🖥️ Parent Server / VPS (Hierarchy)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
 
         server_options = ["None (Standalone)"]
         self.server_id_map = {"None (Standalone)": None}
@@ -434,7 +815,7 @@ class EntryDialog(ctk.CTkToplevel):
             self.server_id_map[label] = s.id
 
         self.parent_server_combo = ctk.CTkComboBox(
-            row_parent,
+            col_server,
             values=server_options,
             fg_color=BG_INPUT,
             border_color=BORDER_COLOR,
@@ -442,6 +823,31 @@ class EntryDialog(ctk.CTkToplevel):
         )
         self.parent_server_combo.set("None (Standalone)")
         self.parent_server_combo.pack(fill="x", pady=(4, 0))
+
+        col_domain = ctk.CTkFrame(row_parent, fg_color="transparent")
+        col_domain.pack(side="right", fill="x", expand=True, padx=(8, 0))
+        ctk.CTkLabel(col_domain, text="🌐 Attached Domain / URL (Grouping)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+
+        domain_options = ["None (Standalone)"]
+        self.domain_id_map = {"None (Standalone)": None}
+        for d in self.available_domains:
+            d_title = d.title or d.domain_name or "Untitled Domain"
+            d_url = d.domain_name or d.url or ""
+            label = f"{d_title} ({d_url})" if d_url and d_url != d_title else d_title
+            if getattr(d, "registrar", ""):
+                label += f" • {d.registrar}"
+            domain_options.append(label)
+            self.domain_id_map[label] = d.id
+
+        self.parent_domain_combo = ctk.CTkComboBox(
+            col_domain,
+            values=domain_options,
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            height=36,
+        )
+        self.parent_domain_combo.set("None (Standalone)")
+        self.parent_domain_combo.pack(fill="x", pady=(4, 0))
 
         # App Name & Service Type
         row1 = ctk.CTkFrame(container, fg_color="transparent")
@@ -600,10 +1006,13 @@ class EntryDialog(ctk.CTkToplevel):
 
         # Private Key Box
         priv_box = ctk.CTkFrame(container, fg_color="transparent")
-        priv_box.pack(fill="x", padx=16, pady=(4, 14))
+        priv_box.pack(fill="x", padx=16, pady=(4, 6))
         ctk.CTkLabel(priv_box, text="Private Key (Encrypted at rest)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
         self.key_priv_text = ctk.CTkTextbox(priv_box, height=90, fg_color=BG_INPUT, border_color=BORDER_COLOR, font=get_mono_font(11))
         self.key_priv_text.pack(fill="x", pady=(4, 0))
+
+        # Parent Domain Dropdown
+        self._create_parent_domain_dropdown(container, "🌐 Associated Domain / Host (Optional)")
 
     def _quick_fill_generated_password(self, target_entry: ctk.CTkEntry):
         """Instant one-click password generation and direct placement."""
@@ -618,6 +1027,9 @@ class EntryDialog(ctk.CTkToplevel):
             font=get_font(11, "bold"),
             text_color=ACCENT_INDIGO,
         ).pack(anchor="w", padx=16, pady=(12, 6))
+
+        # Attached Domain Dropdown
+        self._create_parent_domain_dropdown(container, "🌐 Associated Domain / Project URL (Optional)")
 
         # Row 1: Provider / Service & Environment
         row1 = ctk.CTkFrame(container, fg_color="transparent")
@@ -937,6 +1349,13 @@ class EntryDialog(ctk.CTkToplevel):
         # Render type-specific fields
         self._render_type_fields(entry.entry_type)
 
+        # Populate parent domain if linked
+        if hasattr(self, "parent_domain_combo") and getattr(entry, "parent_domain_id", None):
+            for label, d_id in self.domain_id_map.items():
+                if d_id == entry.parent_domain_id:
+                    self.parent_domain_combo.set(label)
+                    break
+
         if entry.entry_type == "server":
             self.server_host.insert(0, entry.hostname)
             self.server_port.delete(0, "end")
@@ -966,6 +1385,36 @@ class EntryDialog(ctk.CTkToplevel):
             self.service_pass.insert(0, entry.password)
             self.service_db.insert(0, entry.db_name)
             self.service_token.insert(0, entry.api_token)
+
+        elif entry.entry_type == "domain":
+            self.domain_url_entry.insert(0, getattr(entry, "domain_name", "") or entry.url)
+            if hasattr(self, "domain_registrar_combo") and getattr(entry, "registrar", ""):
+                self.domain_registrar_combo.set(entry.registrar)
+            if hasattr(self, "domain_expires_entry"):
+                self.domain_expires_entry.insert(0, getattr(entry, "expires_at", ""))
+            if hasattr(self, "domain_registered_entry"):
+                self.domain_registered_entry.insert(0, getattr(entry, "registered_at", ""))
+            if hasattr(self, "domain_cost_entry"):
+                self.domain_cost_entry.insert(0, getattr(entry, "renewal_cost", ""))
+            if hasattr(self, "domain_autorenew_var"):
+                self.domain_autorenew_var.set(bool(getattr(entry, "auto_renew", True)))
+            if hasattr(self, "domain_dns_entry"):
+                self.domain_dns_entry.insert(0, getattr(entry, "dns_provider", ""))
+            if hasattr(self, "domain_ns_entry"):
+                self.domain_ns_entry.insert(0, getattr(entry, "nameservers", ""))
+            if hasattr(self, "domain_user_entry"):
+                self.domain_user_entry.insert(0, entry.username or "")
+            if hasattr(self, "domain_pass_entry"):
+                self.domain_pass_entry.insert(0, entry.password or "")
+            if hasattr(self, "domain_totp_entry"):
+                self.domain_totp_entry.insert(0, getattr(entry, "totp_secret", "") or "")
+            if hasattr(self, "domain_auth_entry"):
+                self.domain_auth_entry.insert(0, getattr(entry, "auth_code", ""))
+            if hasattr(self, "domain_server_combo") and entry.parent_server_id:
+                for label, s_id in self.domain_server_id_map.items():
+                    if s_id == entry.parent_server_id:
+                        self.domain_server_combo.set(label)
+                        break
 
         elif entry.entry_type == "apikey":
             if hasattr(self, "apikey_provider"):
@@ -1003,6 +1452,8 @@ class EntryDialog(ctk.CTkToplevel):
                 title = self.server_host.get().strip()
             elif etype == "service" and hasattr(self, "service_app") and self.service_app.get().strip():
                 title = self.service_app.get().strip()
+            elif etype == "domain" and hasattr(self, "domain_url_entry") and self.domain_url_entry.get().strip():
+                title = self.domain_url_entry.get().strip()
             elif etype == "apikey" and hasattr(self, "apikey_provider") and self.apikey_provider.get().strip():
                 title = f"{self.apikey_provider.get().strip()} API Key"
             elif etype == "keypair" and hasattr(self, "key_name_entry") and self.key_name_entry.get().strip():
@@ -1047,6 +1498,8 @@ class EntryDialog(ctk.CTkToplevel):
             entry.os_distro = self.server_distro.get().strip()
             entry.ssh_private_key = self.server_key_text.get("1.0", "end-1c").strip()
             entry.parent_server_id = None
+            if hasattr(self, "parent_domain_combo"):
+                entry.parent_domain_id = self.domain_id_map.get(self.parent_domain_combo.get(), None)
 
         elif etype == "service":
             entry.app_name = self.service_app.get().strip()
@@ -1066,6 +1519,38 @@ class EntryDialog(ctk.CTkToplevel):
                 selected_server_label = self.parent_server_combo.get()
                 entry.parent_server_id = self.server_id_map.get(selected_server_label, None)
 
+            # Link parent domain
+            if hasattr(self, "parent_domain_combo"):
+                selected_domain_label = self.parent_domain_combo.get()
+                entry.parent_domain_id = self.domain_id_map.get(selected_domain_label, None)
+
+        elif etype == "domain":
+            entry.domain_name = self.domain_url_entry.get().strip()
+            clean_dom = entry.domain_name
+            if clean_dom and not (clean_dom.startswith("http://") or clean_dom.startswith("https://")):
+                clean_dom = f"https://{clean_dom}"
+            entry.url = clean_dom
+            entry.registrar = self.domain_registrar_combo.get().strip()
+            entry.expires_at = self.domain_expires_entry.get().strip()
+            if hasattr(self, "domain_registered_entry"):
+                entry.registered_at = self.domain_registered_entry.get().strip()
+            if hasattr(self, "domain_cost_entry"):
+                entry.renewal_cost = self.domain_cost_entry.get().strip()
+            entry.auto_renew = bool(self.domain_autorenew_var.get())
+            entry.dns_provider = self.domain_dns_entry.get().strip()
+            entry.nameservers = self.domain_ns_entry.get().strip()
+            if hasattr(self, "domain_user_entry"):
+                entry.username = self.domain_user_entry.get().strip()
+            if hasattr(self, "domain_pass_entry"):
+                entry.password = self.domain_pass_entry.get()
+            if hasattr(self, "domain_totp_entry"):
+                entry.totp_secret = self.domain_totp_entry.get().strip()
+            entry.auth_code = self.domain_auth_entry.get().strip()
+            if hasattr(self, "domain_server_combo"):
+                selected_server_label = self.domain_server_combo.get()
+                entry.parent_server_id = self.domain_server_id_map.get(selected_server_label, None)
+            entry.parent_domain_id = None
+
         elif etype == "apikey":
             entry.provider = self.apikey_provider.get().strip()
             entry.environment = self.apikey_env_combo.get().strip()
@@ -1077,6 +1562,8 @@ class EntryDialog(ctk.CTkToplevel):
             entry.scopes = self.apikey_scopes.get().strip()
             entry.totp_secret = self.apikey_totp.get().strip()
             entry.parent_server_id = None
+            if hasattr(self, "parent_domain_combo"):
+                entry.parent_domain_id = self.domain_id_map.get(self.parent_domain_combo.get(), None)
 
         elif etype == "keypair":
             entry.key_name = self.key_name_entry.get().strip() or title
@@ -1086,7 +1573,25 @@ class EntryDialog(ctk.CTkToplevel):
             entry.public_key = self.key_pub_text.get("1.0", "end-1c").strip()
             entry.private_key = self.key_priv_text.get("1.0", "end-1c").strip()
             entry.parent_server_id = None
+            if hasattr(self, "parent_domain_combo"):
+                entry.parent_domain_id = self.domain_id_map.get(self.parent_domain_combo.get(), None)
 
         if self.on_save:
             self.on_save(entry)
         self.destroy()
+
+    def _open_history_dialog(self) -> None:
+        if not self.entry or not self.database or not self.session_key:
+            return
+        from starvault.ui.version_history_dialog import VersionHistoryDialog
+        VersionHistoryDialog(
+            self,
+            database=self.database,
+            session_key=self.session_key,
+            entry=self.entry,
+            on_restored=self._on_version_restored,
+        )
+
+    def _on_version_restored(self, restored_entry: VaultEntry) -> None:
+        self.entry = restored_entry
+        self._populate_fields(restored_entry)

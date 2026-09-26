@@ -22,6 +22,11 @@ hiddenimports = [
     "pyzipper",
     "py7zr",
     "starvault.neural_health",
+    "starvault.versioning",
+    "starvault.ui.version_history_dialog",
+    "starvault.export_package",
+    "starvault.ui.vault_export_dialog",
+    "starvault.ui.vault_import_dialog",
 ]
 
 for pkg in ["customtkinter", "pystray", "pgpy", "keyring", "pyzipper", "py7zr"]:

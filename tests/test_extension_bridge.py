@@ -153,3 +153,76 @@ def test_bridge_toggle_favorite(test_bridge):
     assert code == 200
     assert data["success"] is True
     assert data["is_favorite"] is not initial_fav
+
+
+def test_bridge_versioning_endpoints(test_bridge):
+    port = test_bridge["port"]
+    db = test_bridge["db"]
+    key = test_bridge["key"]
+    entries = db.get_all_entries(key)
+    target = entries[0]
+
+    orig_pwd = target.password
+    target.password = "NewRotatedPasswordFromBridge!"
+    db.save_entry(target, key)
+
+    # 1. Query versions via bridge
+    url_v = f"http://127.0.0.1:{port}/api/entry_versions"
+    code, data = _post_json(url_v, {"entry_id": target.id, "decrypt": True})
+    assert code == 200
+    assert data["count"] == 2
+    assert len(data["versions"]) == 2
+    v1_id = [v["id"] for v in data["versions"] if v["version_num"] == 1][0]
+
+    # 2. Restore version via bridge
+    url_r = f"http://127.0.0.1:{port}/api/restore_version"
+    code, data_r = _post_json(url_r, {"entry_id": target.id, "version_id": v1_id})
+    assert code == 200
+    assert data_r["success"] is True
+
+    # Check live entry in db
+    live = db.get_entry(target.id, key)
+    assert live.password == orig_pwd
+
+    # 3. Clean versions via bridge
+    url_c = f"http://127.0.0.1:{port}/api/clean_versions"
+    code, data_c = _post_json(url_c, {"max_versions_per_entry": 1, "dry_run": False})
+    assert code == 200
+    assert data_c["success"] is True
+    assert data_c["result"]["versions_deleted"] >= 1
+
+
+def test_bridge_import_vault_endpoint(test_bridge):
+    port = test_bridge["port"]
+    url = f"http://127.0.0.1:{port}/api/import_vault"
+
+    # Test importing a JSON export payload via bridge
+    sample_json = json.dumps({
+        "entries": [
+            {
+                "id": "ext-imported-1",
+                "title": "Imported via Extension Bridge",
+                "entry_type": "service",
+                "username": "bridge_user",
+                "password": "BridgePassword123!",
+                "url": "https://bridge.test.local",
+            }
+        ]
+    })
+
+    code, data = _post_json(url, {
+        "filename": "bridge_export.json",
+        "content_text": sample_json,
+        "collision_strategy": "skip",
+    })
+    assert code == 200
+    assert data["success"] is True
+    assert data["count"] >= 1
+
+    # Verify entry is present in database
+    db = test_bridge["db"]
+    key = test_bridge["key"]
+    entries = db.get_all_entries(key)
+    titles = [e.title for e in entries]
+    assert "Imported via Extension Bridge" in titles
+

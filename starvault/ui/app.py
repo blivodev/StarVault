@@ -161,8 +161,44 @@ class StarVaultApp(ctk.CTk):
     def _on_theme_changed(self, theme_name: str):
         """Handles live theme switching and refreshes views with new color tokens."""
         from starvault.ui.theme import BG_ROOT
-        self.configure(fg_color=BG_ROOT)
-        self._show_initial_view()
+
+        if hasattr(self, "app_config") and self.app_config:
+            self.app_config.set_theme(theme_name)
+        if hasattr(self, "db") and self.db and hasattr(self, "session") and self.session.is_unlocked:
+            try:
+                self.db.update_settings({"theme": theme_name})
+            except Exception:
+                pass
+
+        def safe_refresh():
+            try:
+                self.configure(fg_color=BG_ROOT)
+                if self.session.is_unlocked and self.current_view:
+                    active_tab = "Credentials"
+                    selected_id = None
+                    if hasattr(self.current_view, "nav_var"):
+                        active_tab = self.current_view.nav_var.get()
+                    if hasattr(self.current_view, "selected_entry") and self.current_view.selected_entry:
+                        selected_id = self.current_view.selected_entry.id
+
+                    self._show_initial_view()
+
+                    if hasattr(self.current_view, "switch_to_tab"):
+                        self.current_view.switch_to_tab(active_tab)
+                    elif hasattr(self.current_view, "_on_nav_tab_changed"):
+                        self.current_view.nav_var.set(active_tab)
+                        self.current_view.tab_selector.set(active_tab)
+                        self.current_view._on_nav_tab_changed(active_tab)
+
+                    if selected_id and hasattr(self.current_view, "switch_to_credentials_tab"):
+                        if active_tab == "Credentials":
+                            self.current_view.switch_to_credentials_tab(selected_id)
+                else:
+                    self._show_initial_view()
+            except Exception:
+                pass
+
+        self.after(20, safe_refresh)
 
     def on_unlock_success(self, key: bytes, master_password: Optional[str] = None):
         """Called when master password verification succeeds."""
@@ -245,26 +281,6 @@ class StarVaultApp(ctk.CTk):
         if isinstance(self.current_view, DashboardView):
             self.current_view.search_entry.focus_set()
             self.current_view.search_entry.select_range(0, "end")
-
-    def _on_theme_changed(self, theme_name: str) -> None:
-        """Handles theme change broadcast from theme manager and updates views and persistence."""
-        try:
-            from starvault.ui.theme import BG_ROOT
-            self.configure(fg_color=BG_ROOT)
-            if hasattr(self, "app_config") and self.app_config:
-                self.app_config.set_theme(theme_name)
-            if hasattr(self, "db") and self.db and hasattr(self, "session") and self.session.is_unlocked:
-                try:
-                    self.db.update_settings({"theme": theme_name})
-                except Exception:
-                    pass
-            if self.current_view:
-                if hasattr(self.current_view, "on_theme_changed"):
-                    self.current_view.on_theme_changed(theme_name)
-                elif hasattr(self.current_view, "_build_ui"):
-                    self.current_view._build_ui()
-        except Exception:
-            pass
 
     def open_key_studio_from_tray(self):
         if not self.session.is_unlocked:

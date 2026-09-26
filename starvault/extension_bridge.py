@@ -113,6 +113,32 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             }).encode("utf-8"))
             return
 
+        if parsed.path == "/api/domains":
+            session_key = self.server.get_session_key()
+            if not session_key:
+                self._send_cors_headers(401)
+                self.wfile.write(json.dumps({"error": "Vault is locked. Please unlock StarVault first."}).encode("utf-8"))
+                return
+            entries = self.server.database.get_all_entries(session_key)
+            doms = [
+                {
+                    "id": e.id,
+                    "title": e.title,
+                    "domain_name": getattr(e, "domain_name", "") or e.url,
+                    "url": e.url,
+                    "registrar": getattr(e, "registrar", ""),
+                    "expires_at": getattr(e, "expires_at", ""),
+                    "auto_renew": getattr(e, "auto_renew", False),
+                    "username": e.username,
+                    "has_password": bool(e.password),
+                    "has_totp": bool(getattr(e, "totp_secret", "")),
+                }
+                for e in entries if e.entry_type == "domain"
+            ]
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({"domains": doms, "count": len(doms)}).encode("utf-8"))
+            return
+
         self._send_cors_headers(404)
         self.wfile.write(json.dumps({"error": "Not found"}).encode("utf-8"))
 
@@ -212,7 +238,9 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 candidates = list(entries)
 
             # Filter Type
-            if filter_type in ("server", "servers"):
+            if filter_type in ("domain", "domains"):
+                candidates = [e for e in candidates if e.entry_type == "domain"]
+            elif filter_type in ("server", "servers"):
                 candidates = [e for e in candidates if e.entry_type == "server"]
             elif filter_type in ("service", "services"):
                 candidates = [e for e in candidates if e.entry_type == "service"]
@@ -250,7 +278,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                     "title": e.title,
                     "type": e.entry_type,
                     "username": e.username,
-                    "url": e.url or e.hostname,
+                    "url": getattr(e, "domain_name", "") or e.url or e.hostname,
                     "hostname": e.hostname,
                     "port": e.port,
                     "category": e.category or "General",
@@ -262,6 +290,9 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                     "has_totp": bool(e.totp_secret),
                     "is_expiring": is_exp,
                     "is_weak": is_wk,
+                    "domain_name": getattr(e, "domain_name", ""),
+                    "registrar": getattr(e, "registrar", ""),
+                    "parent_domain_id": getattr(e, "parent_domain_id", None),
                     "created_at": e.created_at,
                     "updated_at": e.updated_at,
                 })
@@ -297,10 +328,17 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 "public_key": entry.public_key,
                 "private_key": entry.private_key,
                 "totp_code": totp_code,
-                "url": entry.url or entry.hostname,
+                "url": getattr(entry, "domain_name", "") or entry.url or entry.hostname,
                 "category": entry.category,
                 "groups": getattr(entry, "groups", []),
                 "services": getattr(entry, "services", []),
+                "domain_name": getattr(entry, "domain_name", ""),
+                "registrar": getattr(entry, "registrar", ""),
+                "auth_code": getattr(entry, "auth_code", ""),
+                "dns_provider": getattr(entry, "dns_provider", ""),
+                "nameservers": getattr(entry, "nameservers", ""),
+                "auto_renew": getattr(entry, "auto_renew", False),
+                "parent_domain_id": getattr(entry, "parent_domain_id", None),
             }).encode("utf-8"))
             return
 
@@ -333,15 +371,42 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 parsed_u = urlparse(url if "://" in url else f"https://{url}")
                 title = parsed_u.hostname or "New Login"
 
-            new_entry = VaultEntry.create_service(
-                title=title,
-                app_name=title,
-                url=url,
-                username=username,
-                password=password,
-                category=category or "Work & Productivity",
-                tags=tags or ["browser-extension"],
-            )
+            entry_type = data.get("type", data.get("entry_type", "service")).lower()
+            if entry_type in ("domain", "url"):
+                dom_name = data.get("domain_name") or url or title
+                clean_url = dom_name if (dom_name.startswith("http://") or dom_name.startswith("https://")) else f"https://{dom_name}"
+                new_entry = VaultEntry.create_domain(
+                    title=title or dom_name,
+                    domain_name=dom_name,
+                    url=clean_url,
+                    registrar=data.get("registrar", ""),
+                    expires_at=data.get("expires_at", ""),
+                    auto_renew=bool(data.get("auto_renew", False)),
+                    registered_at=data.get("registered_at", ""),
+                    renewal_cost=data.get("renewal_cost", ""),
+                    dns_provider=data.get("dns_provider", ""),
+                    nameservers=data.get("nameservers", ""),
+                    auth_code=data.get("auth_code", ""),
+                    category=category or "Domains",
+                    tags=tags or ["domain", "browser-extension"],
+                )
+                new_entry.username = username
+                new_entry.password = password
+                if data.get("totp_secret"):
+                    new_entry.totp_secret = data.get("totp_secret", "")
+            else:
+                new_entry = VaultEntry.create_service(
+                    title=title,
+                    app_name=title,
+                    url=url,
+                    username=username,
+                    password=password,
+                    category=category or "Work & Productivity",
+                    tags=tags or ["browser-extension"],
+                )
+                if data.get("parent_domain_id"):
+                    new_entry.parent_domain_id = data.get("parent_domain_id")
+
             if groups_list:
                 new_entry.groups = groups_list
             if services_list:
@@ -362,6 +427,70 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             else:
                 self._send_cors_headers(400)
                 self.wfile.write(json.dumps({"success": False, "error": "entry_id required"}).encode("utf-8"))
+            return
+
+        elif path == "/api/entry_versions":
+            data = self._read_json_body()
+            entry_id = data.get("entry_id", "").strip()
+            if not entry_id:
+                self._send_cors_headers(400)
+                self.wfile.write(json.dumps({"error": "entry_id is required"}).encode("utf-8"))
+                return
+            decrypt = bool(data.get("decrypt", False))
+            versions = db.get_entry_versions(entry_id, key=session_key, decrypt=decrypt)
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "entry_id": entry_id,
+                "count": len(versions),
+                "versions": [v.to_dict() for v in versions],
+            }).encode("utf-8"))
+            return
+
+        elif path == "/api/restore_version":
+            data = self._read_json_body()
+            entry_id = data.get("entry_id", "").strip()
+            version_id = data.get("version_id", "").strip()
+            if not entry_id or not version_id:
+                self._send_cors_headers(400)
+                self.wfile.write(json.dumps({"error": "entry_id and version_id are required"}).encode("utf-8"))
+                return
+            restored = db.restore_entry_version(entry_id, version_id, session_key)
+            if not restored:
+                self._send_cors_headers(404)
+                self.wfile.write(json.dumps({"error": "Version or entry not found"}).encode("utf-8"))
+                return
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "entry_id": entry_id,
+                "version_id": version_id,
+                "title": restored.title,
+            }).encode("utf-8"))
+            return
+
+        elif path == "/api/clean_versions":
+            data = self._read_json_body()
+            max_age = data.get("max_age_days")
+            if max_age is not None:
+                max_age = int(max_age)
+            max_v = data.get("max_versions_per_entry")
+            if max_v is not None:
+                max_v = int(max_v)
+            del_files = bool(data.get("delete_physical_files", False))
+            clean_keys = bool(data.get("clean_keys_dir", False))
+            dry_run = bool(data.get("dry_run", True))
+            res = db.clean_old_versions(
+                max_age_days=max_age,
+                max_versions_per_entry=max_v,
+                delete_physical_files=del_files,
+                clean_keys_dir=clean_keys,
+                dry_run=dry_run,
+            )
+            self._send_cors_headers(200)
+            self.wfile.write(json.dumps({
+                "success": True,
+                "result": res.to_dict(),
+            }).encode("utf-8"))
             return
 
         elif path == "/api/generate_key":
@@ -440,6 +569,81 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             csv_text = export_entries_to_csv_string(entries)
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({"success": True, "csv": csv_text, "count": len(entries)}).encode("utf-8"))
+            return
+
+        elif path == "/api/import_vault":
+            session_key = self.server.get_session_key()
+            if not session_key:
+                self._send_cors_headers(401)
+                self.wfile.write(json.dumps({"success": False, "error": "Vault is locked. Please unlock StarVault first."}).encode("utf-8"))
+                return
+
+            import base64
+            import tempfile
+            from pathlib import Path
+            from starvault.export_package import inspect_import_file, execute_vault_import
+
+            data = self._read_json_body()
+            fn = data.get("filename", "import.db")
+            content_b64 = data.get("content_base64", "")
+            raw_text = data.get("content_text", "")
+            file_pwd = data.get("file_password", None) or None
+            collision_strategy = data.get("collision_strategy", "skip")
+
+            if not content_b64 and not raw_text:
+                self._send_cors_headers(400)
+                self.wfile.write(json.dumps({"success": False, "error": "No file content provided"}).encode("utf-8"))
+                return
+
+            suffix = Path(fn).suffix.lower() or ".db"
+            tmp_path = None
+            try:
+                with tempfile.NamedTemporaryFile(suffix=suffix, delete=False) as tmp:
+                    tmp_path = Path(tmp.name)
+                    if content_b64:
+                        tmp.write(base64.b64decode(content_b64))
+                    else:
+                        tmp.write(raw_text.encode("utf-8"))
+
+                insp_ok, insp_msg, meta = inspect_import_file(tmp_path, passphrase=file_pwd)
+                if not insp_ok:
+                    self._send_cors_headers(400)
+                    self.wfile.write(json.dumps({
+                        "success": False,
+                        "error": insp_msg,
+                        "needs_passphrase": insp_msg == "NEEDS_PASSPHRASE",
+                    }).encode("utf-8"))
+                    return
+
+                imp_ok, imp_msg, summary = execute_vault_import(
+                    database=self.server.database,
+                    session_key=session_key,
+                    import_metadata=meta,
+                    file_path=tmp_path,
+                    passphrase=file_pwd,
+                    conflict_strategy=collision_strategy,
+                )
+
+                if imp_ok:
+                    self._send_cors_headers(200)
+                    self.wfile.write(json.dumps({
+                        "success": True,
+                        "message": imp_msg,
+                        "summary": summary,
+                        "count": summary.get("imported_credentials", 0) + summary.get("imported_keys", 0),
+                    }).encode("utf-8"))
+                else:
+                    self._send_cors_headers(400)
+                    self.wfile.write(json.dumps({"success": False, "error": imp_msg}).encode("utf-8"))
+            except Exception as ex:
+                self._send_cors_headers(500)
+                self.wfile.write(json.dumps({"success": False, "error": str(ex)}).encode("utf-8"))
+            finally:
+                if tmp_path and tmp_path.exists():
+                    try:
+                        tmp_path.unlink(missing_ok=True)
+                    except Exception:
+                        pass
             return
 
         elif path == "/api/auto_organize":

@@ -92,16 +92,37 @@ Built with **Python**, **CustomTkinter**, **Argon2id**, **AES-256-GCM**, and **S
 
 ### ⚡ Universal Crypto Tools & Key / Cert Studio
 - **Cryptographic Workbench**:
-  - **Symmetric Encryption**: AES-256-GCM Encrypt & Decrypt with custom passphrases.
+  - **Symmetric Encryption & Decryption**: Text & file encryption with AES-256-GCM. Features `📂 Load File into Input...` (supports UTF-8 text, ASCII armor, or binary converted to Base64), `💾 Save Output to File...`, and 1-click direct file encryption/decryption (`.enc`).
+  - **Interactive File Encryption Queue**: Batch-encrypt and decrypt multiple files or entire folder trees with an interactive queue showing individual file sizes, remove buttons (`✕`), clear queue, alongside vs custom folder output destinations, and real-time progress.
   - **Cryptographic Hashes**: SHA-256, SHA-512, MD5, and HMAC-SHA256.
   - **Data Encoders**: Base64 Encode/Decode, Hex Encode/Decode, URL Encode/Decode.
   - **UUID & Entropy**: Cryptographically secure UUID v4 generation.
-- **Key & Certificate Generation Studio**:
-  - **Ed25519 Keypairs**: Modern 256-bit elliptic curve SSH keys.
-  - **WireGuard VPN Keypairs**: X25519 public/private keys for VPN tunnels.
-  - **Self-Signed X.509 TLS/SSL Certificates**: Custom Common Names (CN), Subject Alternative Names (SANs), RSA / ECDSA / Ed25519 keys, and configurable validity periods.
-  - **RSA-4096 & GPG / OpenPGP**: High-security RSA and armored PGP keypairs.
-  - **Direct Vault Storage**: 1-click button to save newly generated keys and certificates straight into your encrypted database.
+- **Key & Certificate Generation Studio & Key Studio**:
+  - **Ed25519 Keypairs**: Modern 256-bit elliptic curve SSH keys with OpenSSH and PuTTY (`.ppk`) export support.
+  - **WireGuard VPN Keypairs**: X25519 public/private keys for VPN tunnels (`.wg.pub` / `.wg.key`).
+  - **Self-Signed X.509 TLS/SSL Certificates**: Custom Common Names (CN), Subject Alternative Names (SANs), RSA / ECDSA / Ed25519 keys, and configurable validity periods (`.crt` / `.key`).
+  - **RSA-4096 & GPG / OpenPGP / Age**: High-security RSA, armored OpenPGP keypairs (`.asc`), and modern Age encryption keys (`.recipient.txt` / `.key`).
+  - **Direct Vault Storage**: 1-click button to save newly generated keys and certificates straight into your encrypted database keyring.
+  - **Local PC File & Bundle Export**: Save individual public keys / certs or private keys straight to your computer with automatic file extension matching, or export both simultaneously via `📦 Export Keypair Bundle to Folder...`.
+
+### 🌐 Domain & URL Management & Relational Hierarchy
+- **Dedicated Domain Tracking**: First-class `domain` entry type tracking domain names/URLs, registrar ("who I bought it from"), registrar account credentials (username/email, encrypted password with 1-click password generator & show/hide toggle, and 2FA TOTP secrets), expiry dates, registration dates, renewal costs, auto-renewal toggles, DNS management providers, nameservers, and encrypted EPP/transfer authorization codes.
+- **Quick Expiration Presets**: Instant `+1 Yr`, `+2 Yrs`, and `+5 Yrs` calculation buttons in the Domain Entry Dialog for fast renewal logging.
+- **Relational Domain Hierarchy (`parent_domain_id`)**: Attach any vault entry (servers, services, databases, API keys, SSL/TLS certificates) to a parent domain to represent full project, brand, or infrastructure stacks.
+- **Inspector Attached Items Table**: View all child entries linked to a domain in a dedicated, interactive table with 1-click secret copying and a `+ Attach Item` shortcut.
+- **High-Speed Explorer & HUD**: Filter by `🌐 Domains & URLs` in the sidebar and dashboard type pills, group by `By Domain / URL` in the Groups Explorer, and access domain URLs, registrars, and auth codes in the Quick Search HUD.
+- **Chromium Browser Extension Companion**: Native domain tracking chip (`🌐 Domains`), 1-click domain copying, registrar password reveal/copy, domain saving mode, and parent domain attachment directly inside the browser popup.
+- **Proactive Health & Expiry Audits**: Flags expired or soon-to-expire domains with countdowns, auto-renewal status, and registrar details in the Vault Health Advisor.
+- **Zero-Knowledge Backup & Ecosystem Parity**: Full support across `.sve` portable export containers, SQLite migrations, Browser Extension loopback bridge, and MCP server tools.
+
+### 🕒 Zero-Knowledge Credential Versioning, Rollbacks & Retention
+- **Automatic Rotation Snapshots**: Whenever sensitive credentials (passwords, SSH/GPG keys, API tokens, TOTP secrets) are rotated, StarVault immediately captures an encrypted zero-knowledge version snapshot.
+- **Cryptographic Fingerprinting**: Distinguishes authentic secret rotations from non-sensitive metadata edits (e.g. tag or folder updates) to maintain an uncluttered version timeline.
+- **Interactive Timeline & Visual Diff**: The dedicated **Version History Studio** displays snapshot timelines, descriptive change summaries, decrypted credential reveals, and side-by-side field comparisons vs current live entries.
+- **1-Click Rollback with Pre-Rollback Guard**: Instantly revert any credential or keypair to a previous historical version. StarVault automatically preserves a pre-rollback snapshot before restoring so you can always undo.
+- **Physical Key Lifecycle Management**: Links physical key files (`.pem`, `.pub`, `.ppk`, `.key`, `.crt`, `.asc`) in StarVault's dedicated keys directory to version snapshots. When versions are deleted, associated physical files can be securely overwritten with random bytes and unlinked.
+- **Configurable Retention Policies**: Configure automated pruning rules in Settings by maximum age (days, months, years) and max versions per entry. Run on-demand cleanups or dry-run simulations with zero risk.
+- **Full Ecosystem Parity**: Manage version histories and rollbacks via Desktop GUI inspector, Chromium Extension bridge (`/api/entry_versions`, `/api/restore_version`, `/api/clean_versions`), and MCP server tools.
 
 ### 🌐 Chromium Browser Companion Extension (Chrome, Brave, Edge)
 - **Localhost Loopback Bridge**: Runs securely on `127.0.0.1:8088`; credentials never leave your machine.
@@ -113,10 +134,24 @@ Built with **Python**, **CustomTkinter**, **Argon2id**, **AES-256-GCM**, and **S
 - **Master Password Protected CSV Export**: Download a sanitized CSV export directly from the extension upon master password authentication.
 - **Multi-Theme Switcher**: Matches your desktop theme (Modern Dark, Midnight Blue, Matrix Console Green, Cyberpunk Neon, Clean Light).
 
-### 📤 Master Password Protected CSV & Full Archive Export
-- **Sanitized CSV Spreadsheet Export**: Neutralizes spreadsheet formula injection (DDE attacks) by escaping formula triggers (`=`, `+`, `-`, `@`).
-- **Full Structured Archive (.zip / .7z)**: Exports credentials CSV, decrypted files, private/public keys, certificates, and an audit manifest into an AES-256 encrypted package.
-- **Strict Master Password Authentication**: Both CSV and archive export flows require master password verification before decrypting.
+### 📦 Universal Vault Export & Migration Container (.sve / .zip / .csv)
+- **Zero-Knowledge Encrypted Package (`.sve` / `.starvault`)**:
+  - Secure, self-contained portable vault container designed for zero-knowledge backup and seamless cross-machine migration.
+  - Header with `STV1` magic identifier, 16-byte Argon2id salt (`t=3, m=64MB, p=4`), 12-byte AES-256-GCM nonce, 16-byte authentication tag, and zlib-compressed encrypted payload.
+  - Complete zero-knowledge payload captures all credentials, custom fields, tags, groups, physical & encrypted keyring files, attached file BLOBs, and rotation version snapshots.
+  - Easily imported by any other StarVault instance with passphrase protection.
+- **Universal Import Engine & Interactive Wizard**:
+  - Dedicated `VaultImportDialog` with pre-import inspection preview (counts of entries, keys, files, and version snapshots).
+  - Three collision resolution strategies:
+    - `Skip Conflicting Records`: Preserves existing entries, importing only new records.
+    - `Overwrite Existing Records`: Updates matching records with incoming data.
+    - `Create New Renamed Copies`: Clones conflicting items with a timestamped suffix (`- Imported <Timestamp>`).
+  - Supports `.sve`, `.starvault`, structured `.zip` archives, and plaintext `.csv`.
+- **Structured Archive Export (`.zip`)**:
+  - Exports credentials CSV, decrypted files, private/public keys, certificates, and an audit `manifest.json`.
+- **Sanitized CSV Spreadsheet Export**:
+  - Neutralizes spreadsheet formula injection (DDE attacks) by escaping formula triggers (`=`, `+`, `-`, `@`).
+- **Quick Access**: Available directly from the top navigation bar (`📤 Export`, `📥 Import`) and the Settings Dialog storage card.
 
 ### 📁 Encrypted File Vault (BLOB Storage)
 - **Arbitrary File Storage**: Securely store `.pem`, `.ovpn`, `docker-compose.yml`, `.env`, and backup files.
@@ -129,6 +164,7 @@ StarVault exposes an integrated MCP server for seamless integration with AI codi
 - `auto_organize_vault`, `deduplicate_vault`, `sort_vault_entries`
 - `crypto_hash`, `crypto_encrypt`, `crypto_decrypt`, `crypto_encode`, `crypto_decode`
 - `generate_keypair`, `generate_tls_cert`, `export_vault_csv`
+- `starvault_get_entry_versions`, `starvault_restore_entry_version`, `starvault_clean_old_versions`
 
 ---
 
@@ -203,7 +239,7 @@ python run.py
 
 ## 🧪 Testing
 
-StarVault includes a comprehensive automated test suite with **100% pass rate** (66 test cases):
+StarVault includes a comprehensive automated test suite with **100% pass rate** (81 test cases):
 
 ```powershell
 .\.venv\Scripts\pytest tests/ -v

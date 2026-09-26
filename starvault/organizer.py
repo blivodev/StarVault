@@ -485,6 +485,22 @@ def merge_entries(primary: VaultEntry, duplicate: VaultEntry) -> VaultEntry:
         primary.totp_secret = duplicate.totp_secret
     if not primary.parent_server_id and duplicate.parent_server_id:
         primary.parent_server_id = duplicate.parent_server_id
+    if not getattr(primary, "parent_domain_id", None) and getattr(duplicate, "parent_domain_id", None):
+        primary.parent_domain_id = duplicate.parent_domain_id
+    if not getattr(primary, "domain_name", "") and getattr(duplicate, "domain_name", ""):
+        primary.domain_name = duplicate.domain_name
+    if not getattr(primary, "registrar", "") and getattr(duplicate, "registrar", ""):
+        primary.registrar = duplicate.registrar
+    if not getattr(primary, "expires_at", "") and getattr(duplicate, "expires_at", ""):
+        primary.expires_at = duplicate.expires_at
+    if not getattr(primary, "auto_renew", False) and getattr(duplicate, "auto_renew", False):
+        primary.auto_renew = duplicate.auto_renew
+    if not getattr(primary, "dns_provider", "") and getattr(duplicate, "dns_provider", ""):
+        primary.dns_provider = duplicate.dns_provider
+    if not getattr(primary, "nameservers", "") and getattr(duplicate, "nameservers", ""):
+        primary.nameservers = duplicate.nameservers
+    if not getattr(primary, "auth_code", "") and getattr(duplicate, "auth_code", ""):
+        primary.auth_code = duplicate.auth_code
 
     # 4. Append duplicate notes if distinct
     if duplicate.notes and duplicate.notes.strip() not in (primary.notes or ""):
@@ -509,16 +525,18 @@ def find_ghost_and_stale(entries: List[VaultEntry]) -> Dict[str, Any]:
 
     for e in entries:
         # Check Ghost: No secrets, no url/host, no notes
-        has_secret = bool(e.password or e.api_token or e.api_key_secret or e.private_key or e.ssh_private_key)
-        has_destination = bool(e.url or e.hostname or e.app_name)
-        has_content = bool(e.notes or e.custom_fields)
+        has_secret = bool(e.password or e.api_token or e.api_key_secret or e.private_key or e.ssh_private_key or getattr(e, "auth_code", ""))
+        has_destination = bool(e.url or e.hostname or e.app_name or getattr(e, "domain_name", ""))
+        has_content = bool(e.notes or e.custom_fields or getattr(e, "registrar", ""))
 
         if not has_secret and not has_destination and not has_content:
             ghosts.append(e)
             continue
 
-        # Check Orphaned Subcredential: parent_server_id specified but parent does not exist
+        # Check Orphaned Subcredential: parent_server_id or parent_domain_id specified but parent does not exist
         if e.parent_server_id and e.parent_server_id not in all_ids:
+            orphans.append(e)
+        elif getattr(e, "parent_domain_id", None) and e.parent_domain_id not in all_ids:
             orphans.append(e)
 
         # Check abandoned test entries
@@ -795,9 +813,10 @@ def purge_ghost_entries(database, key: bytes) -> Dict[str, Any]:
             deleted_ids.add(g.id)
             purged_ghosts += 1
 
-    # 2. Fix orphaned child entries (clear parent_server_id)
+    # 2. Fix orphaned child entries (clear parent_server_id & parent_domain_id)
     for o in findings["orphans"]:
         o.parent_server_id = None
+        o.parent_domain_id = None
         database.save_entry(o, key)
         fixed_orphans += 1
 

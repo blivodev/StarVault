@@ -30,6 +30,7 @@ class VaultEntry:
 
     # Relational Parent/Child hierarchy
     parent_server_id: Optional[str] = None
+    parent_domain_id: Optional[str] = None
 
     # Arbitrary Custom Key-Value fields [{"key": "License", "value": "XYZ"}]
     custom_fields: List[Dict[str, str]] = field(default_factory=list)
@@ -71,6 +72,16 @@ class VaultEntry:
     # TOTP / MFA secret (encrypted, RFC 6238 Base32)
     totp_secret: str = ""  # encrypted
 
+    # Domain / DNS fields
+    domain_name: str = ""
+    registrar: str = ""
+    auto_renew: bool = False
+    registered_at: str = ""  # purchase / registration date (YYYY-MM-DD)
+    renewal_cost: str = ""  # e.g. '$12.99 / yr'
+    dns_provider: str = ""
+    nameservers: str = ""
+    auth_code: str = ""  # encrypted transfer/EPP code
+
     # Common rich content
     notes: str = ""  # encrypted
 
@@ -85,6 +96,11 @@ class VaultEntry:
             self.services = [self.app_name]
         elif self.services and not self.app_name:
             self.app_name = self.services[0]
+        # Guarantee services has domain_name if entry is a domain
+        if self.entry_type == "domain":
+            d_name = self.domain_name or self.title
+            if d_name and not self.services:
+                self.services = [d_name]
 
     def duplicate(self) -> "VaultEntry":
         """Creates an independent clone of this entry with '- Copy' title."""
@@ -100,6 +116,7 @@ class VaultEntry:
             created_at=utc_now_iso(),
             updated_at=utc_now_iso(),
             parent_server_id=self.parent_server_id,
+            parent_domain_id=self.parent_domain_id,
             custom_fields=[dict(cf) for cf in self.custom_fields],
             hostname=self.hostname,
             port=self.port,
@@ -128,6 +145,14 @@ class VaultEntry:
             expires_at=self.expires_at,
             scopes=self.scopes,
             totp_secret=self.totp_secret,
+            domain_name=self.domain_name,
+            registrar=self.registrar,
+            auto_renew=self.auto_renew,
+            registered_at=self.registered_at,
+            renewal_cost=self.renewal_cost,
+            dns_provider=self.dns_provider,
+            nameservers=self.nameservers,
+            auth_code=self.auth_code,
             notes=self.notes,
         )
 
@@ -184,6 +209,7 @@ class VaultEntry:
             "notes": self.notes,
             "custom_fields": self.custom_fields,
             "parent_server_id": self.parent_server_id,
+            "parent_domain_id": self.parent_domain_id,
             "groups": self.groups,
             "services": self.services,
             # Extra fields bundled inside payload
@@ -209,6 +235,15 @@ class VaultEntry:
             "expires_at": self.expires_at,
             "scopes": self.scopes,
             "totp_secret": self.totp_secret,
+            # Domain fields
+            "domain_name": self.domain_name,
+            "registrar": self.registrar,
+            "auto_renew": self.auto_renew,
+            "registered_at": self.registered_at,
+            "renewal_cost": self.renewal_cost,
+            "dns_provider": self.dns_provider,
+            "nameservers": self.nameservers,
+            "auth_code": self.auth_code,
         }
         json_str = json.dumps(sensitive_data)
         return encrypt_field(json_str, key)
@@ -229,6 +264,7 @@ class VaultEntry:
         self.notes = data.get("notes", "")
         self.custom_fields = data.get("custom_fields", [])
         self.parent_server_id = data.get("parent_server_id", self.parent_server_id)
+        self.parent_domain_id = data.get("parent_domain_id", self.parent_domain_id)
 
         self.hostname = data.get("hostname", self.hostname)
         self.port = data.get("port", self.port)
@@ -251,6 +287,14 @@ class VaultEntry:
         self.expires_at = data.get("expires_at", self.expires_at)
         self.scopes = data.get("scopes", self.scopes)
         self.totp_secret = data.get("totp_secret", self.totp_secret)
+        self.domain_name = data.get("domain_name", self.domain_name)
+        self.registrar = data.get("registrar", self.registrar)
+        self.auto_renew = bool(data.get("auto_renew", self.auto_renew))
+        self.registered_at = data.get("registered_at", self.registered_at)
+        self.renewal_cost = data.get("renewal_cost", self.renewal_cost)
+        self.dns_provider = data.get("dns_provider", self.dns_provider)
+        self.nameservers = data.get("nameservers", self.nameservers)
+        self.auth_code = data.get("auth_code", self.auth_code)
 
         loaded_groups = data.get("groups", None)
         if loaded_groups is not None and isinstance(loaded_groups, list):
@@ -399,6 +443,53 @@ class VaultEntry:
             expires_at=expires_at,
             scopes=scopes,
             parent_server_id=parent_server_id,
+            notes=notes,
+        )
+
+    @classmethod
+    def create_domain(
+        cls,
+        title: str,
+        domain_name: str,
+        url: Optional[str] = None,
+        registrar: str = "",
+        expires_at: str = "",
+        auto_renew: bool = False,
+        registered_at: str = "",
+        renewal_cost: str = "",
+        dns_provider: str = "",
+        nameservers: str = "",
+        auth_code: str = "",
+        parent_server_id: Optional[str] = None,
+        parent_domain_id: Optional[str] = None,
+        tags: Optional[List[str]] = None,
+        notes: str = "",
+        category: str = "Domains",
+        groups: Optional[List[str]] = None,
+        services: Optional[List[str]] = None,
+    ) -> "VaultEntry":
+        clean_url = url or domain_name
+        if clean_url and not (clean_url.startswith("http://") or clean_url.startswith("https://")):
+            clean_url = f"https://{clean_url}"
+        return cls(
+            entry_type="domain",
+            title=title or domain_name or "Untitled Domain",
+            category=category,
+            groups=groups or ([category] if category else []),
+            services=services or ([domain_name] if domain_name else []),
+            tags=tags or [],
+            domain_name=domain_name,
+            url=clean_url,
+            registrar=registrar,
+            expires_at=expires_at,
+            auto_renew=auto_renew,
+            registered_at=registered_at,
+            renewal_cost=renewal_cost,
+            dns_provider=dns_provider,
+            nameservers=nameservers,
+            auth_code=auth_code,
+            parent_server_id=parent_server_id,
+            parent_domain_id=parent_domain_id,
             notes=notes,
         )
 

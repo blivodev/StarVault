@@ -120,14 +120,24 @@ class FilesView(ctk.CTkFrame):
 
         ctk.CTkButton(
             act_box,
-            text="+ Upload File",
+            text="📥 Import / Upload File...",
             font=get_font(12, "bold"),
-            width=120,
             height=34,
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
             text_color="#000000",
             command=self._open_upload_dialog,
+        ).pack(side="left", padx=(0, 6))
+
+        ctk.CTkButton(
+            act_box,
+            text="📤 Export All...",
+            font=get_font(11, "bold"),
+            height=34,
+            fg_color=BG_INPUT,
+            hover_color=BORDER_COLOR,
+            text_color=TEXT_PRIMARY,
+            command=self._export_all_files,
         ).pack(side="left")
 
         # Scrollable files list
@@ -261,7 +271,7 @@ class FilesView(ctk.CTkFrame):
         # Extract / Save to Disk button
         ctk.CTkButton(
             btn_box,
-            text="💾 Extract",
+            text="📤 Extract",
             width=80,
             height=30,
             font=get_font(11, "bold"),
@@ -500,6 +510,40 @@ class FilesView(ctk.CTkFrame):
             messagebox.showinfo("Export Complete", f"Successfully extracted '{vault_file.filename}' to disk.")
         except Exception as ex:
             messagebox.showerror("Export Failed", f"Failed to write file to disk: {ex}")
+
+    def _export_all_files(self):
+        """Exports all decrypted files in the vault to a selected local directory."""
+        if not self.files:
+            messagebox.showinfo("No Files", "There are no files stored in the vault to export.")
+            return
+
+        dest_dir = filedialog.askdirectory(title="Select Folder to Export All Vault Files To")
+        if not dest_dir:
+            return
+
+        dest_path = Path(dest_dir)
+        exported = 0
+        failed = []
+
+        for vf in self.files:
+            raw_bytes = self.database.read_file_bytes(vf.id, self.encryption_key)
+            if raw_bytes is not None:
+                try:
+                    out_file = dest_path / vf.filename
+                    if out_file.exists():
+                        out_file = dest_path / f"{out_file.stem}_{vf.id[:6]}{out_file.suffix}"
+                    with open(out_file, "wb") as f:
+                        f.write(raw_bytes)
+                    exported += 1
+                except Exception as ex:
+                    failed.append(f"{vf.filename}: {ex}")
+            else:
+                failed.append(f"{vf.filename}: Decryption failed")
+
+        msg = f"Exported {exported} file(s) to:\n{dest_dir}"
+        if failed:
+            msg += f"\n\n{len(failed)} file(s) failed."
+        messagebox.showinfo("Bulk Export Complete", msg)
 
     def _delete_file(self, vault_file: VaultFile):
         """Prompts confirmation and removes encrypted file."""

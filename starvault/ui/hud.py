@@ -8,7 +8,9 @@ from starvault.models import VaultEntry
 from starvault.quick_strings import generate_db_url, generate_ssh_command
 from starvault.search import search_entries
 from starvault.ui.theme import (
+    ACCENT_EMERALD,
     ACCENT_HOVER,
+    ACCENT_INDIGO,
     ACCENT_PRIMARY,
     ACCENT_PURPLE,
     BG_CARD,
@@ -186,12 +188,18 @@ class QuickSearchHUD(ctk.CTkToplevel):
         top_line.pack(fill="x")
 
         # Type badge
-        if entry.entry_type == "server":
+        if entry.entry_type == "domain":
+            badge_color = ACCENT_EMERALD
+            badge_text = "DOMAIN"
+        elif entry.entry_type == "server":
             badge_color = ACCENT_PRIMARY
             badge_text = "SERVER"
         elif entry.entry_type == "service":
             badge_color = COLOR_WARNING
             badge_text = "SERVICE"
+        elif entry.entry_type == "apikey":
+            badge_color = ACCENT_INDIGO
+            badge_text = "API KEY"
         else:
             badge_color = ACCENT_PURPLE
             badge_text = "KEY"
@@ -227,12 +235,22 @@ class QuickSearchHUD(ctk.CTkToplevel):
 
         # Subtitle (Host/URL/User)
         sub_text = ""
-        if entry.entry_type == "server":
+        if entry.entry_type == "domain":
+            sub_text = getattr(entry, "domain_name", "") or entry.url or ""
+            if getattr(entry, "registrar", ""):
+                sub_text = f"{sub_text} • Registrar: {entry.registrar}" if sub_text else f"Registrar: {entry.registrar}"
+            if getattr(entry, "expires_at", ""):
+                sub_text = f"{sub_text} • Exp: {entry.expires_at}"
+        elif entry.entry_type == "server":
             sub_text = f"{entry.username}@{entry.hostname}:{entry.port}"
         elif entry.entry_type == "service":
             sub_text = f"{entry.app_name} • {entry.url or entry.hostname}"
             if entry.port:
                 sub_text += f":{entry.port}"
+        elif entry.entry_type == "apikey":
+            sub_text = f"{entry.provider or 'API Key'} • {entry.key_name or ''}"
+            if entry.expires_at:
+                sub_text += f" • Exp: {entry.expires_at}"
         elif entry.entry_type == "keypair":
             sub_text = f"{entry.key_type.upper()} • {entry.fingerprint[:24]}..."
 
@@ -248,7 +266,46 @@ class QuickSearchHUD(ctk.CTkToplevel):
         btn_col = ctk.CTkFrame(row, fg_color="transparent")
         btn_col.pack(side="right", padx=10, pady=8)
 
-        if entry.entry_type == "server":
+        if entry.entry_type == "domain":
+            dom_val = getattr(entry, "domain_name", "") or entry.url
+            if dom_val:
+                ctk.CTkButton(
+                    btn_col,
+                    text="🌐 Domain",
+                    width=70,
+                    height=28,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    command=lambda e=entry: self._copy_val(getattr(e, "domain_name", "") or e.url, "Domain URL copied"),
+                ).pack(side="left", padx=2)
+
+            if getattr(entry, "registrar", ""):
+                ctk.CTkButton(
+                    btn_col,
+                    text="🏢 Reg",
+                    width=60,
+                    height=28,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11),
+                    command=lambda e=entry: self._copy_val(e.registrar, "Registrar copied"),
+                ).pack(side="left", padx=2)
+
+            if getattr(entry, "auth_code", ""):
+                ctk.CTkButton(
+                    btn_col,
+                    text="🔐 EPP",
+                    width=60,
+                    height=28,
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    font=get_font(11, "bold"),
+                    text_color=COLOR_WARNING,
+                    command=lambda e=entry: self._copy_val(e.auth_code, "Auth / EPP code copied (30s wipe)", is_sensitive=True),
+                ).pack(side="left", padx=2)
+
+        elif entry.entry_type == "server":
             if entry.hostname:
                 ctk.CTkButton(
                     btn_col,
@@ -384,7 +441,9 @@ class QuickSearchHUD(ctk.CTkToplevel):
         if self.current_results and 0 <= self.selected_index < len(self.current_results):
             entry = self.current_results[self.selected_index]
             # Copy primary item
-            if entry.entry_type == "server":
+            if entry.entry_type == "domain":
+                self._copy_val(getattr(entry, "domain_name", "") or entry.url, "Domain URL copied")
+            elif entry.entry_type == "server":
                 self._copy_val(generate_ssh_command(entry), "SSH command copied")
             elif entry.entry_type == "service":
                 if entry.password:
@@ -393,5 +452,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
                     self._copy_val(entry.api_token, "API token copied", is_sensitive=True)
                 else:
                     self._copy_val(entry.url, "URL copied")
+            elif entry.entry_type == "apikey":
+                self._copy_val(entry.api_token or entry.password, "API Key copied", is_sensitive=True)
             elif entry.entry_type == "keypair":
                 self._copy_val(entry.public_key, "Public key copied")

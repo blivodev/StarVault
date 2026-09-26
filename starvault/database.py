@@ -8,7 +8,8 @@ import json
 from pathlib import Path
 import shutil
 import sqlite3
-from typing import Any, Dict, List, Optional, Tuple
+from typing import Any, Dict, List, Optional, Sequence, Tuple
+import uuid
 
 from starvault.config import (
     ARGON2_HASH_LEN,
@@ -32,6 +33,17 @@ from starvault.crypto import (
     verify_canary,
 )
 from starvault.models import VaultEntry, VaultFile
+from starvault.versioning import (
+    CleanVersionsResult,
+    VaultEntryVersion,
+    apply_version_to_entry,
+    compute_secret_fingerprint,
+    delete_physical_key_files,
+    detect_change_summary,
+    find_stale_physical_key_files,
+    parse_retention_days,
+    snapshot_entry_data,
+)
 
 
 def utc_now_iso() -> str:
@@ -50,6 +62,9 @@ class Database:
         conn.row_factory = sqlite3.Row
         conn.execute("PRAGMA foreign_keys = ON")
         conn.execute("PRAGMA journal_mode = WAL")
+        conn.execute("PRAGMA synchronous = NORMAL")
+        conn.execute("PRAGMA cache_size = -64000")  # 64MB memory page cache
+        conn.execute("PRAGMA temp_store = MEMORY")
         return conn
 
     def _init_db_schema(self) -> None:
@@ -78,7 +93,8 @@ class Database:
                     created_at TEXT NOT NULL,
                     updated_at TEXT NOT NULL,
                     encrypted_payload TEXT NOT NULL,
-                    parent_server_id TEXT DEFAULT NULL
+                    parent_server_id TEXT DEFAULT NULL,
+                    parent_domain_id TEXT DEFAULT NULL
                 );
 
                 CREATE INDEX IF NOT EXISTS idx_entries_type ON vault_entries(entry_type);
@@ -99,7 +115,10 @@ class Database:
             conn.execute("ALTER TABLE vault_entries ADD COLUMN groups_json TEXT DEFAULT NULL")
         if "services_json" not in columns:
             conn.execute("ALTER TABLE vault_entries ADD COLUMN services_json TEXT DEFAULT NULL")
+        if "parent_domain_id" not in columns:
+            conn.execute("ALTER TABLE vault_entries ADD COLUMN parent_domain_id TEXT DEFAULT NULL")
         conn.execute("CREATE INDEX IF NOT EXISTS idx_entries_parent ON vault_entries(parent_server_id)")
+        conn.execute("CREATE INDEX IF NOT EXISTS idx_entries_parent_domain ON vault_entries(parent_domain_id)")
 
         # Migration 2: Create vault_files table if missing
         conn.executescript(
@@ -117,6 +136,22 @@ class Database:
             );
             CREATE INDEX IF NOT EXISTS idx_files_name ON vault_files(filename);
             CREATE INDEX IF NOT EXISTS idx_files_mime ON vault_files(mime_type);
+
+            CREATE TABLE IF NOT EXISTS vault_entry_versions (
+                id TEXT PRIMARY KEY,
+                entry_id TEXT NOT NULL,
+                version_num INTEGER NOT NULL,
+                secret_type TEXT NOT NULL,
+                title TEXT NOT NULL,
+                encrypted_data TEXT NOT NULL,
+                change_summary TEXT NOT NULL,
+                associated_files_json TEXT NOT NULL DEFAULT '[]',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(entry_id) REFERENCES vault_entries(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_versions_entry ON vault_entry_versions(entry_id);
+            CREATE INDEX IF NOT EXISTS idx_versions_created ON vault_entry_versions(created_at);
+            CREATE INDEX IF NOT EXISTS idx_versions_num ON vault_entry_versions(entry_id, version_num);
             """
         )
 
@@ -362,6 +397,16 @@ class Database:
                         (new_payload, entry.id),
                     )
 
+                # Re-encrypt all historical version snapshots
+                ver_rows = conn.execute("SELECT id, encrypted_data FROM vault_entry_versions").fetchall()
+                for vr in ver_rows:
+                    try:
+                        dec = decrypt_field(vr["encrypted_data"], old_key)
+                        re_enc = encrypt_field(dec, new_key)
+                        conn.execute("UPDATE vault_entry_versions SET encrypted_data = ? WHERE id = ?", (re_enc, vr["id"]))
+                    except Exception:
+                        pass
+
         # Mirror upgraded vault to backup directory
         self.trigger_backup()
         return new_key
@@ -412,22 +457,42 @@ class Database:
                         (new_payload, entry.id),
                     )
 
+                # Re-encrypt all historical version snapshots
+                ver_rows = conn.execute("SELECT id, encrypted_data FROM vault_entry_versions").fetchall()
+                for vr in ver_rows:
+                    try:
+                        dec = decrypt_field(vr["encrypted_data"], old_key)
+                        re_enc = encrypt_field(dec, new_key)
+                        conn.execute("UPDATE vault_entry_versions SET encrypted_data = ? WHERE id = ?", (re_enc, vr["id"]))
+                    except Exception:
+                        pass
+
         self.trigger_backup()
         return new_key
 
     def get_settings(self) -> Dict[str, Any]:
-        """Loads user settings dictionary."""
-        with self._get_connection() as conn:
-            row = conn.execute("SELECT settings_json FROM vault_meta WHERE id = 1").fetchone()
-            if row and row["settings_json"]:
-                return json.loads(row["settings_json"])
-        return {
+        """Loads user settings dictionary with full defaults."""
+        defaults = {
             "autolock_timeout": DEFAULT_AUTOLOCK_TIMEOUT_SEC,
             "lock_on_minimize": DEFAULT_LOCK_ON_MINIMIZE,
             "clipboard_timeout": DEFAULT_CLIPBOARD_TIMEOUT_SEC,
             "backup_dir": "",
             "theme": "Dark",
+            "version_retention_enabled": False,
+            "version_retention_value": 90,
+            "version_retention_unit": "days",
+            "max_versions_per_entry": 10,
+            "clean_physical_key_files": True,
         }
+        with self._get_connection() as conn:
+            row = conn.execute("SELECT settings_json FROM vault_meta WHERE id = 1").fetchone()
+            if row and row["settings_json"]:
+                try:
+                    loaded = json.loads(row["settings_json"])
+                    defaults.update(loaded)
+                except Exception:
+                    pass
+        return defaults
 
     def update_settings(self, settings: Dict[str, Any]) -> None:
         """Persists updated settings dictionary."""
@@ -439,8 +504,32 @@ class Database:
                 (json.dumps(current),),
             )
 
-    def save_entry(self, entry: VaultEntry, key: bytes) -> None:
-        """Inserts or updates an entry, encrypting sensitive fields."""
+    def save_entry(
+        self,
+        entry: VaultEntry,
+        key: bytes,
+        change_summary: Optional[str] = None,
+        create_version: bool = True,
+        associated_files: Optional[Sequence[str]] = None,
+    ) -> None:
+        """Inserts or updates an entry, encrypts secrets, and tracks version history."""
+        # Detect if this is an update and if secrets changed
+        should_snapshot = False
+        auto_summary = change_summary
+        old_entry = self.get_entry(entry.id, key)
+
+        if old_entry is None:
+            should_snapshot = True
+            if not auto_summary:
+                auto_summary = detect_change_summary(None, entry)
+        else:
+            old_fp = compute_secret_fingerprint(old_entry)
+            new_fp = compute_secret_fingerprint(entry)
+            if old_fp != new_fp or change_summary:
+                should_snapshot = True
+                if not auto_summary:
+                    auto_summary = detect_change_summary(snapshot_entry_data(old_entry), entry)
+
         payload = entry.to_encrypted_payload(key)
         tags_json = json.dumps(entry.tags)
         groups_json = json.dumps(entry.groups)
@@ -451,8 +540,8 @@ class Database:
             conn.execute(
                 """
                 INSERT INTO vault_entries 
-                (id, entry_type, title, category, tags_json, is_favorite, created_at, updated_at, encrypted_payload, parent_server_id, groups_json, services_json)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, entry_type, title, category, tags_json, is_favorite, created_at, updated_at, encrypted_payload, parent_server_id, groups_json, services_json, parent_domain_id)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ON CONFLICT(id) DO UPDATE SET
                     entry_type = excluded.entry_type,
                     title = excluded.title,
@@ -463,7 +552,8 @@ class Database:
                     encrypted_payload = excluded.encrypted_payload,
                     parent_server_id = excluded.parent_server_id,
                     groups_json = excluded.groups_json,
-                    services_json = excluded.services_json
+                    services_json = excluded.services_json,
+                    parent_domain_id = excluded.parent_domain_id
                 """,
                 (
                     entry.id,
@@ -478,13 +568,397 @@ class Database:
                     entry.parent_server_id,
                     groups_json,
                     services_json,
+                    entry.parent_domain_id,
                 ),
             )
+
+        # Record version snapshot if enabled
+        if create_version and should_snapshot:
+            self.record_entry_version(
+                entry,
+                key,
+                change_summary=auto_summary,
+                associated_files=associated_files,
+            )
+
+            # Check if auto-retention policy is enabled in settings
+            try:
+                st = self.get_settings()
+                if st.get("version_retention_enabled", False):
+                    max_v = int(st.get("max_versions_per_entry", 10))
+                    val = int(st.get("version_retention_value", 90))
+                    unit = str(st.get("version_retention_unit", "days"))
+                    del_files = bool(st.get("clean_physical_key_files", True))
+                    days = parse_retention_days(val, unit)
+                    self.clean_old_versions(
+                        max_age_days=days,
+                        max_versions_per_entry=max_v if max_v > 0 else None,
+                        delete_physical_files=del_files,
+                        dry_run=False,
+                    )
+            except Exception:
+                pass
+
         self.trigger_backup()
 
-    def delete_entry(self, entry_id: str) -> None:
-        """Deletes entry by ID."""
+    def record_entry_version(
+        self,
+        entry: VaultEntry,
+        key: bytes,
+        change_summary: Optional[str] = None,
+        associated_files: Optional[Sequence[str]] = None,
+    ) -> VaultEntryVersion:
+        """Creates an encrypted zero-knowledge snapshot of the entry in vault_entry_versions."""
         with self._get_connection() as conn:
+            row = conn.execute(
+                "SELECT MAX(version_num) as max_v FROM vault_entry_versions WHERE entry_id = ?",
+                (entry.id,),
+            ).fetchone()
+            next_v = (row["max_v"] or 0) + 1 if row else 1
+
+            files_list = list(associated_files) if associated_files else []
+            # If not provided and entry is keypair, auto-detect physical key files matching entry
+            if not files_list and entry.entry_type == "keypair":
+                from starvault.config import get_default_keys_dir
+                matching = [str(p.resolve()) for p in get_default_keys_dir().glob(f"*{entry.id[:8]}*")]
+                files_list.extend(matching)
+
+            snapshot = snapshot_entry_data(entry, associated_files=files_list)
+            encrypted_data = encrypt_field(json.dumps(snapshot), key)
+
+            stype = entry.entry_type
+            if entry.entry_type == "keypair":
+                stype = "keypair"
+            elif entry.entry_type == "apikey":
+                stype = "api_token"
+            elif entry.entry_type == "service":
+                stype = "password" if entry.password else "api_token"
+            elif entry.entry_type == "domain":
+                stype = "domain"
+            else:
+                stype = "password"
+
+            ver = VaultEntryVersion(
+                id=str(uuid.uuid4()),
+                entry_id=entry.id,
+                version_num=next_v,
+                secret_type=stype,
+                title=entry.title,
+                encrypted_data=encrypted_data,
+                change_summary=change_summary or (f"Version {next_v}" if next_v > 1 else "Initial version"),
+                associated_files=files_list,
+                created_at=utc_now_iso(),
+            )
+            ver.decrypted_data = snapshot
+
+            conn.execute(
+                """
+                INSERT INTO vault_entry_versions
+                (id, entry_id, version_num, secret_type, title, encrypted_data, change_summary, associated_files_json, created_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    ver.id,
+                    ver.entry_id,
+                    ver.version_num,
+                    ver.secret_type,
+                    ver.title,
+                    ver.encrypted_data,
+                    ver.change_summary,
+                    json.dumps(ver.associated_files),
+                    ver.created_at,
+                ),
+            )
+        return ver
+
+    def get_entry_versions(
+        self,
+        entry_id: str,
+        key: Optional[bytes] = None,
+        decrypt: bool = False,
+    ) -> List[VaultEntryVersion]:
+        """Retrieves all version snapshots for an entry, sorted from newest to oldest."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                """
+                SELECT id, entry_id, version_num, secret_type, title, encrypted_data, change_summary, associated_files_json, created_at
+                FROM vault_entry_versions
+                WHERE entry_id = ?
+                ORDER BY version_num DESC
+                """,
+                (entry_id,),
+            ).fetchall()
+
+        versions = []
+        for r in rows:
+            af = []
+            if r["associated_files_json"]:
+                try:
+                    af = json.loads(r["associated_files_json"])
+                except Exception:
+                    af = []
+
+            v = VaultEntryVersion(
+                id=r["id"],
+                entry_id=r["entry_id"],
+                version_num=r["version_num"],
+                secret_type=r["secret_type"],
+                title=r["title"],
+                encrypted_data=r["encrypted_data"],
+                change_summary=r["change_summary"],
+                associated_files=af,
+                created_at=r["created_at"],
+            )
+            if decrypt and key:
+                try:
+                    v.get_decrypted_data(key)
+                except Exception:
+                    pass
+            versions.append(v)
+        return versions
+
+    def get_version_by_id(
+        self,
+        version_id: str,
+        key: Optional[bytes] = None,
+        decrypt: bool = False,
+    ) -> Optional[VaultEntryVersion]:
+        """Retrieves a specific version snapshot by ID."""
+        with self._get_connection() as conn:
+            r = conn.execute(
+                """
+                SELECT id, entry_id, version_num, secret_type, title, encrypted_data, change_summary, associated_files_json, created_at
+                FROM vault_entry_versions
+                WHERE id = ?
+                """,
+                (version_id,),
+            ).fetchone()
+
+        if not r:
+            return None
+
+        af = []
+        if r["associated_files_json"]:
+            try:
+                af = json.loads(r["associated_files_json"])
+            except Exception:
+                af = []
+
+        v = VaultEntryVersion(
+            id=r["id"],
+            entry_id=r["entry_id"],
+            version_num=r["version_num"],
+            secret_type=r["secret_type"],
+            title=r["title"],
+            encrypted_data=r["encrypted_data"],
+            change_summary=r["change_summary"],
+            associated_files=af,
+            created_at=r["created_at"],
+        )
+        if decrypt and key:
+            try:
+                v.get_decrypted_data(key)
+            except Exception:
+                pass
+        return v
+
+    def restore_entry_version(
+        self,
+        entry_id: str,
+        version_id: str,
+        key: bytes,
+    ) -> Optional[VaultEntry]:
+        """Restores an entry to a historical version.
+
+        Before rolling back, automatically saves a snapshot of the current live state.
+        """
+        target_v = self.get_version_by_id(version_id, key=key, decrypt=True)
+        if not target_v or not target_v.decrypted_data:
+            return None
+
+        current = self.get_entry(entry_id, key)
+        if not current:
+            current = VaultEntry(id=entry_id)
+
+        # Snapshot current live state before rollback
+        self.record_entry_version(
+            current,
+            key,
+            change_summary=f"Pre-rollback snapshot before restoring v{target_v.version_num}",
+        )
+
+        # Apply old version data
+        apply_version_to_entry(current, target_v.decrypted_data)
+        current.updated_at = utc_now_iso()
+
+        # Save without creating redundant pre-version, marking rollback in change_summary
+        self.save_entry(
+            current,
+            key,
+            change_summary=f"Restored from Version {target_v.version_num} ({target_v.change_summary})",
+            create_version=True,
+        )
+        return current
+
+    def delete_entry_version(self, version_id: str, delete_physical_files: bool = False) -> bool:
+        """Deletes an individual version record and optionally wipes associated physical files."""
+        with self._get_connection() as conn:
+            r = conn.execute(
+                "SELECT associated_files_json FROM vault_entry_versions WHERE id = ?",
+                (version_id,),
+            ).fetchone()
+            if not r:
+                return False
+
+            if delete_physical_files and r["associated_files_json"]:
+                try:
+                    files = json.loads(r["associated_files_json"])
+                    if files:
+                        delete_physical_key_files(files)
+                except Exception:
+                    pass
+
+            conn.execute("DELETE FROM vault_entry_versions WHERE id = ?", (version_id,))
+        self.trigger_backup()
+        return True
+
+    def clean_old_versions(
+        self,
+        max_age_days: Optional[int] = None,
+        max_versions_per_entry: Optional[int] = None,
+        entry_type: Optional[str] = None,
+        category: Optional[str] = None,
+        delete_physical_files: bool = False,
+        clean_keys_dir: bool = False,
+        dry_run: bool = False,
+    ) -> CleanVersionsResult:
+        """Prunes historical versions and physical key files matching age and retention criteria."""
+        result = CleanVersionsResult(dry_run=dry_run)
+        with self._get_connection() as conn:
+            query = """
+                SELECT v.id, v.entry_id, v.version_num, v.created_at, v.associated_files_json, v.secret_type,
+                       e.title as entry_title, e.entry_type as live_entry_type, e.category as live_category
+                FROM vault_entry_versions v
+                LEFT JOIN vault_entries e ON v.entry_id = e.id
+                ORDER BY v.entry_id, v.version_num DESC
+            """
+            rows = conn.execute(query).fetchall()
+
+            # Filter by entry_type or category if supplied
+            filtered_rows = []
+            for r in rows:
+                if entry_type and entry_type.lower() not in (r["live_entry_type"] or r["secret_type"] or "").lower():
+                    continue
+                if category and category.lower() != (r["live_category"] or "").lower():
+                    continue
+                filtered_rows.append(r)
+
+            cutoff_iso = None
+            if max_age_days is not None and max_age_days > 0:
+                cutoff_dt = datetime.now(timezone.utc) - timedelta(days=max_age_days)
+                cutoff_iso = cutoff_dt.isoformat()
+
+            to_delete_version_ids = set()
+            files_to_delete = set()
+            affected_entry_ids = set()
+
+            # Group rows by entry_id
+            by_entry: Dict[str, List[sqlite3.Row]] = {}
+            for r in filtered_rows:
+                by_entry.setdefault(r["entry_id"], []).append(r)
+
+            for eid, v_list in by_entry.items():
+                # v_list is sorted by version_num DESC
+                # Max versions limit: keep only the newest N versions
+                if max_versions_per_entry is not None and max_versions_per_entry > 0:
+                    if len(v_list) > max_versions_per_entry:
+                        excess = v_list[max_versions_per_entry:]
+                        for r in excess:
+                            to_delete_version_ids.add(r["id"])
+                            affected_entry_ids.add(eid)
+
+                # Cutoff age filter: remove versions older than max_age_days
+                if cutoff_iso:
+                    for r in v_list:
+                        if r["created_at"] < cutoff_iso:
+                            to_delete_version_ids.add(r["id"])
+                            affected_entry_ids.add(eid)
+
+            # Collect physical files associated with deleted versions
+            for r in filtered_rows:
+                if r["id"] in to_delete_version_ids:
+                    af_raw = r["associated_files_json"]
+                    if af_raw:
+                        try:
+                            af_list = json.loads(af_raw)
+                            for fp in af_list:
+                                if fp:
+                                    files_to_delete.add(fp)
+                        except Exception:
+                            pass
+
+            # Scan keys dir for unreferenced or stale key files if requested
+            if clean_keys_dir and max_age_days is not None and max_age_days > 0:
+                stale_p_files = find_stale_physical_key_files(max_age_days=max_age_days)
+                for sp in stale_p_files:
+                    files_to_delete.add(str(sp))
+
+            result.versions_deleted = len(to_delete_version_ids)
+            result.deleted_version_ids = sorted(list(to_delete_version_ids))
+            result.entries_affected = len(affected_entry_ids)
+
+            if delete_physical_files and files_to_delete:
+                if dry_run:
+                    result.physical_files_deleted = len(files_to_delete)
+                    result.deleted_file_paths = sorted(list(files_to_delete))
+                else:
+                    cnt, deleted_paths = delete_physical_key_files(list(files_to_delete))
+                    result.physical_files_deleted = cnt
+                    result.deleted_file_paths = sorted(deleted_paths)
+            else:
+                result.deleted_file_paths = []
+
+            if not dry_run and to_delete_version_ids:
+                placeholders = ",".join("?" for _ in to_delete_version_ids)
+                conn.execute(
+                    f"DELETE FROM vault_entry_versions WHERE id IN ({placeholders})",
+                    tuple(to_delete_version_ids),
+                )
+                self.trigger_backup()
+
+            action_verb = "Previewed" if dry_run else "Cleaned"
+            result.details.append(
+                f"{action_verb} {result.versions_deleted} historical versions across {result.entries_affected} entries."
+            )
+            if delete_physical_files:
+                result.details.append(
+                    f"{action_verb} {result.physical_files_deleted} physical key files on disk."
+                )
+
+        return result
+
+    def delete_entry(self, entry_id: str, delete_physical_files: bool = True) -> None:
+        """Deletes entry by ID and cleans associated versions and physical key files."""
+        with self._get_connection() as conn:
+            if delete_physical_files:
+                rows = conn.execute(
+                    "SELECT associated_files_json FROM vault_entry_versions WHERE entry_id = ?",
+                    (entry_id,),
+                ).fetchall()
+                files_to_wipe = []
+                for r in rows:
+                    if r["associated_files_json"]:
+                        try:
+                            files_to_wipe.extend(json.loads(r["associated_files_json"]))
+                        except Exception:
+                            pass
+                from starvault.config import get_default_keys_dir
+                matching = [str(p.resolve()) for p in get_default_keys_dir().glob(f"*{entry_id[:8]}*")]
+                files_to_wipe.extend(matching)
+                if files_to_wipe:
+                    delete_physical_key_files(files_to_wipe)
+
+            conn.execute("DELETE FROM vault_entry_versions WHERE entry_id = ?", (entry_id,))
             conn.execute("DELETE FROM vault_entries WHERE id = ?", (entry_id,))
         self.trigger_backup()
 
@@ -513,6 +987,21 @@ class Database:
             rows = conn.execute(
                 "SELECT * FROM vault_entries WHERE parent_server_id = ? ORDER BY title COLLATE NOCASE ASC",
                 (parent_server_id,),
+            ).fetchall()
+        entries = []
+        for row in rows:
+            try:
+                entries.append(self._row_to_entry(row, key))
+            except Exception:
+                pass
+        return entries
+
+    def get_child_entries_by_domain(self, parent_domain_id: str, key: bytes) -> List[VaultEntry]:
+        """Retrieves all vault entries linked to the specified parent domain."""
+        with self._get_connection() as conn:
+            rows = conn.execute(
+                "SELECT * FROM vault_entries WHERE parent_domain_id = ? ORDER BY title COLLATE NOCASE ASC",
+                (parent_domain_id,),
             ).fetchall()
         entries = []
         for row in rows:
@@ -568,6 +1057,10 @@ class Database:
         if "parent_server_id" in row.keys():
             parent_id = row["parent_server_id"]
 
+        parent_domain = None
+        if "parent_domain_id" in row.keys():
+            parent_domain = row["parent_domain_id"]
+
         groups = []
         if "groups_json" in row.keys() and row["groups_json"]:
             try:
@@ -594,6 +1087,7 @@ class Database:
             created_at=row["created_at"],
             updated_at=row["updated_at"],
             parent_server_id=parent_id,
+            parent_domain_id=parent_domain,
         )
         entry.load_encrypted_payload(row["encrypted_payload"], key)
         return entry

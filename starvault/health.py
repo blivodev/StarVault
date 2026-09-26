@@ -230,31 +230,35 @@ class VaultHealthAdvisor:
                 exp_date = parse_date_safely(e.expires_at)
                 if exp_date:
                     delta = (exp_date - now).days
+                    is_dom = (e.entry_type == "domain")
+                    reg_str = f" with registrar '{e.registrar}'" if (is_dom and getattr(e, "registrar", "")) else ""
                     if delta < 0:
                         expiring_keys_count += 1
+                        item_label = "Domain" if is_dom else "Credential"
                         issues.append(
                             HealthIssue(
                                 issue_type="expiring_key",
                                 severity="high",
-                                title=f"Expired Credential: '{e.title}'",
-                                description=f"Credential expired {abs(delta)} days ago ({exp_date.strftime('%Y-%m-%d')}).",
+                                title=f"Expired {item_label}: '{e.title}'",
+                                description=f"{item_label} expired {abs(delta)} days ago ({exp_date.strftime('%Y-%m-%d')}){reg_str}.",
                                 entry_ids=[e.id],
                                 entry_titles=[e.title],
-                                recommendation="Rotate or renew this credential immediately.",
+                                recommendation="Renew this domain with your registrar immediately to prevent loss." if is_dom else "Rotate or renew this credential immediately.",
                                 remediation_action="extend_expiry",
                             )
                         )
                     elif delta <= 30:
                         expiring_keys_count += 1
+                        item_label = "Domain" if is_dom else "Credential"
                         issues.append(
                             HealthIssue(
                                 issue_type="expiring_key",
                                 severity="medium",
                                 title=f"Expiring Soon: '{e.title}'",
-                                description=f"Credential expires in {delta} days ({exp_date.strftime('%Y-%m-%d')}).",
+                                description=f"{item_label} expires in {delta} days ({exp_date.strftime('%Y-%m-%d')}){reg_str}.",
                                 entry_ids=[e.id],
                                 entry_titles=[e.title],
-                                recommendation="Schedule rotation before this credential expires.",
+                                recommendation="Renew this domain with your registrar before expiration." if is_dom else "Schedule rotation before this credential expires.",
                                 remediation_action="extend_expiry",
                             )
                         )
