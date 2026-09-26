@@ -82,12 +82,12 @@ class CryptoToolsView(ctk.CTkFrame):
     """Interactive encryption, decryption, encoding, hashing, and Kleopatra-style keyring workbench."""
 
     SUBTABS = [
-        "🔑 Keyring & Certs",
-        "⚡ Key Generator",
-        "🔐 Encrypt & Decrypt",
-        "✍️ Sign & Verify",
-        "📁 File Encryption",
-        "#️⃣ Hashes & Encoders",
+        "Keyring & Certs",
+        "Key Generator",
+        "Encrypt & Decrypt",
+        "Sign & Verify",
+        "File Encryption",
+        "Hashes & Encoders",
     ]
 
     SYMMETRIC_ALGOS = [
@@ -205,14 +205,36 @@ class CryptoToolsView(ctk.CTkFrame):
         self._build_hashes_workbench()
 
         # Show initial subtab
-        self._on_subtab_switched("🔑 Keyring & Certs")
+        self._on_subtab_switched("Keyring & Certs")
 
     def switch_to_subtab(self, subtab_name: str) -> None:
         """Programmatically switches to the specified subtab."""
-        if subtab_name in self.SUBTABS:
-            self.nav_var.set(subtab_name)
-            self.mode_seg.set(subtab_name)
-            self._on_subtab_switched(subtab_name)
+        target = None
+        # 1. Exact match
+        for t in self.SUBTABS:
+            if t.lower() == subtab_name.lower():
+                target = t
+                break
+        # 2. Normalized alphanumeric match
+        if not target:
+            clean_subtab = "".join(c for c in subtab_name.lower() if c.isalnum())
+            for t in self.SUBTABS:
+                clean_t = "".join(c for c in t.lower() if c.isalnum())
+                if clean_t == clean_subtab:
+                    target = t
+                    break
+        # 3. Subtab name contained in input or input contained in subtab
+        if not target:
+            clean_subtab = "".join(c for c in subtab_name.lower() if c.isalnum())
+            for t in self.SUBTABS:
+                clean_t = "".join(c for c in t.lower() if c.isalnum())
+                if clean_t in clean_subtab or (len(clean_subtab) >= 3 and clean_subtab in clean_t):
+                    target = t
+                    break
+        if target:
+            self.nav_var.set(target)
+            self.mode_seg.set(target)
+            self._on_subtab_switched(target)
 
     def _on_subtab_switched(self, mode: str) -> None:
         # Hide all workbench frames

@@ -50,6 +50,7 @@ from starvault.ui.theme import (
     COLOR_SUCCESS,
     COLOR_WARNING,
     TEXT_MUTED,
+    TEXT_ON_ACCENT,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
     cycle_next_theme,
@@ -230,7 +231,7 @@ class DashboardView(ctk.CTkFrame):
         self.type_filter_var = ctk.StringVar(value="All")
         self.type_selector = ctk.CTkSegmentedButton(
             self.quick_filter_bar,
-            values=["All", "🌐 Domains", "🖥️ Servers", "⚙️ Services", "🔑 API Keys", "🛡️ Keys", "⭐ Favorites"],
+            values=["All", "Domains", "Servers", "Services", "API Keys", "Keypairs", "Favorites"],
             variable=self.type_filter_var,
             font=get_font(10, "bold"),
             selected_color=ACCENT_PRIMARY,
@@ -239,6 +240,7 @@ class DashboardView(ctk.CTkFrame):
             unselected_hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=26,
+            corner_radius=6,
             command=self._on_type_filter_changed,
         )
         self.type_selector.pack(side="left", padx=(0, 8))
@@ -246,10 +248,11 @@ class DashboardView(ctk.CTkFrame):
         # Status Chips (Expiring, Weak, TOTP)
         self.chip_expiring = ctk.CTkButton(
             self.quick_filter_bar,
-            text="⏳ Expiring",
+            text="Expiring",
             font=get_font(10),
             height=26,
-            width=75,
+            width=70,
+            corner_radius=5,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             command=lambda: self._toggle_status_chip("expiring"),
@@ -258,10 +261,11 @@ class DashboardView(ctk.CTkFrame):
 
         self.chip_weak = ctk.CTkButton(
             self.quick_filter_bar,
-            text="⚠️ Weak",
+            text="Weak Pass",
             font=get_font(10),
             height=26,
-            width=65,
+            width=75,
+            corner_radius=5,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             command=lambda: self._toggle_status_chip("weak"),
@@ -270,10 +274,11 @@ class DashboardView(ctk.CTkFrame):
 
         self.chip_totp = ctk.CTkButton(
             self.quick_filter_bar,
-            text="📱 TOTP",
+            text="2FA Active",
             font=get_font(10),
             height=26,
-            width=65,
+            width=75,
+            corner_radius=5,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             command=lambda: self._toggle_status_chip("totp"),
@@ -283,10 +288,11 @@ class DashboardView(ctk.CTkFrame):
         # Clear Filters Button
         self.clear_filters_btn = ctk.CTkButton(
             self.quick_filter_bar,
-            text="✕ Clear",
+            text="Clear",
             font=get_font(10),
             height=26,
-            width=60,
+            width=50,
+            corner_radius=5,
             fg_color="transparent",
             hover_color=BG_INPUT,
             text_color=COLOR_DANGER,
@@ -387,7 +393,7 @@ class DashboardView(ctk.CTkFrame):
         self.nav_var = ctk.StringVar(value="Credentials")
         self.tab_selector = ctk.CTkSegmentedButton(
             top_bar,
-            values=["Credentials", "🗂️ Groups", "📱 2FA / QR", "🛡️ Vault Health", "📁 File Vault", "⚡ Crypto Tools"],
+            values=["Credentials", "Groups", "2FA & QR", "Vault Health", "File Vault", "Crypto Tools"],
             variable=self.nav_var,
             command=self._on_nav_tab_changed,
             font=get_font(11, "bold"),
@@ -397,18 +403,19 @@ class DashboardView(ctk.CTkFrame):
             unselected_hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=34,
+            corner_radius=6,
         )
         self.tab_selector.pack(side="left", padx=10, pady=14)
 
         # Central Fuzzy Search Bar
-        self.search_container = ctk.CTkFrame(top_bar, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_COLOR, width=340, height=38)
+        self.search_container = ctk.CTkFrame(top_bar, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_COLOR, width=340, height=38)
         self.search_container.pack(side="left", fill="x", expand=True, padx=(10, 16), pady=12)
 
-        ctk.CTkLabel(self.search_container, text="🔍", font=get_font(12), text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
+        ctk.CTkLabel(self.search_container, text="⌕", font=get_font(14), text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
 
         self.search_entry = ctk.CTkEntry(
             self.search_container,
-            placeholder_text="Fuzzy search credentials or tags (e.g. 'VPS1', 'postgres', 'docker')...",
+            placeholder_text="Search credentials, servers, domains, tags...",
             font=get_font(13),
             fg_color="transparent",
             border_width=0,
@@ -450,7 +457,7 @@ class DashboardView(ctk.CTkFrame):
         # Auto-lock indicator
         self.autolock_label = ctk.CTkLabel(
             actions_frame,
-            text="⏱️ 5:00",
+            text="5:00",
             font=get_mono_font(11),
             text_color=TEXT_MUTED,
         )
@@ -463,89 +470,96 @@ class DashboardView(ctk.CTkFrame):
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
-            text_color="#000000",
+            text_color=TEXT_ON_ACCENT,
             height=34,
+            corner_radius=6,
             command=self._open_new_entry_dialog,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=3)
 
         ctk.CTkButton(
             actions_frame,
-            text="⚡ API Keys",
+            text="API Studio",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=34,
+            corner_radius=6,
             command=self._open_api_key_studio,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=3)
 
         ctk.CTkButton(
             actions_frame,
-            text="🔑 Key Studio",
+            text="Key Studio",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=34,
+            corner_radius=6,
             command=self._open_key_studio,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=3)
 
         ctk.CTkButton(
             actions_frame,
-            text="📤 Export",
+            text="Export",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=34,
+            corner_radius=6,
             command=self._open_vault_export_dialog,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=3)
 
         ctk.CTkButton(
             actions_frame,
-            text="📥 Import",
+            text="Import",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=34,
+            corner_radius=6,
             command=self._open_vault_import_dialog,
-        ).pack(side="left", padx=4)
-
+        ).pack(side="left", padx=3)
 
         ctk.CTkButton(
             actions_frame,
-            text="⚙️",
-            width=36,
+            text="Settings",
+            font=get_font(12),
             height=34,
+            corner_radius=6,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_SECONDARY,
             command=self._open_settings,
-        ).pack(side="left", padx=4)
+        ).pack(side="left", padx=3)
 
         self.theme_btn = ctk.CTkButton(
             actions_frame,
-            text=f"🎨 {get_current_theme()}",
+            text=f"Theme: {get_current_theme()}",
             font=get_font(11, "bold"),
             height=34,
+            corner_radius=6,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             command=self._on_cycle_theme_clicked,
         )
-        self.theme_btn.pack(side="left", padx=4)
+        self.theme_btn.pack(side="left", padx=3)
 
         ctk.CTkButton(
             actions_frame,
-            text="🔒 Lock",
-            font=get_font(12),
+            text="Lock",
+            font=get_font(12, "bold"),
             fg_color=BG_INPUT,
             hover_color=COLOR_DANGER,
             text_color=COLOR_DANGER,
             height=34,
+            corner_radius=6,
             command=self.on_lock_requested,
-        ).pack(side="left", padx=(4, 0))
+        ).pack(side="left", padx=(3, 0))
 
     def _build_sidebar(self):
         # Category Filter Buttons
@@ -558,13 +572,13 @@ class DashboardView(ctk.CTkFrame):
 
         self.cat_buttons = {}
         categories = [
-            ("All", "🌐 All Entries"),
-            ("Favorites", "⭐ Favorites"),
-            ("Domains", "🌐 Domains & URLs"),
-            ("API Keys", "⚡ API Keys"),
-            ("Servers", "🖥️ Servers & VPS"),
-            ("Services", "⚙️ Services & DBs"),
-            ("Keys", "🔑 SSH & GPG Keys"),
+            ("All", "All Entries"),
+            ("Favorites", "Favorites"),
+            ("Domains", "Domains & URLs"),
+            ("API Keys", "API Keys"),
+            ("Servers", "Servers & VPS"),
+            ("Services", "Services & DBs"),
+            ("Keys", "SSH & GPG Keys"),
         ]
 
         for cat_key, cat_label in categories:
@@ -574,6 +588,7 @@ class DashboardView(ctk.CTkFrame):
                 font=get_font(12),
                 anchor="w",
                 height=34,
+                corner_radius=6,
                 fg_color=BG_CARD if cat_key == self.selected_category else "transparent",
                 hover_color=BG_CARD_HOVER,
                 text_color=ACCENT_PRIMARY if cat_key == self.selected_category else TEXT_SECONDARY,
@@ -694,19 +709,19 @@ class DashboardView(ctk.CTkFrame):
             self.expiry_pill.pack_forget()
 
     def _on_expiry_pill_clicked(self):
-        self.nav_var.set("🛡️ Vault Health")
-        self.tab_selector.set("🛡️ Vault Health")
-        self._on_nav_tab_changed("🛡️ Vault Health")
+        self.nav_var.set("Vault Health")
+        self.tab_selector.set("Vault Health")
+        self._on_nav_tab_changed("Vault Health")
 
     def _on_cycle_theme_clicked(self):
         new_theme = cycle_next_theme()
         if hasattr(self, "theme_btn"):
-            self.theme_btn.configure(text=f"🎨 {new_theme}")
+            self.theme_btn.configure(text=f"Theme: {new_theme}")
         self.reload_entries()
 
     def on_theme_changed(self, theme_name: str):
         if hasattr(self, "theme_btn"):
-            self.theme_btn.configure(text=f"🎨 {theme_name}")
+            self.theme_btn.configure(text=f"Theme: {theme_name}")
         self.reload_entries()
 
     def _on_search_query_change(self):
@@ -773,17 +788,17 @@ class DashboardView(ctk.CTkFrame):
         candidates = [e for e, score in scored]
 
         # 1. Filter by Selected Entry Type / Favorites
-        if self.selected_type_filter in ("🌐 Domains", "🔗 Domains"):
+        if self.selected_type_filter in ("Domains", "🌐 Domains", "🔗 Domains"):
             candidates = [e for e in candidates if e.entry_type == "domain"]
-        elif self.selected_type_filter == "🖥️ Servers":
+        elif self.selected_type_filter in ("Servers", "🖥️ Servers"):
             candidates = [e for e in candidates if e.entry_type == "server"]
-        elif self.selected_type_filter in ("⚙️ Services", "🌐 Services"):
+        elif self.selected_type_filter in ("Services", "⚙️ Services", "🌐 Services"):
             candidates = [e for e in candidates if e.entry_type == "service"]
-        elif self.selected_type_filter == "🔑 API Keys":
+        elif self.selected_type_filter in ("API Keys", "🔑 API Keys"):
             candidates = [e for e in candidates if e.entry_type == "apikey"]
-        elif self.selected_type_filter == "🛡️ Keys":
+        elif self.selected_type_filter in ("Keypairs", "Keys", "🛡️ Keys"):
             candidates = [e for e in candidates if e.entry_type == "keypair"]
-        elif self.selected_type_filter == "⭐ Favorites":
+        elif self.selected_type_filter in ("Favorites", "⭐ Favorites"):
             candidates = [e for e in candidates if e.is_favorite]
 
         # 2. Filter by Status Chip
@@ -987,7 +1002,7 @@ class DashboardView(ctk.CTkFrame):
             for grp in entry.groups[:2]:
                 ctk.CTkLabel(
                     top_row,
-                    text=f"📁 {grp}",
+                    text=grp,
                     font=get_font(9),
                     text_color=ACCENT_INDIGO,
                     fg_color=BG_INPUT,
@@ -1001,7 +1016,7 @@ class DashboardView(ctk.CTkFrame):
             for srv in entry.services[:2]:
                 ctk.CTkLabel(
                     top_row,
-                    text=f"🌐 {srv}",
+                    text=srv,
                     font=get_font(9),
                     text_color=ACCENT_PRIMARY,
                     fg_color=BG_INPUT,
@@ -1016,7 +1031,7 @@ class DashboardView(ctk.CTkFrame):
             if p_dom:
                 ctk.CTkLabel(
                     top_row,
-                    text=f"🌐 {p_dom.title}",
+                    text=p_dom.title,
                     font=get_font(9, "bold"),
                     text_color=ACCENT_EMERALD,
                     fg_color=BG_INPUT,
@@ -1031,7 +1046,7 @@ class DashboardView(ctk.CTkFrame):
             if attached_count > 0:
                 ctk.CTkLabel(
                     top_row,
-                    text=f"🔗 {attached_count} linked",
+                    text=f"{attached_count} linked",
                     font=get_font(9, "bold"),
                     text_color=TEXT_PRIMARY,
                     fg_color=BG_INPUT,
@@ -1044,7 +1059,7 @@ class DashboardView(ctk.CTkFrame):
                 if p_svr:
                     ctk.CTkLabel(
                         top_row,
-                        text=f"🖥️ {p_svr.title}",
+                        text=p_svr.title,
                         font=get_font(9),
                         text_color=ACCENT_PRIMARY,
                         fg_color=BG_INPUT,
@@ -1060,40 +1075,40 @@ class DashboardView(ctk.CTkFrame):
 
         preview_str = ""
         if entry.entry_type == "server":
-            preview_str = f"🖥️ {entry.username}@{entry.hostname}:{entry.port}"
+            preview_str = f"{entry.username}@{entry.hostname}:{entry.port}"
             if entry.os_distro:
                 preview_str += f" ({entry.os_distro})"
         elif entry.entry_type == "domain":
             dom_display = entry.domain_name or entry.url or entry.title
             reg_display = entry.registrar or "Self-Managed"
-            preview_str = f"🌐 {dom_display} • Bought: {reg_display}"
+            preview_str = f"{dom_display} • {reg_display}"
             if entry.expires_at:
                 exp_date = parse_date_safely(entry.expires_at)
                 if exp_date:
                     days_left = (exp_date - datetime.now(timezone.utc)).days
                     if days_left < 0:
-                        preview_str += f" • ⚠️ EXPIRED ({abs(days_left)}d ago)"
+                        preview_str += f" • Expired ({abs(days_left)}d ago)"
                     elif days_left <= 30:
-                        preview_str += f" • ⏳ Exp: {days_left}d ({entry.expires_at[:10]})"
+                        preview_str += f" • Exp: {days_left}d ({entry.expires_at[:10]})"
                     else:
                         preview_str += f" • Exp: {entry.expires_at[:10]}"
                 else:
                     preview_str += f" • Exp: {entry.expires_at[:10]}"
             if getattr(entry, "auto_renew", False):
-                preview_str += " • 🔄 Auto-Renew"
+                preview_str += " • Auto-Renew"
             if getattr(entry, "dns_provider", ""):
                 preview_str += f" • DNS: {entry.dns_provider}"
         elif entry.entry_type == "service":
-            preview_str = f"⚙️ {entry.app_name} • {entry.url or entry.hostname}"
+            preview_str = f"{entry.app_name} • {entry.url or entry.hostname}"
             if entry.port:
                 preview_str += f":{entry.port}"
         elif entry.entry_type == "apikey":
             env_str = entry.environment or "Production"
-            preview_str = f"⚡ {entry.provider or 'API Key'} • Env: {env_str} • Format: {entry.api_key_format or 'Standard'}"
+            preview_str = f"{entry.provider or 'API Key'} • Env: {env_str} • Format: {entry.api_key_format or 'Standard'}"
             if entry.expires_at:
                 preview_str += f" • Exp: {entry.expires_at[:10]}"
         elif entry.entry_type == "keypair":
-            preview_str = f"🔑 {entry.key_type.upper()} • Fingerprint: {entry.fingerprint[:28]}..."
+            preview_str = f"{entry.key_type.upper()} • Fingerprint: {entry.fingerprint[:28]}..."
 
         sub_lbl = ctk.CTkLabel(
             mid_row,
@@ -1105,7 +1120,7 @@ class DashboardView(ctk.CTkFrame):
         sub_lbl.pack(fill="x")
         sub_lbl.bind("<Button-1>", lambda e, ent=entry: self._on_card_clicked(e, ent))
 
-        # Bottom row: One-Click Quick-Copy Action Buttons right on card!
+        # Bottom row: One-Click Quick-Copy Action Buttons right on card
         btn_row = ctk.CTkFrame(inner, fg_color="transparent")
         btn_row.pack(fill="x")
 
@@ -1113,9 +1128,10 @@ class DashboardView(ctk.CTkFrame):
             if entry.hostname:
                 ctk.CTkButton(
                     btn_row,
-                    text="📋 Copy IP",
-                    width=75,
-                    height=26,
+                    text="Copy IP",
+                    width=65,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
@@ -1124,28 +1140,30 @@ class DashboardView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 btn_row,
-                text="⚡ Copy SSH",
-                width=85,
-                height=26,
+                text="SSH Command",
+                width=90,
+                height=24,
+                corner_radius=4,
                 fg_color=BG_INPUT,
                 hover_color=BORDER_COLOR,
                 font=get_font(11, "bold"),
                 text_color=ACCENT_PRIMARY,
                 command=lambda e=entry: self._copy_val(generate_ssh_command(e), "SSH command copied"),
-            ).pack(side="left", padx=4)
+            ).pack(side="left", padx=3)
 
             if entry.password:
                 ctk.CTkButton(
                     btn_row,
-                    text="🔑 Copy Pass",
-                    width=85,
-                    height=26,
+                    text="Password",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     text_color=COLOR_WARNING,
                     command=lambda e=entry: self._copy_val(e.password, "Password copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
 
         elif entry.entry_type == "domain":
             dom_val = entry.domain_name or entry.url or entry.title
@@ -1153,9 +1171,10 @@ class DashboardView(ctk.CTkFrame):
                 clean_url = dom_val if (dom_val.startswith("http://") or dom_val.startswith("https://")) else f"https://{dom_val}"
                 ctk.CTkButton(
                     btn_row,
-                    text="📋 Copy URL",
-                    width=85,
-                    height=26,
+                    text="Domain URL",
+                    width=80,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
@@ -1164,67 +1183,74 @@ class DashboardView(ctk.CTkFrame):
             if getattr(entry, "username", ""):
                 ctk.CTkButton(
                     btn_row,
-                    text="👤 Copy User",
-                    width=85,
-                    height=26,
+                    text="Username",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     command=lambda u=entry.username: self._copy_val(u, "Account username copied"),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
             if getattr(entry, "password", ""):
                 ctk.CTkButton(
                     btn_row,
-                    text="🔑 Copy Pass",
-                    width=85,
-                    height=26,
+                    text="Password",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     text_color=COLOR_WARNING,
                     font=get_font(11),
                     command=lambda p=entry.password: self._copy_val(p, "Account password copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
             if getattr(entry, "registrar", ""):
                 ctk.CTkButton(
                     btn_row,
-                    text="🏢 Registrar",
-                    width=85,
-                    height=26,
+                    text="Registrar",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     command=lambda r=entry.registrar: self._copy_val(r, "Registrar name copied"),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
             if getattr(entry, "auth_code", ""):
                 ctk.CTkButton(
                     btn_row,
-                    text="🔐 Auth Code",
-                    width=90,
-                    height=26,
+                    text="Auth Code",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     text_color=COLOR_WARNING,
                     font=get_font(11),
                     command=lambda c=entry.auth_code: self._copy_val(c, "Transfer auth code copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
             ctk.CTkButton(
                 btn_row,
-                text="➕ Attach Item",
-                width=90,
-                height=26,
+                text="+ Attach",
+                width=65,
+                height=24,
+                corner_radius=4,
                 fg_color=BG_INPUT,
                 hover_color=ACCENT_HOVER,
                 font=get_font(11, "bold"),
+                text_color=ACCENT_PRIMARY,
                 command=lambda d=entry: self._create_linked_item_for_domain(d),
-            ).pack(side="left", padx=4)
+            ).pack(side="left", padx=3)
 
         elif entry.entry_type == "service":
             if entry.url or entry.hostname:
                 ctk.CTkButton(
                     btn_row,
-                    text="🌐 Copy URL",
-                    width=85,
-                    height=26,
+                    text="Copy URL",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
@@ -1234,48 +1260,52 @@ class DashboardView(ctk.CTkFrame):
             if "postgres" in (entry.service_type or "") or "mysql" in (entry.service_type or "") or "redis" in (entry.service_type or ""):
                 ctk.CTkButton(
                     btn_row,
-                    text="🗄️ Copy DB URL",
-                    width=100,
-                    height=26,
+                    text="DB URL",
+                    width=70,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11, "bold"),
                     text_color=COLOR_WARNING,
                     command=lambda e=entry: self._copy_val(generate_db_url(e), "DB URL copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
 
             if entry.api_token:
                 ctk.CTkButton(
                     btn_row,
-                    text="🎟️ Copy Token",
-                    width=90,
-                    height=26,
+                    text="API Token",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     text_color=COLOR_SUCCESS,
                     command=lambda e=entry: self._copy_val(e.api_token, "API token copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
             elif entry.password:
                 ctk.CTkButton(
                     btn_row,
-                    text="🔑 Copy Pass",
-                    width=85,
-                    height=26,
+                    text="Password",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     text_color=COLOR_WARNING,
                     command=lambda e=entry: self._copy_val(e.password, "Password copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
 
         elif entry.entry_type == "apikey":
             if entry.api_token:
                 ctk.CTkButton(
                     btn_row,
-                    text="⚡ Copy Key",
-                    width=90,
-                    height=26,
+                    text="Copy Key",
+                    width=75,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11, "bold"),
@@ -1285,36 +1315,39 @@ class DashboardView(ctk.CTkFrame):
             if entry.api_key_secret:
                 ctk.CTkButton(
                     btn_row,
-                    text="🔐 Copy Secret",
-                    width=95,
-                    height=26,
+                    text="Secret",
+                    width=65,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     text_color=COLOR_WARNING,
                     command=lambda e=entry: self._copy_val(e.api_key_secret, "API secret copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
             if entry.totp_secret:
                 from starvault.totp import generate_totp
                 ctk.CTkButton(
                     btn_row,
-                    text="📱 2FA",
-                    width=65,
-                    height=26,
+                    text="2FA Code",
+                    width=70,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     text_color=COLOR_SUCCESS,
                     command=lambda e=entry: self._copy_val(generate_totp(e.totp_secret), "2FA code copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
 
         elif entry.entry_type == "keypair":
             if entry.public_key:
                 ctk.CTkButton(
                     btn_row,
-                    text="📋 Copy PubKey",
-                    width=95,
-                    height=26,
+                    text="Public Key",
+                    width=80,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
@@ -1324,15 +1357,16 @@ class DashboardView(ctk.CTkFrame):
             if entry.private_key:
                 ctk.CTkButton(
                     btn_row,
-                    text="🔐 Copy PrivKey",
-                    width=100,
-                    height=26,
+                    text="Private Key",
+                    width=85,
+                    height=24,
+                    corner_radius=4,
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     font=get_font(11),
                     text_color=COLOR_DANGER,
                     command=lambda e=entry: self._copy_val(e.private_key, "Private key copied (30s wipe)", is_sensitive=True),
-                ).pack(side="left", padx=4)
+                ).pack(side="left", padx=3)
 
     def _select_entry(self, entry: VaultEntry):
         self.selected_entry = entry
@@ -1374,7 +1408,7 @@ class DashboardView(ctk.CTkFrame):
         # Copy Usernames
         ctk.CTkButton(
             self.bulk_inner,
-            text="👤 Copy Users",
+            text="Copy Users",
             font=get_font(11),
             height=28,
             fg_color=BG_INPUT,
@@ -1386,7 +1420,7 @@ class DashboardView(ctk.CTkFrame):
         # Copy Passwords
         ctk.CTkButton(
             self.bulk_inner,
-            text="🔑 Copy Passwords",
+            text="Copy Passwords",
             font=get_font(11),
             height=28,
             fg_color=BG_INPUT,
@@ -1398,7 +1432,7 @@ class DashboardView(ctk.CTkFrame):
         # Clone Selected
         ctk.CTkButton(
             self.bulk_inner,
-            text="📑 Clone All",
+            text="Duplicate All",
             font=get_font(11),
             height=28,
             fg_color=BG_INPUT,
@@ -1410,7 +1444,7 @@ class DashboardView(ctk.CTkFrame):
         # Bulk Tag
         ctk.CTkButton(
             self.bulk_inner,
-            text="🏷️ Add Tag",
+            text="Add Tag",
             font=get_font(11),
             height=28,
             fg_color=BG_INPUT,
@@ -1422,7 +1456,7 @@ class DashboardView(ctk.CTkFrame):
         # Bulk Delete
         ctk.CTkButton(
             self.bulk_inner,
-            text="🗑️ Delete All",
+            text="Delete All",
             font=get_font(11, "bold"),
             height=28,
             fg_color=COLOR_DANGER,
@@ -1434,7 +1468,7 @@ class DashboardView(ctk.CTkFrame):
         # Deselect All
         ctk.CTkButton(
             self.bulk_inner,
-            text="✕ Deselect",
+            text="Deselect",
             font=get_font(11),
             height=28,
             fg_color=BG_INPUT,
@@ -1646,7 +1680,7 @@ class DashboardView(ctk.CTkFrame):
         # Edit, Duplicate & Delete Buttons
         ctk.CTkButton(
             top_bar,
-            text="🗑️",
+            text="Delete",
             width=32,
             height=30,
             fg_color=BG_INPUT,
@@ -1656,7 +1690,7 @@ class DashboardView(ctk.CTkFrame):
 
         ctk.CTkButton(
             top_bar,
-            text="📄 Clone",
+            text="Duplicate",
             width=65,
             height=30,
             font=get_font(11),
@@ -1667,7 +1701,7 @@ class DashboardView(ctk.CTkFrame):
 
         ctk.CTkButton(
             top_bar,
-            text="🕒 History",
+            text="History",
             width=70,
             height=30,
             font=get_font(11),
@@ -1678,7 +1712,7 @@ class DashboardView(ctk.CTkFrame):
 
         ctk.CTkButton(
             top_bar,
-            text="✏️ Edit",
+            text="Edit",
             width=65,
             height=30,
             fg_color=BG_INPUT,
@@ -1706,7 +1740,7 @@ class DashboardView(ctk.CTkFrame):
             for grp in entry_groups:
                 ctk.CTkLabel(
                     pill_row,
-                    text=f"📁 {grp}",
+                    text=grp,
                     font=get_font(10),
                     text_color=ACCENT_INDIGO,
                     fg_color=BG_INPUT,
@@ -1717,7 +1751,7 @@ class DashboardView(ctk.CTkFrame):
             for srv in entry_services:
                 ctk.CTkLabel(
                     pill_row,
-                    text=f"🌐 {srv}",
+                    text=srv,
                     font=get_font(10),
                     text_color=ACCENT_PRIMARY,
                     fg_color=BG_INPUT,
@@ -2026,7 +2060,7 @@ class DashboardView(ctk.CTkFrame):
 
         ctk.CTkButton(
             h_row,
-            text="📋 Copy Notes",
+            text="Copy Notes",
             width=80,
             height=22,
             fg_color="transparent",
@@ -2088,31 +2122,31 @@ class DashboardView(ctk.CTkFrame):
         if tab_name == "Credentials":
             self.body_frame.pack(fill="both", expand=True)
             self.search_container.pack(side="left", fill="x", expand=True, padx=(10, 16), pady=12)
-        elif tab_name == "🗂️ Groups":
+        elif tab_name in ("Groups", "🗂️ Groups"):
             gv = self._get_groups_view()
             gv.pack(fill="both", expand=True)
             if "groups" in self._dirty_views:
                 gv.refresh()
                 self._dirty_views.discard("groups")
-        elif tab_name == "📱 2FA / QR":
+        elif tab_name in ("2FA & QR", "📱 2FA / QR", "2FA / QR"):
             tv = self._get_totp_view()
             tv.pack(fill="both", expand=True)
             if "totp" in self._dirty_views:
                 tv.refresh()
                 self._dirty_views.discard("totp")
-        elif tab_name == "🛡️ Vault Health":
+        elif tab_name in ("Vault Health", "🛡️ Vault Health"):
             hv = self._get_health_view()
             hv.pack(fill="both", expand=True)
             if "health" in self._dirty_views:
                 hv.refresh()
                 self._dirty_views.discard("health")
-        elif tab_name == "📁 File Vault":
+        elif tab_name in ("File Vault", "📁 File Vault", "Files"):
             fv = self._get_files_view()
             fv.pack(fill="both", expand=True)
             if "files" in self._dirty_views:
                 fv.refresh()
                 self._dirty_views.discard("files")
-        elif tab_name == "⚡ Crypto Tools":
+        elif tab_name in ("Crypto Tools", "⚡ Crypto Tools", "Crypto Studio"):
             ctv = self._get_crypto_tools_view()
             ctv.pack(fill="both", expand=True)
             if "crypto" in self._dirty_views:
@@ -2121,9 +2155,44 @@ class DashboardView(ctk.CTkFrame):
 
     def switch_to_tab(self, tab_name: str):
         """Switches to the specified top-level navigation tab."""
-        self.nav_var.set(tab_name)
-        self.tab_selector.set(tab_name)
-        self._on_nav_tab_changed(tab_name)
+        valid_tabs = ["Credentials", "Groups", "2FA & QR", "Vault Health", "File Vault", "Crypto Tools"]
+        clean_input = "".join(c for c in tab_name.lower() if c.isalnum())
+
+        target = None
+        # 1. Exact or normalized match
+        for t in valid_tabs:
+            if t.lower() == tab_name.lower() or "".join(c for c in t.lower() if c.isalnum()) == clean_input:
+                target = t
+                break
+
+        # 2. Normalized subtab contained
+        if not target:
+            for t in valid_tabs:
+                clean_t = "".join(c for c in t.lower() if c.isalnum())
+                if clean_t in clean_input:
+                    target = t
+                    break
+
+        # 3. Keyword heuristics
+        if not target:
+            if "file" in clean_input:
+                target = "File Vault"
+            elif "health" in clean_input:
+                target = "Vault Health"
+            elif "2fa" in clean_input or "totp" in clean_input or "qr" in clean_input:
+                target = "2FA & QR"
+            elif "crypto" in clean_input:
+                target = "Crypto Tools"
+            elif "group" in clean_input:
+                target = "Groups"
+            elif "cred" in clean_input or "entry" in clean_input or "password" in clean_input:
+                target = "Credentials"
+            else:
+                target = next((t for t in valid_tabs if t.lower() in tab_name.lower()), tab_name)
+
+        self.nav_var.set(target)
+        self.tab_selector.set(target)
+        self._on_nav_tab_changed(target)
 
     def switch_to_credentials_tab(self, entry_id: Optional[str] = None):
         """Switches to Credentials tab and highlights/selects the given entry."""
@@ -2271,9 +2340,11 @@ class DashboardView(ctk.CTkFrame):
             if child.username:
                 ctk.CTkButton(
                     act_box,
-                    text="👤",
-                    width=24,
-                    height=24,
+                    text="User",
+                    width=38,
+                    height=22,
+                    corner_radius=4,
+                    font=get_font(10),
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     command=lambda u=child.username: self._copy_val(u, "Sub-credential username copied"),
@@ -2282,9 +2353,11 @@ class DashboardView(ctk.CTkFrame):
             if child.password:
                 ctk.CTkButton(
                     act_box,
-                    text="🔑",
-                    width=24,
-                    height=24,
+                    text="Pass",
+                    width=38,
+                    height=22,
+                    corner_radius=4,
+                    font=get_font(10),
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     command=lambda p=child.password: self._copy_val(p, "Sub-credential password copied (30s wipe)", is_sensitive=True),
@@ -2292,9 +2365,11 @@ class DashboardView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 act_box,
-                text="↗️",
-                width=24,
-                height=24,
+                text="Open",
+                width=38,
+                height=22,
+                corner_radius=4,
+                font=get_font(10),
                 fg_color=BG_INPUT,
                 hover_color=ACCENT_HOVER,
                 command=lambda c=child: self._select_entry(c),
@@ -2392,9 +2467,11 @@ class DashboardView(ctk.CTkFrame):
             if sec_val:
                 ctk.CTkButton(
                     act_box,
-                    text="🔑",
-                    width=24,
-                    height=24,
+                    text="Pass",
+                    width=38,
+                    height=22,
+                    corner_radius=4,
+                    font=get_font(10),
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     command=lambda p=sec_val: self._copy_val(p, "Attached secret copied (30s wipe)", is_sensitive=True),
@@ -2402,9 +2479,11 @@ class DashboardView(ctk.CTkFrame):
             elif child.username:
                 ctk.CTkButton(
                     act_box,
-                    text="👤",
-                    width=24,
-                    height=24,
+                    text="User",
+                    width=38,
+                    height=22,
+                    corner_radius=4,
+                    font=get_font(10),
                     fg_color=BG_INPUT,
                     hover_color=BORDER_COLOR,
                     command=lambda u=child.username: self._copy_val(u, "Attached username copied"),
@@ -2412,9 +2491,11 @@ class DashboardView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 act_box,
-                text="↗️",
-                width=24,
-                height=24,
+                text="Open",
+                width=38,
+                height=22,
+                corner_radius=4,
+                font=get_font(10),
                 fg_color=BG_INPUT,
                 hover_color=ACCENT_HOVER,
                 command=lambda c=child: self._select_entry(c),

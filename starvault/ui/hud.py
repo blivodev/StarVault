@@ -99,7 +99,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
         # Close / Full window button
         ctk.CTkButton(
             search_row,
-            text="🖥️ Full Vault",
+            text="Full Vault",
             width=90,
             height=34,
             fg_color=BG_INPUT,
@@ -273,7 +273,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if dom_val:
                 ctk.CTkButton(
                     btn_col,
-                    text="🌐 Domain",
+                    text="Domain",
                     width=70,
                     height=28,
                     fg_color=BG_INPUT,
@@ -285,7 +285,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if getattr(entry, "username", ""):
                 ctk.CTkButton(
                     btn_col,
-                    text="👤 User",
+                    text="User",
                     width=60,
                     height=28,
                     fg_color=BG_INPUT,
@@ -297,7 +297,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if getattr(entry, "password", ""):
                 ctk.CTkButton(
                     btn_col,
-                    text="🔑 Pass",
+                    text="Pass",
                     width=60,
                     height=28,
                     fg_color=BG_INPUT,
@@ -310,7 +310,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if getattr(entry, "registrar", ""):
                 ctk.CTkButton(
                     btn_col,
-                    text="🏢 Reg",
+                    text="Registrar",
                     width=60,
                     height=28,
                     fg_color=BG_INPUT,
@@ -322,7 +322,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if getattr(entry, "auth_code", ""):
                 ctk.CTkButton(
                     btn_col,
-                    text="🔐 EPP",
+                    text="EPP",
                     width=60,
                     height=28,
                     fg_color=BG_INPUT,
@@ -336,7 +336,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if entry.hostname:
                 ctk.CTkButton(
                     btn_col,
-                    text="📋 IP",
+                    text="IP",
                     width=60,
                     height=28,
                     fg_color=BG_INPUT,
@@ -347,7 +347,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
 
             ctk.CTkButton(
                 btn_col,
-                text="⚡ SSH",
+                text="SSH",
                 width=65,
                 height=28,
                 fg_color=BG_INPUT,
@@ -360,7 +360,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if entry.password:
                 ctk.CTkButton(
                     btn_col,
-                    text="🔑 Pass",
+                    text="Pass",
                     width=65,
                     height=28,
                     fg_color=BG_INPUT,
@@ -374,7 +374,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if entry.url or entry.hostname:
                 ctk.CTkButton(
                     btn_col,
-                    text="🌐 URL",
+                    text="URL",
                     width=65,
                     height=28,
                     fg_color=BG_INPUT,
@@ -386,7 +386,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if "postgres" in (entry.service_type or "") or "mysql" in (entry.service_type or "") or "redis" in (entry.service_type or ""):
                 ctk.CTkButton(
                     btn_col,
-                    text="🗄️ DB URL",
+                    text="DB URL",
                     width=75,
                     height=28,
                     fg_color=BG_INPUT,
@@ -399,7 +399,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if entry.api_token:
                 ctk.CTkButton(
                     btn_col,
-                    text="🎟️ Token",
+                    text="Token",
                     width=65,
                     height=28,
                     fg_color=BG_INPUT,
@@ -412,7 +412,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             elif entry.password:
                 ctk.CTkButton(
                     btn_col,
-                    text="🔑 Pass",
+                    text="Pass",
                     width=65,
                     height=28,
                     fg_color=BG_INPUT,
@@ -426,7 +426,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if entry.public_key:
                 ctk.CTkButton(
                     btn_col,
-                    text="📋 PubKey",
+                    text="PubKey",
                     width=75,
                     height=28,
                     fg_color=BG_INPUT,
@@ -438,7 +438,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
             if entry.private_key:
                 ctk.CTkButton(
                     btn_col,
-                    text="🔐 PrivKey",
+                    text="PrivKey",
                     width=75,
                     height=28,
                     fg_color=BG_INPUT,

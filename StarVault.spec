@@ -2,7 +2,7 @@
 
 from PyInstaller.utils.hooks import collect_all
 
-datas = []
+datas = [('starvault/resources', 'starvault/resources')]
 binaries = []
 hiddenimports = [
     "PIL",

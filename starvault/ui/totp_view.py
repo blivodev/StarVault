@@ -90,7 +90,7 @@ class TotpView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             title_box,
-            text="📱 MFA / 2FA Authenticator & QR Studio",
+            text="MFA / 2FA Authenticator & QR Studio",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -289,7 +289,7 @@ class TotpView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 right_col,
-                text="📋 Copy Code",
+                text="Copy Code",
                 font=get_font(11, "bold"),
                 width=100,
                 height=32,
@@ -478,7 +478,7 @@ class TotpView(ctk.CTkFrame):
 
         ctk.CTkButton(
             gen_btn_row,
-            text="⚡ Render Code",
+            text="Generate Code",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -489,7 +489,7 @@ class TotpView(ctk.CTkFrame):
 
         ctk.CTkButton(
             gen_btn_row,
-            text="📷 Scan File...",
+            text="Scan Image File...",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -511,7 +511,7 @@ class TotpView(ctk.CTkFrame):
 
         ctk.CTkButton(
             export_row,
-            text="💾 Save PNG...",
+            text="Save QR PNG...",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,

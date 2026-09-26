@@ -261,7 +261,7 @@ class EntryDialog(ctk.CTkToplevel):
         # Multiple Services
         col_services = ctk.CTkFrame(row_groups_services, fg_color="transparent")
         col_services.pack(side="right", fill="x", expand=True, padx=(8, 0))
-        ctk.CTkLabel(col_services, text="🌐 Services (comma-separated, e.g. 'Postgres, Next.js, API')", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        ctk.CTkLabel(col_services, text="Services (comma-separated, e.g. 'Postgres, Next.js, API')", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
         self.services_entry = ctk.CTkEntry(
             col_services,
             placeholder_text="Postgres, Next.js, Stripe",
@@ -390,7 +390,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             pass_row,
-            text="⚡ Use New",
+            text="Generate",
             font=get_font(11, "bold"),
             width=78,
             height=36,
@@ -402,7 +402,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             pass_row,
-            text="🎲",
+            text="Options",
             width=36,
             height=36,
             fg_color=BG_INPUT,
@@ -437,9 +437,9 @@ class EntryDialog(ctk.CTkToplevel):
         self.server_key_text.pack(fill="x", pady=(4, 0))
 
         # Parent Domain Dropdown
-        self._create_parent_domain_dropdown(container, "🌐 Associated Primary Domain / URL (Optional)")
+        self._create_parent_domain_dropdown(container, "Associated Primary Domain / URL (Optional)")
 
-    def _create_parent_domain_dropdown(self, parent_container, label_text="🌐 Attached Domain / URL (Grouping)"):
+    def _create_parent_domain_dropdown(self, parent_container, label_text="Attached Domain / URL"):
         row_domain = ctk.CTkFrame(parent_container, fg_color="transparent")
         row_domain.pack(fill="x", padx=16, pady=(4, 10))
         ctk.CTkLabel(row_domain, text=label_text, font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
@@ -469,7 +469,7 @@ class EntryDialog(ctk.CTkToplevel):
     def _render_domain_form(self, container):
         ctk.CTkLabel(
             container,
-            text="🌐 DOMAIN ASSET & REGISTRATION DETAILS",
+            text="DOMAIN ASSET & REGISTRATION DETAILS",
             font=get_font(11, "bold"),
             text_color=ACCENT_EMERALD,
         ).pack(anchor="w", padx=16, pady=(12, 6))
@@ -679,7 +679,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             dom_pass_row,
-            text="⚡ Use New",
+            text="Generate",
             font=get_font(11, "bold"),
             width=78,
             height=36,
@@ -691,7 +691,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             dom_pass_row,
-            text="🎲",
+            text="Options",
             width=36,
             height=36,
             fg_color=BG_INPUT,
@@ -805,7 +805,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         col_server = ctk.CTkFrame(row_parent, fg_color="transparent")
         col_server.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        ctk.CTkLabel(col_server, text="🖥️ Parent Server / VPS (Hierarchy)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        ctk.CTkLabel(col_server, text="Parent Server / VPS", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
 
         server_options = ["None (Standalone)"]
         self.server_id_map = {"None (Standalone)": None}
@@ -826,7 +826,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         col_domain = ctk.CTkFrame(row_parent, fg_color="transparent")
         col_domain.pack(side="right", fill="x", expand=True, padx=(8, 0))
-        ctk.CTkLabel(col_domain, text="🌐 Attached Domain / URL (Grouping)", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        ctk.CTkLabel(col_domain, text="Attached Domain / URL", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
 
         domain_options = ["None (Standalone)"]
         self.domain_id_map = {"None (Standalone)": None}
@@ -909,7 +909,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             pass_row,
-            text="⚡ Use New",
+            text="Generate",
             font=get_font(11, "bold"),
             width=78,
             height=36,
@@ -921,7 +921,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             pass_row,
-            text="🎲",
+            text="Options",
             width=36,
             height=36,
             fg_color=BG_INPUT,
@@ -1012,7 +1012,7 @@ class EntryDialog(ctk.CTkToplevel):
         self.key_priv_text.pack(fill="x", pady=(4, 0))
 
         # Parent Domain Dropdown
-        self._create_parent_domain_dropdown(container, "🌐 Associated Domain / Host (Optional)")
+        self._create_parent_domain_dropdown(container, "Associated Domain / Host (Optional)")
 
     def _quick_fill_generated_password(self, target_entry: ctk.CTkEntry):
         """Instant one-click password generation and direct placement."""
@@ -1029,7 +1029,7 @@ class EntryDialog(ctk.CTkToplevel):
         ).pack(anchor="w", padx=16, pady=(12, 6))
 
         # Attached Domain Dropdown
-        self._create_parent_domain_dropdown(container, "🌐 Associated Domain / Project URL (Optional)")
+        self._create_parent_domain_dropdown(container, "Associated Domain / Project URL (Optional)")
 
         # Row 1: Provider / Service & Environment
         row1 = ctk.CTkFrame(container, fg_color="transparent")
@@ -1101,7 +1101,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             token_input_row,
-            text="⚡ Generate & Use",
+            text="Generate Key",
             font=get_font(11, "bold"),
             width=130,
             height=36,
@@ -1329,7 +1329,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_row,
-            text="⚡ Use this password",
+            text="Apply Password",
             width=160,
             command=use_password,
             fg_color=ACCENT_PRIMARY,

@@ -30,6 +30,12 @@ from starvault.ui.theme import (
     apply_theme,
     get_available_themes,
     get_current_theme,
+    get_available_ui_fonts,
+    get_available_mono_fonts,
+    set_ui_font_family,
+    set_mono_font_family,
+    ACTIVE_UI_FONT,
+    ACTIVE_MONO_FONT,
     get_font,
     get_mono_font,
 )
@@ -148,14 +154,20 @@ class SettingsDialog(ctk.CTkToplevel):
         self.clip_combo.set(current_clip_str)
         self.clip_combo.pack(side="right")
 
-        # 1.5 UI Theme Card
-        theme_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
+        # 1.5 UI Theme & Typography Card
+        theme_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=8, border_width=1, border_color=BORDER_COLOR)
         theme_card.pack(fill="x", pady=(0, 16), padx=4)
 
-        ctk.CTkLabel(theme_card, text="🎨 UI THEME & APPEARANCE (LIGHT / DARK / TRENDY / CONSOLE)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 6))
+        ctk.CTkLabel(
+            theme_card,
+            text="APPEARANCE & OPEN-SOURCE TYPOGRAPHY",
+            font=get_font(11, "bold"),
+            text_color=ACCENT_PRIMARY,
+        ).pack(anchor="w", padx=16, pady=(12, 8))
 
+        # Color Theme Selector
         row_theme = ctk.CTkFrame(theme_card, fg_color="transparent")
-        row_theme.pack(fill="x", padx=16, pady=(0, 14))
+        row_theme.pack(fill="x", padx=16, pady=(0, 8))
 
         ctk.CTkLabel(row_theme, text="Color Theme Style", font=get_font(12), text_color=TEXT_PRIMARY).pack(side="left")
 
@@ -165,11 +177,77 @@ class SettingsDialog(ctk.CTkToplevel):
             values=get_available_themes(),
             fg_color=BG_INPUT,
             border_color=BORDER_COLOR,
-            width=160,
+            width=180,
             command=self._on_theme_selected,
         )
         self.theme_combo.set(current_theme_name)
         self.theme_combo.pack(side="right")
+
+        # UI Font Selector (Open-Source)
+        row_uifont = ctk.CTkFrame(theme_card, fg_color="transparent")
+        row_uifont.pack(fill="x", padx=16, pady=(0, 8))
+
+        ctk.CTkLabel(
+            row_uifont,
+            text="Application UI Font",
+            font=get_font(12),
+            text_color=TEXT_PRIMARY,
+        ).pack(side="left")
+
+        self.uifont_combo = ctk.CTkComboBox(
+            row_uifont,
+            values=get_available_ui_fonts(),
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            width=180,
+            command=self._on_ui_font_selected,
+        )
+        self.uifont_combo.set(ACTIVE_UI_FONT)
+        self.uifont_combo.pack(side="right")
+
+        # Monospace Font Selector (Open-Source)
+        row_monofont = ctk.CTkFrame(theme_card, fg_color="transparent")
+        row_monofont.pack(fill="x", padx=16, pady=(0, 12))
+
+        ctk.CTkLabel(
+            row_monofont,
+            text="Code & Secret Monospace Font",
+            font=get_font(12),
+            text_color=TEXT_PRIMARY,
+        ).pack(side="left")
+
+        self.monofont_combo = ctk.CTkComboBox(
+            row_monofont,
+            values=get_available_mono_fonts(),
+            fg_color=BG_INPUT,
+            border_color=BORDER_COLOR,
+            width=180,
+            command=self._on_mono_font_selected,
+        )
+        self.monofont_combo.set(ACTIVE_MONO_FONT)
+        self.monofont_combo.pack(side="right")
+
+        # Live Typography Sample Preview
+        self.font_sample_box = ctk.CTkFrame(theme_card, fg_color=BG_INPUT, corner_radius=6)
+        self.font_sample_box.pack(fill="x", padx=16, pady=(0, 14))
+
+        self.font_sample_ui_lbl = ctk.CTkLabel(
+            self.font_sample_box,
+            text=f"UI Sample: The quick brown fox jumps over the lazy dog ({ACTIVE_UI_FONT})",
+            font=get_font(11),
+            text_color=TEXT_SECONDARY,
+            anchor="w",
+        )
+        self.font_sample_ui_lbl.pack(fill="x", padx=10, pady=(6, 2))
+
+        self.font_sample_mono_lbl = ctk.CTkLabel(
+            self.font_sample_box,
+            text=f"Mono: 0123456789 • SHA-256: 4a2b9f... • ed25519 ({ACTIVE_MONO_FONT})",
+            font=get_mono_font(11),
+            text_color=ACCENT_PRIMARY,
+            anchor="w",
+        )
+        self.font_sample_mono_lbl.pack(fill="x", padx=10, pady=(2, 6))
 
         # 2. Master Password Change Card
         pwd_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
@@ -808,6 +886,22 @@ class SettingsDialog(ctk.CTkToplevel):
                 self.database.update_settings({"theme": theme_name})
             except Exception:
                 pass
+
+    def _on_ui_font_selected(self, font_name: str):
+        set_ui_font_family(font_name)
+        if hasattr(self, "font_sample_ui_lbl"):
+            self.font_sample_ui_lbl.configure(
+                text=f"UI Sample: The quick brown fox jumps over the lazy dog ({font_name})",
+                font=get_font(11),
+            )
+
+    def _on_mono_font_selected(self, font_name: str):
+        set_mono_font_family(font_name)
+        if hasattr(self, "font_sample_mono_lbl"):
+            self.font_sample_mono_lbl.configure(
+                text=f"Mono: 0123456789 • SHA-256: 4a2b9f... • ed25519 ({font_name})",
+                font=get_mono_font(11),
+            )
 
     def _prompt_master_password(self, on_authenticated: Callable[[str, Optional[str]], None]):
         """Prompts user for master password authentication before performing sensitive exports."""

@@ -5,7 +5,20 @@
  */
 
 const BRIDGE_URL = "http://127.0.0.1:8088";
-const THEMES = ["dark", "nord", "dracula", "console", "cyberpunk", "light"];
+const THEMES = [
+  "dark",
+  "oled",
+  "tokyo",
+  "catppuccin",
+  "gruvbox",
+  "one dark",
+  "solarized",
+  "nord",
+  "dracula",
+  "console",
+  "cyberpunk",
+  "light"
+];
 
 let currentTabUrl = "";
 let currentTabDomain = "";

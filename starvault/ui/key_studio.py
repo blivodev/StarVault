@@ -70,7 +70,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             header,
-            text="🔑 Key Studio & Inspector",
+            text="Key Studio & Inspector",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left", padx=24, pady=16)
@@ -142,7 +142,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.gen_btn = ctk.CTkButton(
             action_row,
-            text="⚡ Generate New Keypair",
+            text="Generate Keypair",
             font=get_font(13, "bold"),
             height=40,
             fg_color=ACCENT_PRIMARY,
@@ -287,14 +287,14 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
     def _on_generation_complete(self, result: GeneratedKeyResult):
         self.current_key = result
-        self.gen_btn.configure(state="normal", text="⚡ Generate New Keypair")
+        self.gen_btn.configure(state="normal", text="Generate Keypair")
         self.gen_status_label.configure(text=f"✓ Successfully generated {result.algorithm_name}", text_color=COLOR_SUCCESS)
 
         self._private_revealed = False
         self._populate_inspector(result)
 
     def _on_generation_error(self, err_msg: str):
-        self.gen_btn.configure(state="normal", text="⚡ Generate New Keypair")
+        self.gen_btn.configure(state="normal", text="Generate Keypair")
         self.gen_status_label.configure(text=f"Generation failed: {err_msg}", text_color=COLOR_DANGER)
 
     def _build_inspector_card(self):
@@ -356,7 +356,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
         ctk.CTkLabel(pub_header, text="Public Key", font=get_font(12, "bold"), text_color=TEXT_SECONDARY).pack(side="left")
         ctk.CTkButton(
             pub_header,
-            text="📋 Copy Public Key",
+            text="Copy Public Key",
             width=120,
             height=26,
             fg_color=BG_INPUT,
@@ -376,7 +376,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.reveal_btn = ctk.CTkButton(
             priv_header,
-            text="👁 Click to Reveal",
+            text="Reveal Secret",
             width=110,
             height=26,
             fg_color=BG_INPUT,
@@ -388,7 +388,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             priv_header,
-            text="📋 Copy (30s wipe)",
+            text="Copy (30s wipe)",
             width=130,
             height=26,
             fg_color=BG_INPUT,
@@ -409,7 +409,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.export_pub_btn = ctk.CTkButton(
             export_row,
-            text="💾 Save Public Key / Cert...",
+            text="Save Public Key...",
             height=34,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -419,7 +419,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.export_pem_btn = ctk.CTkButton(
             export_row,
-            text="💾 Save Private Key...",
+            text="Save Private Key...",
             height=34,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -440,7 +440,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.export_bundle_btn = ctk.CTkButton(
             export_row,
-            text="📦 Export Both to Folder...",
+            text="Export Both to Folder...",
             font=get_font(11, "bold"),
             height=34,
             fg_color=ACCENT_INDIGO,
@@ -516,12 +516,12 @@ class KeyStudioDialog(ctk.CTkToplevel):
         self.priv_textbox.delete("1.0", "end")
         if self._private_revealed:
             self.priv_textbox.insert("1.0", self.current_key.private_key)
-            self.reveal_btn.configure(text="🔒 Hide Private Key")
+            self.reveal_btn.configure(text="Hide Secret")
         else:
             masked = "••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••••\n" * 4
             masked += "[Click 'Reveal Private Key' to view plain text contents]"
             self.priv_textbox.insert("1.0", masked)
-            self.reveal_btn.configure(text="👁 Click to Reveal")
+            self.reveal_btn.configure(text="Reveal Secret")
 
     def _toggle_reveal_private(self):
         self._private_revealed = not self._private_revealed
