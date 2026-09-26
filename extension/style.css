@@ -692,6 +692,25 @@ body {
   margin-bottom: 8px;
 }
 
+.state-badge {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.8px;
+  padding: 4px 10px;
+  border-radius: 4px;
+  margin-bottom: 12px;
+  background-color: rgba(245, 158, 11, 0.15);
+  color: var(--warning);
+  border: 1px solid rgba(245, 158, 11, 0.3);
+}
+
+.state-badge-warn {
+  background-color: rgba(239, 68, 68, 0.15);
+  color: var(--danger);
+  border-color: rgba(239, 68, 68, 0.3);
+}
+
 .state-view h3 {
   font-size: 14px;
   margin-bottom: 4px;
