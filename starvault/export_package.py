@@ -756,6 +756,12 @@ def _import_csv_text(
             entry.domain_name = row_dict["domain name"]
         if "registrar" in row_dict and row_dict["registrar"]:
             entry.registrar = row_dict["registrar"]
+        if "registration date" in row_dict and row_dict["registration date"]:
+            entry.registered_at = row_dict["registration date"]
+        elif "registered at" in row_dict and row_dict["registered at"]:
+            entry.registered_at = row_dict["registered at"]
+        if "renewal cost" in row_dict and row_dict["renewal cost"]:
+            entry.renewal_cost = row_dict["renewal cost"]
         if "auto renew" in row_dict and row_dict["auto renew"]:
             entry.auto_renew = row_dict["auto renew"].lower() in ("true", "1", "yes")
         if "dns provider" in row_dict and row_dict["dns provider"]:
