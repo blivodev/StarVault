@@ -299,6 +299,7 @@ class GroupsView(ctk.CTkFrame):
 
         if not grouped_data:
             self._entry_rows.clear()
+            self._render_chunk_cursor = None
             for child in self.scroll_frame.winfo_children():
                 child.destroy()
             empty_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
@@ -326,10 +327,32 @@ class GroupsView(ctk.CTkFrame):
         self._rendered_signature = sig
 
         # Full rebuild (mode switches / searches / data changes).
+        # Rendering is chunked across idle ticks so a large vault (many rows)
+        # doesn't freeze the UI while this tab builds.
         for child in self.scroll_frame.winfo_children():
             child.destroy()
+        self._render_chunk_cursor = 0
+        self._render_chunk_data = list(sorted(grouped_data.items()))
+        self._render_chunk_step()
 
-        for group_name, items in sorted(grouped_data.items()):
+    def _render_chunk_step(self):
+        """Builds group sections in slices across idle ticks (chunked render).
+
+        Each tick renders up to _rows_per_tick rows so a large vault doesn't
+        freeze the UI while this tab builds.
+        """
+        cursor = getattr(self, "_render_chunk_cursor", None)
+        data = getattr(self, "_render_chunk_data", None)
+        if cursor is None or data is None:
+            return
+
+        rows_this_tick = 0
+        max_rows = getattr(self, "_rows_per_tick", 15)
+
+        while cursor < len(data) and rows_this_tick < max_rows:
+            group_name, items = data[cursor]
+            cursor += 1
+
             # Initialize expanded state if not present
             if group_name not in self.expanded_groups:
                 self.expanded_groups[group_name] = True
@@ -337,11 +360,20 @@ class GroupsView(ctk.CTkFrame):
             is_expanded = self.expanded_groups[group_name]
             items_frame = self._render_group_section(group_name, items, is_expanded)
 
-            if not is_expanded:
-                continue
+            if is_expanded:
+                for entry in items:
+                    self._render_entry_row(items_frame, entry)
+                rows_this_tick += len(items)
+            else:
+                rows_this_tick += 1
 
-            for entry in items:
-                self._render_entry_row(items_frame, entry)
+        self._render_chunk_cursor = cursor
+
+        if cursor < len(data):
+            self.after_idle(self._render_chunk_step)
+        else:
+            self._render_chunk_cursor = None
+            self._render_chunk_data = None
 
     def _render_group_section(self, group_name: str, items: List[VaultEntry], is_expanded: bool) -> ctk.CTkFrame:
         # Group Header Container
