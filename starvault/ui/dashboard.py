@@ -98,8 +98,6 @@ class DashboardView(ctk.CTkFrame):
         self._card_meta = {}
         self._rendered_ids = []
         self._highlighted_selection = None
-        self._pending_cards = None
-        self._max_cards_per_tick = 8
         self._rendered_limit = 35
         self.selected_entry_ids: Set[str] = set()
         self.last_clicked_id: Optional[str] = None
@@ -110,33 +108,6 @@ class DashboardView(ctk.CTkFrame):
         self.reload_entries()
         self._schedule_autolock_ui_update()
         self._setup_hotkeys()
-        # Pre-warm the heavy sub-views in the background (idle) so the first
-        # switch to Groups / Health / Crypto Tools doesn't stall the UI.
-        self._prewarm_view = None
-        self._prewarm_queue = ["groups", "health", "crypto"]
-        self.after_idle(self._prewarm_next_view)
-
-    def _prewarm_next_view(self):
-        """Builds heavy sub-views in idle time so first tab switch is instant.
-
-        Each view is constructed once and kept; construction runs in idle ticks
-        so it never blocks input.
-        """
-        if not getattr(self, "_prewarm_queue", None):
-            return
-        name = self._prewarm_queue.pop(0)
-        try:
-            if name == "groups":
-                self._get_groups_view()
-            elif name == "health":
-                self._get_health_view()
-            elif name == "crypto":
-                self._get_crypto_tools_view()
-        except Exception:
-            pass
-        # Continue pre-warming on the next idle tick (not synchronously)
-        if self._prewarm_queue:
-            self.after_idle(self._prewarm_next_view)
 
     def update_session_key(self, new_key: bytes):
         self.session_key = new_key
@@ -892,7 +863,6 @@ class DashboardView(ctk.CTkFrame):
         # Incremental render: reuse existing card widgets when possible instead of
         # destroying and recreating every card on each search keystroke / filter change.
         # Recreating ~350 widgets per keystroke was the dominant UI cost (~1.5s).
-        # Large rebuilds are chunked across idle ticks so the UI stays responsive.
         limit = self._rendered_limit
 
         # 1. Compute the set of entries that should be visible now
@@ -945,15 +915,10 @@ class DashboardView(ctk.CTkFrame):
                 del existing[eid]
                 self._card_meta.pop(eid, None)
 
-        # 3. Create / refresh cards in order, but chunk large rebuilds so a
-        #    heavy keystroke doesn't block the UI for a second. Cards already
-        #    present are reordered immediately (cheap); only NEW cards are chunked.
+        # 3. Create / refresh cards in order. Only repack (reorder) when the
+        #    actual order changed — avoid re-packing on every keystroke.
         reorder_needed = (rendered_ids != new_ids)
-        created_this_tick = 0
-        max_per_tick = getattr(self, "_max_cards_per_tick", 8)
-        deferred = False
-
-        for pos, entry in enumerate(to_show):
+        for entry in to_show:
             card = existing.get(entry.id)
             meta = self._card_meta.get(entry.id)
             # Card is stale if it was created for a different version of the entry
@@ -966,23 +931,15 @@ class DashboardView(ctk.CTkFrame):
                 del existing[entry.id]
                 card = None
             if card is None:
-                if created_this_tick >= max_per_tick:
-                    # Defer the rest to idle ticks so typing stays responsive
-                    deferred = True
-                    break
                 card = self._render_entry_card(entry)
                 existing[entry.id] = card
                 self._card_meta[entry.id] = (entry.updated_at, entry.is_favorite)
-                created_this_tick += 1
             if reorder_needed:
                 # Repack so ordering follows the current result order
                 card.pack_forget()
                 card.pack(fill="x", pady=4, padx=4)
 
-        self._rendered_ids = new_ids[:pos] if deferred else new_ids
-        if deferred:
-            self._pending_cards = new_ids[pos:]
-            self.after_idle(self._finish_pending_cards)
+        self._rendered_ids = new_ids
         # Reapply selection highlights once after the batch (cheap, skips unchanged)
         self._refresh_card_highlights()
 
@@ -1009,16 +966,6 @@ class DashboardView(ctk.CTkFrame):
             if btn_more is not None and btn_more.winfo_exists():
                 btn_more.destroy()
                 self._show_more_btn = None
-
-    def _finish_pending_cards(self):
-        """Continues building cards deferred by _render_cards in earlier idle ticks."""
-        pending = getattr(self, "_pending_cards", None)
-        if not pending:
-            return
-        self._pending_cards = None
-        # Re-run the render; cards already created are reordered cheaply, the
-        # remaining new ones are created (and chunked again if still huge).
-        self._render_cards()
 
     def _sync_card_state(self, card, entry: VaultEntry):
         """Updates a card's dynamic visuals without rebuilding it.
