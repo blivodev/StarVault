@@ -55,6 +55,8 @@ class QuickSearchHUD(ctk.CTkToplevel):
 
         self.selected_index = 0
         self.current_results: List[VaultEntry] = []
+        self._entries_cache: Optional[List[VaultEntry]] = None
+        self._result_rows = {}
 
         self._build_ui()
         self.bind("<Escape>", lambda e: self.hide_hud())
@@ -128,6 +130,15 @@ class QuickSearchHUD(ctk.CTkToplevel):
         self.focus_force()
         self.search_entry.focus_set()
         self.search_entry.select_range(0, "end")
+        # Refresh the decrypted-entry cache each time the HUD is summoned so
+        # changes made in the main window are reflected.
+        self._entries_cache = self.get_entries_func()
+        self._refresh_results()
+
+    def refresh_entries(self):
+        """Invalidates the cached decrypted entries (call after vault edits)."""
+        self._entries_cache = None
+        self._result_rows.clear()
         self._refresh_results()
 
     def hide_hud(self):
@@ -144,16 +155,32 @@ class QuickSearchHUD(ctk.CTkToplevel):
 
     def _refresh_results(self):
         query = self.search_entry.get()
-        entries = self.get_entries_func()
+        # Cache decrypted entries across keystrokes — get_all_entries() decrypts
+        # every payload each call, which was a major per-keystroke cost.
+        if self._entries_cache is None:
+            self._entries_cache = self.get_entries_func()
+        entries = self._entries_cache
 
         scored = search_entries(entries, query, selected_category="All")
         self.current_results = [e for e, score in scored[:30]]  # Top 30
 
-        # Clear scroll area
-        for child in self.results_scroll.winfo_children():
-            child.destroy()
+        # Incremental result list: rebuild only rows whose entry changed.
+        # Destroying and recreating all 30 rows per keystroke was the other big cost.
+        new_ids = [e.id for e in self.current_results]
+
+        # Remove rows no longer in the result set
+        for eid in [k for k in self._result_rows if k not in set(new_ids)]:
+            try:
+                self._result_rows[eid].destroy()
+            except Exception:
+                pass
+            del self._result_rows[eid]
 
         if not self.current_results:
+            self._result_rows.clear()
+            for child in self.results_scroll.winfo_children():
+                child.destroy()
+            self._highlighted_index = None
             empty_lbl = ctk.CTkLabel(
                 self.results_scroll,
                 text="No matching credentials or services found.",
@@ -163,8 +190,24 @@ class QuickSearchHUD(ctk.CTkToplevel):
             empty_lbl.pack(pady=40)
             return
 
+        # Only repack (reorder) rows when the result order actually changed.
+        # Rows are keyed by entry id so the set can be identical while typing.
+        prev_ids = getattr(self, "_rendered_result_ids", [])
+        reorder_needed = prev_ids != new_ids
+
         for idx, entry in enumerate(self.current_results):
-            self._render_result_row(idx, entry)
+            row = self._result_rows.get(entry.id)
+            if row is None:
+                row = self._render_result_row(idx, entry)
+                self._result_rows[entry.id] = row
+            if reorder_needed:
+                # Repack so ordering follows the current result order
+                row.pack_forget()
+                row.pack(fill="x", pady=3, padx=2)
+
+        self._rendered_result_ids = new_ids
+        # Result set changed: do a full highlight pass over visible rows
+        self._highlight_all()
 
     def _render_result_row(self, idx: int, entry: VaultEntry):
         is_selected = idx == self.selected_index
@@ -281,7 +324,6 @@ class QuickSearchHUD(ctk.CTkToplevel):
                     font=get_font(11),
                     command=lambda e=entry: self._copy_val(getattr(e, "domain_name", "") or e.url, "Domain URL copied"),
                 ).pack(side="left", padx=2)
-
             if getattr(entry, "username", ""):
                 ctk.CTkButton(
                     btn_col,
@@ -448,6 +490,8 @@ class QuickSearchHUD(ctk.CTkToplevel):
                     command=lambda e=entry: self._copy_val(e.private_key, "Private key copied (30s wipe)", is_sensitive=True),
                 ).pack(side="left", padx=2)
 
+        return row
+
     def _copy_val(self, val: str, label: str, is_sensitive: bool = False):
         self.clipboard_mgr.copy(val, label=label, is_sensitive=is_sensitive)
         self.toast_label.configure(text=f"✓ {label}")
@@ -457,12 +501,53 @@ class QuickSearchHUD(ctk.CTkToplevel):
     def _on_arrow_down(self, event):
         if self.current_results:
             self.selected_index = min(len(self.current_results) - 1, self.selected_index + 1)
-            self._refresh_results()
+            self._highlight_selection()
 
     def _on_arrow_up(self, event):
         if self.current_results:
             self.selected_index = max(0, self.selected_index - 1)
-            self._refresh_results()
+            self._highlight_selection()
+
+    def _highlight_all(self):
+        """Highlights all visible rows based on the current selection index."""
+        for idx, entry in enumerate(self.current_results):
+            row = self._result_rows.get(entry.id)
+            if row is None:
+                continue
+            is_selected = idx == self.selected_index
+            try:
+                row.configure(
+                    fg_color=BG_CARD_HOVER if is_selected else BG_CARD,
+                    border_color=ACCENT_PRIMARY if is_selected else BORDER_COLOR,
+                )
+            except Exception:
+                pass
+        self._highlighted_index = self.selected_index
+
+    def _highlight_selection(self):
+        """Re-applies the selected-row highlight without rebuilding rows.
+
+        Only the previously-selected and newly-selected rows change per arrow
+        press, so reconfigure just those two.
+        """
+        prev_idx = getattr(self, "_highlighted_index", None)
+        idxs = {prev_idx, self.selected_index} if prev_idx is not None else {self.selected_index}
+        for idx in idxs:
+            if idx < 0 or idx >= len(self.current_results):
+                continue
+            entry = self.current_results[idx]
+            row = self._result_rows.get(entry.id)
+            if row is None:
+                continue
+            is_selected = idx == self.selected_index
+            try:
+                row.configure(
+                    fg_color=BG_CARD_HOVER if is_selected else BG_CARD,
+                    border_color=ACCENT_PRIMARY if is_selected else BORDER_COLOR,
+                )
+            except Exception:
+                pass
+        self._highlighted_index = self.selected_index
 
     def _on_enter_press(self, event):
         if self.current_results and 0 <= self.selected_index < len(self.current_results):

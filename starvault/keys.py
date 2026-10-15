@@ -12,14 +12,9 @@ import struct
 from typing import Any, Dict, List, Optional, Tuple, Union
 from cryptography.hazmat.primitives import serialization
 from cryptography.hazmat.primitives.asymmetric import ed25519, rsa
-import pgpy
-from pgpy.constants import (
-    CompressionAlgorithm,
-    HashAlgorithm,
-    KeyFlags,
-    PubKeyAlgorithm,
-    SymmetricKeyAlgorithm,
-)
+
+# pgpy is heavy (~100ms) and only needed for OpenPGP/GPG operations — import lazily
+# inside functions so application startup doesn't pay the cost.
 
 
 @dataclass
@@ -189,6 +184,15 @@ def generate_gpg_key(
     bits: int = 2048,
 ) -> GeneratedKeyResult:
     """Generates an OpenPGP / GPG keypair with armored public and private outputs."""
+    import pgpy
+    from pgpy.constants import (
+        CompressionAlgorithm,
+        HashAlgorithm,
+        KeyFlags,
+        PubKeyAlgorithm,
+        SymmetricKeyAlgorithm,
+    )
+
     key = pgpy.PGPKey.new(PubKeyAlgorithm.RSAEncryptOrSign, bits)
     uid = pgpy.PGPUID.new(name, email=email, comment=comment)
 
@@ -313,6 +317,7 @@ def parse_and_import_key(
     # 1. OpenPGP / GPG Armored Key
     if "BEGIN PGP" in clean_text:
         try:
+            import pgpy
             pgp_key, _ = pgpy.PGPKey.from_blob(clean_text)
             kt = "gpg"
             algo_name = f"OpenPGP ({pgp_key.pubkey_algorithm.name})"

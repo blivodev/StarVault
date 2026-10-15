@@ -263,6 +263,8 @@ class StarVaultApp(ctk.CTk):
 
         self.session.lock()
         self.clipboard_mgr.cancel_timer()
+        if hasattr(self, "extension_bridge") and self.extension_bridge:
+            self.extension_bridge.invalidate_cache()
 
         if self.hud_window and self.hud_window.winfo_exists():
             self.hud_window.hide_hud()

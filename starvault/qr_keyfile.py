@@ -7,8 +7,9 @@ and high-speed image decoding via OpenCV QRCodeDetector.
 from pathlib import Path
 import secrets
 from typing import Optional
-import cv2
-import numpy as np
+
+# cv2 / numpy are heavy (~100ms) and only needed for QR decoding — import lazily
+# inside functions so application startup doesn't pay the cost.
 from PIL import Image
 import qrcode
 from qrcode.constants import ERROR_CORRECT_H
@@ -70,6 +71,8 @@ def read_keyfile_token(file_path: str) -> str:
 
     # 1. Try decoding as an image with OpenCV
     try:
+        import cv2
+        import numpy as np
         # Read file bytes first to avoid path encoding issues on Windows
         with open(p, "rb") as f:
             file_bytes = f.read()

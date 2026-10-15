@@ -65,6 +65,25 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             return True
         return False
 
+    def _invalidate_cache(self):
+        """Invalidates the server-level entries cache when present (tests may omit it)."""
+        fn = getattr(self.server, "invalidate_cache", None)
+        if fn is not None:
+            fn()
+
+    def _get_entries(self):
+        """Returns decrypted entries, using the server-level cache when available.
+
+        Falls back to a plain get_all_entries for lightweight/test server setups
+        that don't attach the cache attributes.
+        """
+        server = getattr(self, "server", None)
+        cache_fn = getattr(server, "get_cached_entries", None)
+        if cache_fn is not None:
+            return cache_fn()
+        key = self.server.get_session_key()
+        return self.server.database.get_all_entries(key) if key else []
+
     def do_GET(self):
         parsed = urlparse(self.path)
         if parsed.path == "/api/status":
@@ -93,7 +112,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 self._send_cors_headers(401)
                 self.wfile.write(json.dumps({"error": "Vault is locked. Please unlock StarVault first."}).encode("utf-8"))
                 return
-            entries = self.server.database.get_all_entries(session_key)
+            entries = self._get_entries()
             audit = audit_vault_neural(entries)
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({
@@ -119,7 +138,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 self._send_cors_headers(401)
                 self.wfile.write(json.dumps({"error": "Vault is locked. Please unlock StarVault first."}).encode("utf-8"))
                 return
-            entries = self.server.database.get_all_entries(session_key)
+            entries = self._get_entries()
             doms = [
                 {
                     "id": e.id,
@@ -230,7 +249,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 domain = parsed_url.hostname or ""
 
             search_term = query if query else domain
-            entries = db.get_all_entries(session_key)
+            entries = self._get_entries()
             if search_term:
                 results = search_entries(entries, query=search_term)
                 candidates = [e for e, score in results]
@@ -413,6 +432,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 new_entry.services = services_list
 
             db.save_entry(new_entry, session_key)
+            self._invalidate_cache()
             self._send_cors_headers(201)
             self.wfile.write(json.dumps({"success": True, "id": new_entry.id, "title": new_entry.title}).encode("utf-8"))
             return
@@ -422,6 +442,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             entry_id = data.get("entry_id", "")
             if entry_id:
                 new_state = db.toggle_favorite(entry_id)
+                self._invalidate_cache()
                 self._send_cors_headers(200)
                 self.wfile.write(json.dumps({"success": True, "is_favorite": new_state}).encode("utf-8"))
             else:
@@ -459,6 +480,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 self._send_cors_headers(404)
                 self.wfile.write(json.dumps({"error": "Version or entry not found"}).encode("utf-8"))
                 return
+            self._invalidate_cache()
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({
                 "success": True,
@@ -539,6 +561,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                     )
                     db.save_entry(ent, session_key)
                     saved_id = ent.id
+                    self._invalidate_cache()
 
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({
@@ -625,6 +648,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 )
 
                 if imp_ok:
+                    self._invalidate_cache()
                     self._send_cors_headers(200)
                     self.wfile.write(json.dumps({
                         "success": True,
@@ -657,6 +681,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             override = data.get("override_categories", False)
             dry_run = data.get("dry_run", False)
             summ = auto_organize_vault(self.server.database, session_key, override_categories=override, dry_run=dry_run)
+            self._invalidate_cache()
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({
                 "success": True,
@@ -674,6 +699,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
                 return
             from starvault.organizer import deduplicate_vault
             res = deduplicate_vault(self.server.database, session_key, auto_merge=True)
+            self._invalidate_cache()
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({
                 "success": True,
@@ -682,7 +708,7 @@ class ExtensionBridgeHandler(BaseHTTPRequestHandler):
             return
 
         elif path == "/api/neural_health":
-            entries = db.get_all_entries(session_key)
+            entries = self._get_entries()
             audit = audit_vault_neural(entries)
             self._send_cors_headers(200)
             self.wfile.write(json.dumps({
@@ -758,6 +784,27 @@ class ExtensionBridgeServer:
         self.bridge_token = secrets.token_hex(16)
         self._httpd: Optional[HTTPServer] = None
         self._thread: Optional[threading.Thread] = None
+        # Cache of decrypted entries so repeated extension searches (one per
+        # keystroke in the popup) don't re-decrypt the whole vault each time.
+        # Keyed by session key id + a change counter; invalidated on any write.
+        self._entries_cache: Optional[list] = None
+        self._cache_key: Any = None
+        self._change_counter = 0
+
+    def get_cached_entries(self) -> list:
+        """Returns decrypted entries, reusing the cache while the session and vault are unchanged."""
+        key = self.get_session_key()
+        cache_key = (bytes(key) if key else None, self._change_counter)
+        if self._entries_cache is not None and self._cache_key == cache_key:
+            return self._entries_cache
+        self._entries_cache = self.database.get_all_entries(key) if key else []
+        self._cache_key = cache_key
+        return self._entries_cache
+
+    def invalidate_cache(self) -> None:
+        """Call after any vault mutation so the next search re-reads entries."""
+        self._change_counter += 1
+        self._entries_cache = None
 
     def start(self) -> bool:
         """Starts the bridge server on 127.0.0.1 in a background daemon thread."""

@@ -66,6 +66,7 @@ class GroupsView(ctk.CTkFrame):
         self.group_mode = "category"  # 'category', 'tag', 'hierarchy'
         self.search_query = ""
         self.expanded_groups: Dict[str, bool] = {}
+        self._entry_rows = {}
 
         self._build_ui()
         self.reload()
@@ -294,12 +295,12 @@ class GroupsView(ctk.CTkFrame):
         return grouped
 
     def _render_groups(self) -> None:
-        for child in self.scroll_frame.winfo_children():
-            child.destroy()
-
         grouped_data = self._get_grouped_data()
 
         if not grouped_data:
+            self._entry_rows.clear()
+            for child in self.scroll_frame.winfo_children():
+                child.destroy()
             empty_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
             empty_frame.pack(pady=60)
             ctk.CTkLabel(
@@ -310,15 +311,39 @@ class GroupsView(ctk.CTkFrame):
             ).pack()
             return
 
+        # Fast path: if the grouping and expansion state are unchanged, keep the
+        # existing widgets (switching back to this tab is then near-instant).
+        sig = (
+            self.group_mode,
+            tuple(sorted(
+                (g, tuple(sorted(e.id for e in items)))
+                for g, items in grouped_data.items()
+            )),
+            tuple(sorted(self.expanded_groups.items())),
+        )
+        if sig == getattr(self, "_rendered_signature", None):
+            return
+        self._rendered_signature = sig
+
+        # Full rebuild (mode switches / searches / data changes).
+        for child in self.scroll_frame.winfo_children():
+            child.destroy()
+
         for group_name, items in sorted(grouped_data.items()):
             # Initialize expanded state if not present
             if group_name not in self.expanded_groups:
                 self.expanded_groups[group_name] = True
 
             is_expanded = self.expanded_groups[group_name]
-            self._render_group_section(group_name, items, is_expanded)
+            items_frame = self._render_group_section(group_name, items, is_expanded)
 
-    def _render_group_section(self, group_name: str, items: List[VaultEntry], is_expanded: bool) -> None:
+            if not is_expanded:
+                continue
+
+            for entry in items:
+                self._render_entry_row(items_frame, entry)
+
+    def _render_group_section(self, group_name: str, items: List[VaultEntry], is_expanded: bool) -> ctk.CTkFrame:
         # Group Header Container
         header_card = ctk.CTkFrame(
             self.scroll_frame,
@@ -344,16 +369,15 @@ class GroupsView(ctk.CTkFrame):
         header_btn.pack(fill="x", padx=6, pady=2)
 
         if not is_expanded:
-            return
+            # Collapsed: no items frame — rows will be re-parented when expanded.
+            return None
 
-        # Items Table / Rows Frame
+        # Items Table / Rows Frame (always created so rows can be re-parented)
         items_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
         items_frame.pack(fill="x", padx=4, pady=(2, 8))
+        return items_frame
 
-        for entry in items:
-            self._render_entry_row(items_frame, entry)
-
-    def _render_entry_row(self, parent, entry: VaultEntry) -> None:
+    def _render_entry_row(self, parent, entry: VaultEntry) -> ctk.CTkFrame:
         row = ctk.CTkFrame(
             parent,
             fg_color=BG_INPUT,
@@ -546,6 +570,8 @@ class GroupsView(ctk.CTkFrame):
                 hover_color=ACCENT_HOVER,
                 command=lambda eid=entry.id: self.on_select_entry(eid),
             ).pack(side="left", padx=3)
+
+        return row
 
     def _copy_text(self, text: str, description: str, is_secret: bool = False) -> None:
         self.clipboard_mgr.copy(text, label=description, is_sensitive=is_secret)
