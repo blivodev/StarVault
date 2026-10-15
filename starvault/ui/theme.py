@@ -86,7 +86,10 @@ def get_available_mono_fonts() -> List[str]:
 def set_ui_font_family(family: str, save_to_config: bool = True, is_user_override: bool = True) -> None:
     """Sets active application UI font family."""
     global ACTIVE_UI_FONT
+    if ACTIVE_UI_FONT == family:
+        return
     ACTIVE_UI_FONT = family
+    clear_font_cache()
     if save_to_config:
         try:
             from starvault.app_config import AppConfigManager
@@ -107,7 +110,10 @@ def set_ui_font_family(family: str, save_to_config: bool = True, is_user_overrid
 def set_mono_font_family(family: str, save_to_config: bool = True, is_user_override: bool = True) -> None:
     """Sets active monospace font family for credentials and code."""
     global ACTIVE_MONO_FONT
+    if ACTIVE_MONO_FONT == family:
+        return
     ACTIVE_MONO_FONT = family
+    clear_font_cache()
     if save_to_config:
         try:
             from starvault.app_config import AppConfigManager
@@ -131,14 +137,38 @@ def register_font_listener(callback: Callable[[], None]) -> None:
         _FONT_LISTENERS.append(callback)
 
 
+_FONT_CACHE: Dict[tuple, ctk.CTkFont] = {}
+
+
 def get_font(size: int = 13, weight: str = "normal") -> ctk.CTkFont:
-    """Returns application UI font using modern open-source typography."""
-    return ctk.CTkFont(family=ACTIVE_UI_FONT, size=size, weight=weight)
+    """Returns application UI font using modern open-source typography.
+
+    Fonts are cached: creating a fresh CTkFont per widget was a significant
+    share of UI rebuild cost. Cached fonts are safe to share across widgets.
+    """
+    key = (ACTIVE_UI_FONT, size, weight)
+    cached = _FONT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    font = ctk.CTkFont(family=ACTIVE_UI_FONT, size=size, weight=weight)
+    _FONT_CACHE[key] = font
+    return font
 
 
 def get_mono_font(size: int = 12, weight: str = "normal") -> ctk.CTkFont:
     """Returns monospace font for credentials, code, tokens, and keys."""
-    return ctk.CTkFont(family=ACTIVE_MONO_FONT, size=size, weight=weight)
+    key = (ACTIVE_MONO_FONT, size, weight)
+    cached = _FONT_CACHE.get(key)
+    if cached is not None:
+        return cached
+    font = ctk.CTkFont(family=ACTIVE_MONO_FONT, size=size, weight=weight)
+    _FONT_CACHE[key] = font
+    return font
+
+
+def clear_font_cache() -> None:
+    """Drops cached fonts (called when the active font family changes)."""
+    _FONT_CACHE.clear()
 
 
 # -----------------------------------------------------------------------------

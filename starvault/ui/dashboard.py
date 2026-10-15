@@ -95,6 +95,11 @@ class DashboardView(ctk.CTkFrame):
         self._revealed_secrets: set = set()
         self._search_job = None
         self._card_widgets = {}
+        self._card_meta = {}
+        self._rendered_ids = []
+        self._highlighted_selection = None
+        self._pending_cards = None
+        self._max_cards_per_tick = 8
         self._rendered_limit = 35
         self.selected_entry_ids: Set[str] = set()
         self.last_clicked_id: Optional[str] = None
@@ -105,6 +110,33 @@ class DashboardView(ctk.CTkFrame):
         self.reload_entries()
         self._schedule_autolock_ui_update()
         self._setup_hotkeys()
+        # Pre-warm the heavy sub-views in the background (idle) so the first
+        # switch to Groups / Health / Crypto Tools doesn't stall the UI.
+        self._prewarm_view = None
+        self._prewarm_queue = ["groups", "health", "crypto"]
+        self.after_idle(self._prewarm_next_view)
+
+    def _prewarm_next_view(self):
+        """Builds heavy sub-views in idle time so first tab switch is instant.
+
+        Each view is constructed once and kept; construction runs in idle ticks
+        so it never blocks input.
+        """
+        if not getattr(self, "_prewarm_queue", None):
+            return
+        name = self._prewarm_queue.pop(0)
+        try:
+            if name == "groups":
+                self._get_groups_view()
+            elif name == "health":
+                self._get_health_view()
+            elif name == "crypto":
+                self._get_crypto_tools_view()
+        except Exception:
+            pass
+        # Continue pre-warming on the next idle tick (not synchronously)
+        if self._prewarm_queue:
+            self.after_idle(self._prewarm_next_view)
 
     def update_session_key(self, new_key: bytes):
         self.session_key = new_key
@@ -857,11 +889,30 @@ class DashboardView(ctk.CTkFrame):
         self._render_cards()
 
     def _render_cards(self):
-        self._card_widgets.clear()
-        for child in self.cards_scroll.winfo_children():
-            child.destroy()
+        # Incremental render: reuse existing card widgets when possible instead of
+        # destroying and recreating every card on each search keystroke / filter change.
+        # Recreating ~350 widgets per keystroke was the dominant UI cost (~1.5s).
+        # Large rebuilds are chunked across idle ticks so the UI stays responsive.
+        limit = self._rendered_limit
 
-        if not self.filtered_entries:
+        # 1. Compute the set of entries that should be visible now
+        to_show = self.filtered_entries[:limit]
+        new_ids = [e.id for e in to_show]
+
+        existing = self._card_widgets  # id -> card frame
+        rendered_ids = getattr(self, "_rendered_ids", [])
+
+        # Fast path: nothing changed -> just refresh selection highlights (cheap)
+        if rendered_ids == new_ids:
+            self._refresh_card_highlights()
+            return
+
+        if not to_show:
+            self._card_widgets.clear()
+            self._card_meta.clear()
+            self._rendered_ids = []
+            for child in self.cards_scroll.winfo_children():
+                child.destroy()
             empty_frame = ctk.CTkFrame(self.cards_scroll, fg_color="transparent")
             empty_frame.pack(pady=60)
             ctk.CTkLabel(
@@ -881,23 +932,101 @@ class DashboardView(ctk.CTkFrame):
             ).pack(pady=12)
             return
 
-        to_render = self.filtered_entries[:self._rendered_limit]
-        for entry in to_render:
-            self._render_entry_card(entry)
+        show_ids = set(new_ids)
+        same_set = set(rendered_ids) == show_ids
 
-        if len(self.filtered_entries) > self._rendered_limit:
-            remaining = len(self.filtered_entries) - self._rendered_limit
-            btn_more = ctk.CTkButton(
-                self.cards_scroll,
-                text=f"Show remaining {remaining} entries...",
-                font=get_font(11, "bold"),
-                fg_color=BG_INPUT,
-                hover_color=BORDER_COLOR,
-                text_color=ACCENT_PRIMARY,
-                height=32,
-                command=self._show_all_cards,
-            )
-            btn_more.pack(fill="x", padx=10, pady=8)
+        if not same_set:
+            # 2. Destroy cards that are no longer in the result set
+            for eid in [k for k in existing if k not in show_ids]:
+                try:
+                    existing[eid].destroy()
+                except Exception:
+                    pass
+                del existing[eid]
+                self._card_meta.pop(eid, None)
+
+        # 3. Create / refresh cards in order, but chunk large rebuilds so a
+        #    heavy keystroke doesn't block the UI for a second. Cards already
+        #    present are reordered immediately (cheap); only NEW cards are chunked.
+        reorder_needed = (rendered_ids != new_ids)
+        created_this_tick = 0
+        max_per_tick = getattr(self, "_max_cards_per_tick", 8)
+        deferred = False
+
+        for pos, entry in enumerate(to_show):
+            card = existing.get(entry.id)
+            meta = self._card_meta.get(entry.id)
+            # Card is stale if it was created for a different version of the entry
+            # (edited / re-imported / duplicate) — rebuild it in place.
+            if card is not None and meta is not None and meta != (entry.updated_at, entry.is_favorite):
+                try:
+                    card.destroy()
+                except Exception:
+                    pass
+                del existing[entry.id]
+                card = None
+            if card is None:
+                if created_this_tick >= max_per_tick:
+                    # Defer the rest to idle ticks so typing stays responsive
+                    deferred = True
+                    break
+                card = self._render_entry_card(entry)
+                existing[entry.id] = card
+                self._card_meta[entry.id] = (entry.updated_at, entry.is_favorite)
+                created_this_tick += 1
+            if reorder_needed:
+                # Repack so ordering follows the current result order
+                card.pack_forget()
+                card.pack(fill="x", pady=4, padx=4)
+
+        self._rendered_ids = new_ids[:pos] if deferred else new_ids
+        if deferred:
+            self._pending_cards = new_ids[pos:]
+            self.after_idle(self._finish_pending_cards)
+        # Reapply selection highlights once after the batch (cheap, skips unchanged)
+        self._refresh_card_highlights()
+
+        # 4. "Show remaining" button
+        if len(self.filtered_entries) > limit:
+            btn_more = getattr(self, "_show_more_btn", None)
+            if btn_more is None or not btn_more.winfo_exists():
+                btn_more = ctk.CTkButton(
+                    self.cards_scroll,
+                    text="",
+                    font=get_font(11, "bold"),
+                    fg_color=BG_INPUT,
+                    hover_color=BORDER_COLOR,
+                    text_color=ACCENT_PRIMARY,
+                    height=32,
+                    command=self._show_all_cards,
+                )
+                btn_more.pack(fill="x", padx=10, pady=8)
+                self._show_more_btn = btn_more
+            remaining = len(self.filtered_entries) - limit
+            btn_more.configure(text=f"Show remaining {remaining} entries...")
+        else:
+            btn_more = getattr(self, "_show_more_btn", None)
+            if btn_more is not None and btn_more.winfo_exists():
+                btn_more.destroy()
+                self._show_more_btn = None
+
+    def _finish_pending_cards(self):
+        """Continues building cards deferred by _render_cards in earlier idle ticks."""
+        pending = getattr(self, "_pending_cards", None)
+        if not pending:
+            return
+        self._pending_cards = None
+        # Re-run the render; cards already created are reordered cheaply, the
+        # remaining new ones are created (and chunked again if still huge).
+        self._render_cards()
+
+    def _sync_card_state(self, card, entry: VaultEntry):
+        """Updates a card's dynamic visuals without rebuilding it.
+
+        Selection highlighting is handled centrally by _refresh_card_highlights
+        (which skips unchanged state); this hook exists for future per-card state.
+        """
+        pass
 
     def _show_all_cards(self):
         self._rendered_limit = len(self.filtered_entries)
@@ -1381,6 +1510,8 @@ class DashboardView(ctk.CTkFrame):
                     command=lambda e=entry: self._copy_val(e.private_key, "Private key copied (30s wipe)", is_sensitive=True),
                 ).pack(side="left", padx=3)
 
+        return card
+
     def _select_entry(self, entry: VaultEntry):
         self.selected_entry = entry
         self.autolock_mgr.record_activity()
@@ -1547,6 +1678,15 @@ class DashboardView(ctk.CTkFrame):
         self._refresh_card_highlights()
 
     def _refresh_card_highlights(self):
+        # Only reconfigure cards whose selection state changed — per-widget
+        # .configure() is a Tcl round-trip and dominates re-render time.
+        try:
+            prev_sel = self._highlighted_selection
+        except AttributeError:
+            prev_sel = None
+        if prev_sel == self.selected_entry_ids:
+            return
+        self._highlighted_selection = set(self.selected_entry_ids)
         for eid, widget in self._card_widgets.items():
             is_sel = eid in self.selected_entry_ids
             try:
@@ -1654,7 +1794,7 @@ class DashboardView(ctk.CTkFrame):
         self.selected_entry_ids.clear()
         self.last_clicked_id = None
         self._update_bulk_toolbar()
-        self._render_cards()
+        self._refresh_card_highlights()
 
     def _render_inspector_empty(self):
         for child in self.inspector_panel.winfo_children():
@@ -2150,25 +2290,25 @@ class DashboardView(ctk.CTkFrame):
             gv = self._get_groups_view()
             gv.pack(fill="both", expand=True)
             if "groups" in self._dirty_views:
-                gv.refresh()
+                gv.refresh() if hasattr(gv, "refresh") else gv.reload()
                 self._dirty_views.discard("groups")
         elif tab_name in ("2FA & QR", "📱 2FA / QR", "2FA / QR"):
             tv = self._get_totp_view()
             tv.pack(fill="both", expand=True)
             if "totp" in self._dirty_views:
-                tv.refresh()
+                tv.refresh() if hasattr(tv, "refresh") else tv.reload()
                 self._dirty_views.discard("totp")
         elif tab_name in ("Vault Health", "🛡️ Vault Health"):
             hv = self._get_health_view()
             hv.pack(fill="both", expand=True)
             if "health" in self._dirty_views:
-                hv.refresh()
+                hv.refresh() if hasattr(hv, "refresh") else hv.reload()
                 self._dirty_views.discard("health")
         elif tab_name in ("File Vault", "📁 File Vault", "Files"):
             fv = self._get_files_view()
             fv.pack(fill="both", expand=True)
             if "files" in self._dirty_views:
-                fv.refresh()
+                fv.refresh() if hasattr(fv, "refresh") else fv.reload()
                 self._dirty_views.discard("files")
         elif tab_name in ("Crypto Tools", "⚡ Crypto Tools", "Crypto Studio"):
             ctv = self._get_crypto_tools_view()
