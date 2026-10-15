@@ -1,6 +1,7 @@
 """Main Dashboard View for StarVault with card list and detail inspector."""
 
 from datetime import datetime, timezone, timedelta
+import tkinter as tk
 from tkinter import messagebox
 from typing import Callable, List, Optional, Set
 import uuid
@@ -980,6 +981,13 @@ class DashboardView(ctk.CTkFrame):
         self._render_cards()
 
     def _render_entry_card(self, entry: VaultEntry):
+        # High-performance path: plain tk widgets (~5ms/card vs ~35ms for CTk).
+        from starvault.ui.tk_cards import render_tk_card
+        is_selected = entry.id in self.selected_entry_ids
+        card = render_tk_card(self.cards_scroll, entry, self, is_selected)
+        return card
+
+    def _render_entry_card_ctk(self, entry: VaultEntry):
         is_selected = entry.id in self.selected_entry_ids
         card_bg = BG_CARD_HOVER if is_selected else BG_CARD
 
@@ -1637,11 +1645,25 @@ class DashboardView(ctk.CTkFrame):
         for eid, widget in self._card_widgets.items():
             is_sel = eid in self.selected_entry_ids
             try:
-                widget.configure(
-                    fg_color=BG_CARD_HOVER if is_sel else BG_CARD,
-                    border_color=ACCENT_PRIMARY if is_sel else BORDER_COLOR,
-                    border_width=2 if is_sel else 1,
-                )
+                if isinstance(widget, tk.Frame):
+                    # tk cards: use bg/highlight attributes
+                    widget.configure(
+                        bg=BG_CARD_HOVER if is_sel else BG_CARD,
+                        highlightbackground=ACCENT_PRIMARY if is_sel else BORDER_COLOR,
+                        highlightthickness=2 if is_sel else 1,
+                    )
+                    for child in widget.winfo_children():
+                        try:
+                            if isinstance(child, (tk.Frame, tk.Label)):
+                                child.configure(bg=widget["bg"])
+                        except Exception:
+                            pass
+                else:
+                    widget.configure(
+                        fg_color=BG_CARD_HOVER if is_sel else BG_CARD,
+                        border_color=ACCENT_PRIMARY if is_sel else BORDER_COLOR,
+                        border_width=2 if is_sel else 1,
+                    )
             except Exception:
                 pass
 

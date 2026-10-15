@@ -13,6 +13,7 @@ import base64
 import os
 from pathlib import Path
 import threading
+import tkinter as tk
 from tkinter import filedialog, messagebox
 from typing import Callable, List, Optional
 import customtkinter as ctk
@@ -141,6 +142,7 @@ class CryptoToolsView(ctk.CTkFrame):
         self.keyring_entries: List[VaultEntry] = []
         self.selected_keyring_entry: Optional[VaultEntry] = None
         self.current_generated_key: Optional[GeneratedKeyResult] = None
+        self._keyring_cards = {}
 
         self._build_ui()
         if self.database and self.session_key:
@@ -386,9 +388,6 @@ class CryptoToolsView(ctk.CTkFrame):
         self._filter_keyring()
 
     def _filter_keyring(self) -> None:
-        for child in self.key_list_scroll.winfo_children():
-            child.destroy()
-
         q = self.key_search_entry.get().strip().lower() if hasattr(self, "key_search_entry") else ""
         filtered = []
         for k in self.keyring_entries:
@@ -403,74 +402,95 @@ class CryptoToolsView(ctk.CTkFrame):
                 filtered.append(k)
 
         if not filtered:
-            box = ctk.CTkFrame(self.key_list_scroll, fg_color="transparent")
+            self._keyring_cards.clear()
+            for child in self.key_list_scroll.winfo_children():
+                child.destroy()
+            box = tk.Frame(self.key_list_scroll, bg=self._key_bg())
             box.pack(pady=40)
-            ctk.CTkLabel(box, text="No keys or certificates found in vault keyring.", font=get_font(13), text_color=TEXT_MUTED).pack()
-            ctk.CTkButton(
+            tk.Label(box, text="No keys or certificates found in vault keyring.", bg=self._key_bg(), fg=TEXT_MUTED,
+                     font=("Segoe UI", 12)).pack()
+            tk.Button(
                 box,
                 text="📥 Import Key from File or Clipboard",
-                font=get_font(11, "bold"),
-                fg_color=ACCENT_PRIMARY,
-                text_color="#000000",
+                bg=ACCENT_PRIMARY, fg="#000000", relief="flat", bd=0, highlightthickness=0,
+                activebackground=ACCENT_PRIMARY, activeforeground="#000000",
+                font=("Segoe UI", 11, "bold"), cursor="hand2", padx=12, pady=4,
                 command=self._open_import_key_dialog,
             ).pack(pady=10)
             return
 
-        for entry in filtered:
-            self._render_keyring_card(entry)
+        # Incremental: reuse cards whose entry is unchanged, destroy the rest.
+        new_ids = {k.id for k in filtered}
+        for eid in [k for k in self._keyring_cards if k not in new_ids]:
+            try:
+                self._keyring_cards[eid].destroy()
+            except Exception:
+                pass
+            del self._keyring_cards[eid]
 
-    def _render_keyring_card(self, entry: VaultEntry) -> None:
+        for entry in filtered:
+            card = self._keyring_cards.get(entry.id)
+            if card is None:
+                card = self._render_keyring_card(entry)
+                self._keyring_cards[entry.id] = card
+
+    def _key_bg(self) -> str:
+        """Returns the background color of the keyring scroll frame."""
+        try:
+            return self.key_list_scroll.cget("fg_color")
+        except Exception:
+            return "#000000"
+
+    def _render_keyring_card(self, entry: VaultEntry) -> tk.Frame:
         is_sel = self.selected_keyring_entry and self.selected_keyring_entry.id == entry.id
-        card = ctk.CTkFrame(
+        card = tk.Frame(
             self.key_list_scroll,
-            fg_color=BG_CARD_HOVER if is_sel else BG_CARD,
-            corner_radius=8,
-            border_width=1,
-            border_color=ACCENT_PRIMARY if is_sel else BORDER_COLOR,
+            bg=BG_CARD_HOVER if is_sel else BG_CARD,
+            highlightbackground=ACCENT_PRIMARY if is_sel else BORDER_COLOR,
+            highlightthickness=2 if is_sel else 1,
         )
         card.pack(fill="x", pady=4, padx=4)
         card.bind("<Button-1>", lambda e, ent=entry: self._select_keyring_entry(ent))
 
-        inner = ctk.CTkFrame(card, fg_color="transparent")
+        inner = tk.Frame(card, bg=card["bg"])
         inner.pack(fill="x", padx=12, pady=10)
         inner.bind("<Button-1>", lambda e, ent=entry: self._select_keyring_entry(ent))
 
         # Top row: Algorithm Badge + Title + Key Status
-        top = ctk.CTkFrame(inner, fg_color="transparent")
+        top = tk.Frame(inner, bg=card["bg"])
         top.pack(fill="x")
         top.bind("<Button-1>", lambda e, ent=entry: self._select_keyring_entry(ent))
 
         kt = getattr(entry, "key_type", "keypair").upper()
         badge_color = ACCENT_PURPLE if kt in ("ED25519", "RSA4096") else (COLOR_WARNING if "GPG" in kt else ACCENT_PRIMARY)
-        ctk.CTkLabel(
+        tk.Label(
             top,
             text=f"🔑 {kt}",
-            font=get_font(10, "bold"),
-            text_color=badge_color,
-            fg_color=BG_INPUT,
-            corner_radius=4,
+            bg=BG_INPUT,
+            fg=badge_color,
+            font=("Segoe UI", 10, "bold"),
             padx=6,
             pady=2,
         ).pack(side="left", padx=(0, 8))
 
-        ctk.CTkLabel(
+        tk.Label(
             top,
             text=entry.title,
-            font=get_font(13, "bold"),
-            text_color=TEXT_PRIMARY,
+            bg=card["bg"],
+            fg=TEXT_PRIMARY,
+            font=("Segoe UI", 13, "bold"),
         ).pack(side="left")
 
         # Has Private Key indicator
         has_priv = bool(getattr(entry, "private_key", "").strip())
         priv_badge = "🔒 Keypair (Priv+Pub)" if has_priv else "🌐 Public Key Only"
         priv_color = COLOR_SUCCESS if has_priv else TEXT_MUTED
-        ctk.CTkLabel(
+        tk.Label(
             top,
             text=priv_badge,
-            font=get_font(10),
-            text_color=priv_color,
-            fg_color=BG_INPUT,
-            corner_radius=4,
+            bg=BG_INPUT,
+            fg=priv_color,
+            font=("Segoe UI", 10),
             padx=6,
             pady=2,
         ).pack(side="right")
@@ -481,65 +501,46 @@ class CryptoToolsView(ctk.CTkFrame):
         if entry.created_at:
             sub_text += f" • Created: {entry.created_at[:10]}"
 
-        ctk.CTkLabel(
+        tk.Label(
             inner,
             text=sub_text,
-            font=get_mono_font(11),
-            text_color=TEXT_MUTED,
+            bg=card["bg"],
+            fg=TEXT_MUTED,
+            font=("Consolas", 10),
             anchor="w",
+            justify="left",
         ).pack(fill="x", pady=(4, 6))
 
         # Quick action buttons
-        btn_row = ctk.CTkFrame(inner, fg_color="transparent")
+        btn_row = tk.Frame(inner, bg=card["bg"])
         btn_row.pack(fill="x")
 
-        ctk.CTkButton(
-            btn_row,
-            text="🔐 Use to Encrypt/Decrypt",
-            font=get_font(10, "bold"),
-            width=150,
-            height=26,
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=ACCENT_PRIMARY,
-            command=lambda ent=entry: self._use_key_for_encrypt_decrypt(ent),
-        ).pack(side="left", padx=(0, 4))
+        def gbtn(text, fg, command, bold=False, width=None):
+            b = tk.Button(
+                btn_row,
+                text=text,
+                bg=BG_INPUT,
+                fg=fg,
+                activebackground=BG_INPUT,
+                activeforeground=fg,
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                padx=8,
+                pady=2,
+                font=("Segoe UI", 9, "bold" if bold else "normal"),
+                cursor="hand2",
+                command=command,
+            )
+            b.pack(side="left", padx=(0, 4))
+            return b
 
-        ctk.CTkButton(
-            btn_row,
-            text="✍️ Use to Sign/Verify",
-            font=get_font(10),
-            width=130,
-            height=26,
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_PRIMARY,
-            command=lambda ent=entry: self._use_key_for_sign_verify(ent),
-        ).pack(side="left", padx=4)
+        gbtn("🔐 Use to Encrypt/Decrypt", ACCENT_PRIMARY, lambda ent=entry: self._use_key_for_encrypt_decrypt(ent), bold=True)
+        gbtn("✍️ Use to Sign/Verify", TEXT_PRIMARY, lambda ent=entry: self._use_key_for_sign_verify(ent))
+        gbtn("💻 Install...", ACCENT_PRIMARY, lambda ent=entry: self._open_local_key_installer(preselected=ent))
+        gbtn("📤 Export...", TEXT_SECONDARY, lambda ent=entry: self._open_export_key_dialog(ent))
 
-        ctk.CTkButton(
-            btn_row,
-            text="💻 Install...",
-            font=get_font(10),
-            width=75,
-            height=26,
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=ACCENT_PRIMARY,
-            command=lambda ent=entry: self._open_local_key_installer(preselected=ent),
-        ).pack(side="left", padx=4)
-
-        ctk.CTkButton(
-            btn_row,
-            text="📤 Export...",
-            font=get_font(10),
-            width=75,
-            height=26,
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_SECONDARY,
-            command=lambda ent=entry: self._open_export_key_dialog(ent),
-        ).pack(side="left", padx=4)
+        return card
 
     def _select_keyring_entry(self, entry: VaultEntry) -> None:
         self.selected_keyring_entry = entry
