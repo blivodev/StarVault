@@ -834,6 +834,7 @@ function triggerSearch() {
 async function searchVault(query) {
   const loginsView = document.getElementById("loginsView");
   const countBadge = document.getElementById("itemsCountBadge");
+  const seq = ++searchSequence;
 
   try {
     const res = await fetch(`${BRIDGE_URL}/api/search`, {
@@ -850,7 +851,10 @@ async function searchVault(query) {
     });
 
     if (!res.ok) return;
+    // Discard stale responses (a newer keystroke already rendered)
+    if (seq !== searchSequence) return;
     const data = await res.json();
+    if (seq !== searchSequence) return;
     const items = data.matches || [];
     countBadge.textContent = `${items.length} item${items.length === 1 ? "" : "s"}`;
     renderLogins(items);
@@ -858,6 +862,9 @@ async function searchVault(query) {
     console.error("Search error:", e);
   }
 }
+
+// Monotonic sequence for out-of-order response guard
+let searchSequence = 0;
 
 function renderLogins(items) {
   const loginsView = document.getElementById("loginsView");
@@ -879,9 +886,12 @@ function renderLogins(items) {
     return;
   }
 
+  // Build all cards into a fragment, then append once (avoids layout thrash)
+  const frag = document.createDocumentFragment();
   items.forEach((item) => {
     const card = document.createElement("div");
     card.className = "login-card";
+    frag.appendChild(card);
 
     // Type styling
     let typeClass = "type-service";
@@ -1057,10 +1067,10 @@ function renderLogins(items) {
       });
     }
 
-    loginsView.appendChild(card);
   });
-}
 
+  loginsView.appendChild(frag);
+}
 // =============================================================================
 // Actions: Fill, Copy & Favorites
 // =============================================================================

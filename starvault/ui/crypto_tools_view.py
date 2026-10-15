@@ -197,16 +197,37 @@ class CryptoToolsView(ctk.CTkFrame):
         self.content_frame = ctk.CTkFrame(self, fg_color="transparent")
         self.content_frame.pack(fill="both", expand=True)
 
-        # Build each sub-workbench
-        self._build_keyring_workbench()
-        self._build_generator_workbench()
-        self._build_encrypt_decrypt_workbench()
-        self._build_sign_verify_workbench()
-        self._build_file_workbench()
-        self._build_hashes_workbench()
+        # Workbenches are built lazily on first subtab switch so opening the
+        # Crypto Tools tab doesn't construct all 6 heavy sub-views at once
+        # (was ~2s of widget churn). Each frame is created once and kept.
+        self._built_subtabs = set()
+        self.keyring_frame = None
+        self.generator_frame = None
+        self.crypt_frame = None
+        self.sign_frame = None
+        self.file_frame = None
+        self.hash_frame = None
 
-        # Show initial subtab
+        # Show initial subtab (builds the active workbench)
         self._on_subtab_switched("Keyring & Certs")
+
+    def _ensure_subtab(self, mode: str) -> None:
+        """Builds a sub-workbench frame the first time it's shown."""
+        if mode in self._built_subtabs:
+            return
+        self._built_subtabs.add(mode)
+        if "Keyring" in mode and self.keyring_frame is None:
+            self._build_keyring_workbench()
+        elif "Generator" in mode and self.generator_frame is None:
+            self._build_generator_workbench()
+        elif "File" in mode and self.file_frame is None:
+            self._build_file_workbench()
+        elif "Encrypt" in mode and self.crypt_frame is None:
+            self._build_encrypt_decrypt_workbench()
+        elif "Sign" in mode and self.sign_frame is None:
+            self._build_sign_verify_workbench()
+        elif "Hashes" in mode and self.hash_frame is None:
+            self._build_hashes_workbench()
 
     def switch_to_subtab(self, subtab_name: str) -> None:
         """Programmatically switches to the specified subtab."""
@@ -238,6 +259,9 @@ class CryptoToolsView(ctk.CTkFrame):
             self._on_subtab_switched(target)
 
     def _on_subtab_switched(self, mode: str) -> None:
+        # Ensure the target workbench is built (lazy on first use)
+        self._ensure_subtab(mode)
+
         # Hide all workbench frames
         for frame in [
             self.keyring_frame,
@@ -247,7 +271,8 @@ class CryptoToolsView(ctk.CTkFrame):
             self.file_frame,
             self.hash_frame,
         ]:
-            frame.pack_forget()
+            if frame is not None:
+                frame.pack_forget()
 
         if "Keyring" in mode:
             self.keyring_frame.pack(fill="both", expand=True, padx=20, pady=16)
