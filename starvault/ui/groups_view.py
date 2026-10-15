@@ -13,6 +13,7 @@ Enables rapid 1-click copying of:
 """
 
 from typing import Callable, Dict, List, Optional
+import tkinter as tk
 import customtkinter as ctk
 
 from starvault.clipboard import ClipboardManager
@@ -346,48 +347,49 @@ class GroupsView(ctk.CTkFrame):
             for entry in items:
                 self._render_entry_row(items_frame, entry)
 
-    def _render_group_section(self, group_name: str, items: List[VaultEntry], is_expanded: bool) -> ctk.CTkFrame:
-        # Group Header Container
-        header_card = ctk.CTkFrame(
+    def _render_group_section(self, group_name: str, items: List[VaultEntry], is_expanded: bool) -> tk.Frame:
+        # Group Header Container (plain tk — cheaper to create)
+        header_card = tk.Frame(
             self.scroll_frame,
-            fg_color=BG_CARD,
-            corner_radius=8,
-            border_width=1,
-            border_color=BORDER_COLOR,
-            height=44,
+            bg=BG_CARD,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1,
         )
         header_card.pack(fill="x", pady=(8, 2))
 
-        header_btn = ctk.CTkButton(
+        tk.Button(
             header_card,
             text=f"{'▼' if is_expanded else '▶'}  {group_name}  ({len(items)})",
-            font=get_font(13, "bold"),
+            bg=BG_CARD,
+            fg=ACCENT_PRIMARY if is_expanded else TEXT_PRIMARY,
+            activebackground=BG_CARD_HOVER,
+            activeforeground=ACCENT_PRIMARY if is_expanded else TEXT_PRIMARY,
+            relief="flat",
+            bd=0,
+            highlightthickness=0,
             anchor="w",
-            fg_color="transparent",
-            hover_color=BG_CARD_HOVER,
-            text_color=ACCENT_PRIMARY if is_expanded else TEXT_PRIMARY,
+            font=("Segoe UI", 13, "bold"),
+            cursor="hand2",
             command=lambda g=group_name: self._toggle_group(g),
-            height=42,
-        )
-        header_btn.pack(fill="x", padx=6, pady=2)
+        ).pack(fill="x", padx=6, pady=6)
 
         if not is_expanded:
             # Collapsed: no items frame — rows will be re-parented when expanded.
             return None
 
-        # Items Table / Rows Frame (always created so rows can be re-parented)
-        items_frame = ctk.CTkFrame(self.scroll_frame, fg_color="transparent")
+        # Items Table / Rows Frame
+        items_frame = tk.Frame(self.scroll_frame, bg=BG_ROOT)
         items_frame.pack(fill="x", padx=4, pady=(2, 8))
         return items_frame
 
-    def _render_entry_row(self, parent, entry: VaultEntry) -> ctk.CTkFrame:
-        row = ctk.CTkFrame(
+    def _render_entry_row(self, parent, entry: VaultEntry) -> tk.Frame:
+        # Plain tk row: ~25x cheaper to create than the CTk equivalent, which
+        # was the dominant cost when rendering many rows on the Groups tab.
+        row = tk.Frame(
             parent,
-            fg_color=BG_INPUT,
-            corner_radius=6,
-            border_width=1,
-            border_color=BORDER_COLOR,
-            height=44,
+            bg=BG_INPUT,
+            highlightbackground=BORDER_COLOR,
+            highlightthickness=1,
         )
         row.pack(fill="x", pady=2)
 
@@ -405,31 +407,29 @@ class GroupsView(ctk.CTkFrame):
         if badge_text == "APIKEY":
             badge_text = "API KEY"
 
-        ctk.CTkLabel(
+        tk.Label(
             row,
             text=badge_text,
-            font=get_font(9, "bold"),
-            text_color=badge_color,
-            fg_color=BG_CARD,
-            corner_radius=4,
+            bg=BG_CARD,
+            fg=badge_color,
+            font=("Segoe UI", 9, "bold"),
             padx=6,
             pady=2,
-            width=65,
+            width=9,
         ).pack(side="left", padx=(10, 8), pady=8)
 
         # Title & Host info
-        info_col = ctk.CTkFrame(row, fg_color="transparent")
+        info_col = tk.Frame(row, bg=BG_INPUT)
         info_col.pack(side="left", fill="x", expand=True, padx=4)
 
-        title_row = ctk.CTkFrame(info_col, fg_color="transparent")
-        title_row.pack(fill="x")
-
-        ctk.CTkLabel(
-            title_row,
+        tk.Label(
+            info_col,
             text=entry.title,
-            font=get_font(12, "bold"),
-            text_color=TEXT_PRIMARY,
-        ).pack(side="left")
+            bg=BG_INPUT,
+            fg=TEXT_PRIMARY,
+            font=("Segoe UI", 12, "bold"),
+            anchor="w",
+        ).pack(fill="x")
 
         # Details subtitle
         if entry.entry_type == "domain":
@@ -445,134 +445,79 @@ class GroupsView(ctk.CTkFrame):
             if entry.username:
                 sub_text = f"{entry.username} @ {sub_text}" if sub_text else entry.username
         if sub_text:
-            ctk.CTkLabel(
+            tk.Label(
                 info_col,
                 text=sub_text,
-                font=get_font(11),
-                text_color=TEXT_MUTED,
-            ).pack(anchor="w")
+                bg=BG_INPUT,
+                fg=TEXT_MUTED,
+                font=("Segoe UI", 10),
+                anchor="w",
+            ).pack(fill="x")
 
         # Action Copy Buttons
-        btn_box = ctk.CTkFrame(row, fg_color="transparent")
+        btn_box = tk.Frame(row, bg=BG_INPUT)
         btn_box.pack(side="right", padx=10, pady=6)
+
+        def gbtn(text, fg, command, bold=False):
+            b = tk.Button(
+                btn_box,
+                text=text,
+                bg=BG_CARD,
+                fg=fg,
+                activebackground=BG_CARD,
+                activeforeground=fg,
+                relief="flat",
+                bd=0,
+                highlightthickness=0,
+                padx=8,
+                pady=2,
+                font=("Segoe UI", 9, "bold" if bold else "normal"),
+                cursor="hand2",
+                command=command,
+            )
+            b.pack(side="left", padx=3)
+            return b
 
         # Domain Specific Quick Copy: Registrar & Auth Code
         if entry.entry_type == "domain":
             if getattr(entry, "registrar", ""):
-                ctk.CTkButton(
-                    btn_box,
-                    text="Registrar",
-                    font=get_font(11),
-                    width=60,
-                    height=28,
-                    fg_color=BG_CARD,
-                    hover_color=BORDER_COLOR,
-                    command=lambda r=entry.registrar, t=entry.title: self._copy_text(r, f"Registrar for {t}", is_secret=False),
-                ).pack(side="left", padx=3)
-
+                gbtn("Registrar", TEXT_PRIMARY, lambda r=entry.registrar, t=entry.title: self._copy_text(r, f"Registrar for {t}", is_secret=False))
             if getattr(entry, "auth_code", ""):
-                ctk.CTkButton(
-                    btn_box,
-                    text="EPP",
-                    font=get_font(11, "bold"),
-                    width=62,
-                    height=28,
-                    fg_color=BG_CARD,
-                    hover_color=ACCENT_PRIMARY,
-                    text_color=COLOR_WARNING,
-                    command=lambda c=entry.auth_code, t=entry.title: self._copy_text(c, f"Auth / EPP code for {t}", is_secret=True),
-                ).pack(side="left", padx=3)
+                gbtn("EPP", COLOR_WARNING, lambda c=entry.auth_code, t=entry.title: self._copy_text(c, f"Auth / EPP code for {t}", is_secret=True), bold=True)
 
-        # 1. Copy Username (if exists)
+        # 1. Copy Username
         if entry.username:
-            ctk.CTkButton(
-                btn_box,
-                text="User",
-                font=get_font(11),
-                width=65,
-                height=28,
-                fg_color=BG_CARD,
-                hover_color=BORDER_COLOR,
-                command=lambda u=entry.username, t=entry.title: self._copy_text(u, f"Username for {t}", is_secret=False),
-            ).pack(side="left", padx=3)
+            gbtn("User", TEXT_PRIMARY, lambda u=entry.username, t=entry.title: self._copy_text(u, f"Username for {t}", is_secret=False))
 
-        # 2. Copy Password / API Key / Secret (if exists)
+        # 2. Copy Password / API Key / Secret
         secret_val = entry.password or entry.api_token or entry.private_key
         if secret_val:
             btn_label = "Key" if entry.entry_type == "apikey" else "Pass"
-            ctk.CTkButton(
-                btn_box,
-                text=btn_label,
-                font=get_font(11, "bold"),
-                width=68,
-                height=28,
-                fg_color=BG_CARD,
-                hover_color=ACCENT_PRIMARY,
-                text_color=COLOR_SUCCESS,
-                command=lambda s=secret_val, t=entry.title: self._copy_text(s, f"Secret for {t}", is_secret=True),
-            ).pack(side="left", padx=3)
+            gbtn(btn_label, COLOR_SUCCESS, lambda s=secret_val, t=entry.title: self._copy_text(s, f"Secret for {t}", is_secret=True), bold=True)
 
-        # 3. Copy Host / URL (if exists)
+        # 3. Copy Host / URL
         host_val = getattr(entry, "domain_name", "") or entry.url or entry.hostname
         if host_val:
             btn_label = "Domain" if entry.entry_type == "domain" else "Host"
-            ctk.CTkButton(
-                btn_box,
-                text=btn_label,
-                font=get_font(11),
-                width=68 if entry.entry_type == "domain" else 65,
-                height=28,
-                fg_color=BG_CARD,
-                hover_color=BORDER_COLOR,
-                command=lambda h=host_val, t=entry.title: self._copy_text(h, f"Host for {t}", is_secret=False),
-            ).pack(side="left", padx=3)
+            gbtn(btn_label, TEXT_PRIMARY, lambda h=host_val, t=entry.title: self._copy_text(h, f"Host for {t}", is_secret=False))
 
-        # 4. Copy 2FA TOTP (if exists)
+        # 4. Copy 2FA TOTP
         totp_sec = entry.totp_secret or ""
         if not totp_sec:
             for cf in entry.custom_fields:
                 if "totp" in cf.get("key", "").lower() or "2fa" in cf.get("key", "").lower():
                     totp_sec = cf.get("value", "")
                     break
-
         if totp_sec:
-            ctk.CTkButton(
-                btn_box,
-                text="2FA",
-                font=get_font(11, "bold"),
-                width=60,
-                height=28,
-                fg_color=BG_CARD,
-                hover_color=ACCENT_PRIMARY,
-                text_color=ACCENT_PRIMARY,
-                command=lambda sec=totp_sec, t=entry.title: self._copy_totp(sec, t),
-            ).pack(side="left", padx=3)
+            gbtn("2FA", ACCENT_PRIMARY, lambda sec=totp_sec, t=entry.title: self._copy_totp(sec, t), bold=True)
 
         # 5. Edit Button
         if self.on_edit_entry:
-            ctk.CTkButton(
-                btn_box,
-                text="Edit",
-                font=get_font(11),
-                width=32,
-                height=28,
-                fg_color=BG_CARD,
-                hover_color=BORDER_COLOR,
-                command=lambda e=entry: self.on_edit_entry(e),
-            ).pack(side="left", padx=3)
+            gbtn("Edit", TEXT_PRIMARY, lambda e=entry: self.on_edit_entry(e))
 
         # 6. View in Credentials Inspector
         if self.on_select_entry:
-            ctk.CTkButton(
-                btn_box,
-                text="↗️",
-                font=get_font(11),
-                width=32,
-                height=28,
-                fg_color=BG_CARD,
-                hover_color=ACCENT_HOVER,
-                command=lambda eid=entry.id: self.on_select_entry(eid),
-            ).pack(side="left", padx=3)
+            gbtn("↗️", ACCENT_PRIMARY, lambda eid=entry.id: self.on_select_entry(eid))
 
         return row
 
