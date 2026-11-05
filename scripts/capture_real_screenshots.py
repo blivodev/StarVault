@@ -338,8 +338,103 @@ def run_capture():
     img6.save(path6, "PNG")
     print(f"[+] Captured: {path6}")
 
-    # Restore Dark Theme and close
+    # Back to the normal theme for the rest. Switching a theme rebuilds the
+    # view, and it schedules TWO rebuilds (a theme listener and a font
+    # listener), each as its own after(20, ...). One update() drains only the
+    # first, so the reference taken after it points at a window the second
+    # rebuild has already destroyed. Run the loop until it goes quiet, then
+    # take the view that survived.
     apply_theme("Dark")
+    for _ in range(12):
+        app.update_idletasks()
+        app.update()
+        time.sleep(0.1)
+    dashboard = app.current_view
+    dashboard.reload_entries()
+    for _ in range(4):
+        app.update_idletasks()
+        app.update()
+        time.sleep(0.05)
+    if not dashboard.winfo_exists():
+        raise SystemExit("the dashboard did not survive the theme switch")
+
+    # 7. The two-factor (2FA & QR) tab
+    dashboard.switch_to_tab("2FA & QR")
+    app.update_idletasks()
+    app.update()
+    time.sleep(0.6)
+    img7 = capture_window_image(app)
+    path7 = out_dir / "07_two_factor_authenticator.png"
+    img7.save(path7, "PNG")
+    print(f"[+] Captured: {path7}")
+
+    # 8. The new-entry form. Opened here rather than through the dashboard so
+    #    this script holds the window and can photograph it.
+    dashboard.switch_to_tab("Credentials")
+    app.update_idletasks()
+    app.update()
+    try:
+        from starvault.ui.entry_dialog import EntryDialog
+        entry_form = EntryDialog(
+            app,
+            default_type="server",
+            existing_tags=dashboard.database.get_all_tags(),
+            available_servers=[e for e in dashboard.entries if e.entry_type == "server"],
+            available_domains=[e for e in dashboard.entries if e.entry_type == "domain"],
+            on_save=lambda e: None,
+        )
+        entry_form.update_idletasks()
+        entry_form.update()
+        time.sleep(0.8)
+        img8 = capture_window_image(entry_form)
+        path8 = out_dir / "08_new_entry_form.png"
+        img8.save(path8, "PNG")
+        print(f"[+] Captured: {path8}")
+        entry_form.destroy()
+    except Exception as problem:
+        print(f"[!] the new-entry form could not be captured: {problem}")
+
+    app.update_idletasks()
+    app.update()
+
+    # 9. Settings
+    try:
+        from starvault.ui.settings_dialog import SettingsDialog
+        settings = SettingsDialog(
+            app,
+            database=dashboard.database,
+            current_key=key,
+            on_key_updated=lambda k: None,
+            on_settings_updated=lambda s: None,
+        )
+        settings.update_idletasks()
+        settings.update()
+        time.sleep(0.8)
+        img9 = capture_window_image(settings)
+        path9 = out_dir / "09_settings.png"
+        img9.save(path9, "PNG")
+        print(f"[+] Captured: {path9}")
+        settings.destroy()
+    except Exception as problem:
+        print(f"[!] the settings window could not be captured: {problem}")
+
+    app.update_idletasks()
+    app.update()
+
+    # 10. The unlock screen, on the way out
+    try:
+        app.lock_vault()
+        app.update_idletasks()
+        app.update()
+        time.sleep(0.8)
+        img10 = capture_window_image(app)
+        path10 = out_dir / "10_unlock_screen.png"
+        img10.save(path10, "PNG")
+        print(f"[+] Captured: {path10}")
+    except Exception as problem:
+        print(f"[!] the unlock screen could not be captured: {problem}")
+
+    # Close
     try:
         app.tray.stop()
         app.destroy()
@@ -349,7 +444,7 @@ def run_capture():
     if demo_db_path.exists():
         demo_db_path.unlink()
 
-    print("[OK] All 6 authentic screenshots captured and saved to docs/screenshots/")
+    print("[OK] All screenshots captured and saved to docs/screenshots/")
 
 
 if __name__ == "__main__":
