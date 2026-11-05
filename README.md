@@ -265,3 +265,34 @@ StarVault includes a comprehensive automated test suite with **100% pass rate** 
 | Certificate Engine | X.509 Self-Signed TLS with SAN extension support |
 | In-Memory Protection | Zeroized upon lock or application termination |
 | Clipboard Sanitization | Automatic 30-second wipe for all copied secrets |
+
+---
+
+## 📜 Open-Source Assets & Credits
+
+StarVault ships only openly licensed, commercially permissive assets. Bundled
+third-party components and their licences:
+
+| Asset | Licence | Location |
+|---|---|---|
+| [Lucide](https://lucide.dev) icon font | ISC | `starvault/resources/fonts/Lucide.ttf`, `LICENSE_LUCIDE.txt` |
+| Inter, Fira Sans, Fira Code, Inconsolata, JetBrains Mono, Outfit, Plus Jakarta Sans, Rajdhani, Roboto, Space Grotesk | SIL Open Font License 1.1 | `starvault/resources/fonts/`, `LICENSE_OFL.txt` |
+
+All UI iconography is Lucide (ISC). Emoji are deliberately not used: they render
+from vendor fonts (Segoe UI Emoji / Noto Color Emoji) that are not openly
+licensed and change shape per platform. The browser extension uses the same
+Lucide geometry as inline SVG (`extension/icons.js`), since browsers have no
+access to the bundled font.
+
+Regenerating the icon map after a Lucide upgrade:
+
+```bash
+# replace tools/branding/lucide.css + starvault/resources/fonts/Lucide.ttf, then:
+python tools/branding/build_lucide_map.py
+```
+
+Replacing emoji with icon glyphs in UI source (idempotent, `--dry-run` to preview):
+
+```bash
+python tools/branding/replace_emoji.py --dry-run
+```

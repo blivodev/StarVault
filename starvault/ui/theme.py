@@ -56,7 +56,12 @@ _init_fonts()
 
 
 def get_available_ui_fonts() -> List[str]:
-    """Returns list of clean, open-source and system UI fonts."""
+    """Returns the bundled open-source UI fonts (all OFL).
+
+    Only fonts shipped in `starvault/resources/fonts/` are offered: the user
+    requires open-source, commercially permissive assets, and a proprietary
+    system face (Segoe UI, Arial) cannot be redistributed with the app.
+    """
     return [
         "Inter",
         "Plus Jakarta Sans",
@@ -65,21 +70,15 @@ def get_available_ui_fonts() -> List[str]:
         "Fira Sans",
         "Roboto",
         "Rajdhani",
-        "Segoe UI",
-        "Source Sans Pro",
-        "Arial",
     ]
 
 
 def get_available_mono_fonts() -> List[str]:
-    """Returns list of clean, open-source and system monospace fonts."""
+    """Returns the bundled open-source monospace fonts (all OFL)."""
     return [
         "JetBrains Mono",
         "Fira Code",
         "Inconsolata",
-        "Cascadia Code",
-        "Consolas",
-        "Courier New",
     ]
 
 
