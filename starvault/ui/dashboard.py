@@ -65,13 +65,24 @@ from starvault.ui.widgets import add_password_toggle
 
 
 def _attach_tooltip(widget, text: str) -> None:
-    """Attaches a lightweight hover tooltip to a widget (icon-only buttons)."""
+    """Attaches a lightweight hover tooltip to a widget (icon-only buttons).
+
+    The text is stored on the widget and read when the tooltip opens, so a
+    caller can update it later with `_attach_tooltip(w, new_text)`.
+    """
     if not text:
         return
+    widget._sv_tooltip_text = text
+    if getattr(widget, "_sv_tooltip_bound", False):
+        return
+    widget._sv_tooltip_bound = True
     tip = {"win": None}
 
     def show(_e=None):
         if tip["win"] is not None:
+            return
+        label = getattr(widget, "_sv_tooltip_text", "")
+        if not label:
             return
         try:
             import tkinter as _tk
@@ -82,7 +93,7 @@ def _attach_tooltip(widget, text: str) -> None:
             y = widget.winfo_rooty() + widget.winfo_height() + 6
             w.wm_geometry(f"+{x}+{y}")
             _tk.Label(
-                w, text=text, bg="#18181b", fg="#f4f4f5",
+                w, text=label, bg="#18181b", fg="#f4f4f5",
                 font=tk_font(10), padx=8, pady=4,
                 highlightbackground="#3f3f46", highlightthickness=1,
             ).pack()
@@ -271,7 +282,9 @@ class DashboardView(ctk.CTkFrame):
         self.quick_filter_bar = ctk.CTkFrame(self.center_container, fg_color="transparent")
         self.quick_filter_bar.pack(fill="x", padx=16, pady=(2, 6))
 
-        # Type Pills Segmented Button
+        # Type Pills Segmented Button. The 7 pills plus the status chips
+        # requested ~720px in a ~570px column, which clipped the last chips, so
+        # the status chips get their own row below.
         self.type_filter_var = ctk.StringVar(value="All")
         self.type_selector = ctk.CTkSegmentedButton(
             self.quick_filter_bar,
@@ -289,9 +302,12 @@ class DashboardView(ctk.CTkFrame):
         )
         self.type_selector.pack(side="left", padx=(0, 8))
 
-        # Status Chips (Expiring, Weak, TOTP)
+        # Status Chips (Expiring, Weak, TOTP) + Clear, on their own row
+        self.status_chip_bar = ctk.CTkFrame(self.center_container, fg_color="transparent")
+        self.status_chip_bar.pack(fill="x", padx=16, pady=(0, 6))
+
         self.chip_expiring = ctk.CTkButton(
-            self.quick_filter_bar,
+            self.status_chip_bar,
             text="Expiring",
             font=get_font(10),
             height=26,
@@ -304,7 +320,7 @@ class DashboardView(ctk.CTkFrame):
         self.chip_expiring.pack(side="left", padx=2)
 
         self.chip_weak = ctk.CTkButton(
-            self.quick_filter_bar,
+            self.status_chip_bar,
             text="Weak Pass",
             font=get_font(10),
             height=26,
@@ -317,7 +333,7 @@ class DashboardView(ctk.CTkFrame):
         self.chip_weak.pack(side="left", padx=2)
 
         self.chip_totp = ctk.CTkButton(
-            self.quick_filter_bar,
+            self.status_chip_bar,
             text="2FA Active",
             font=get_font(10),
             height=26,
@@ -331,7 +347,7 @@ class DashboardView(ctk.CTkFrame):
 
         # Clear Filters Button
         self.clear_filters_btn = ctk.CTkButton(
-            self.quick_filter_bar,
+            self.status_chip_bar,
             text="Clear",
             font=get_font(10),
             height=26,
@@ -412,13 +428,25 @@ class DashboardView(ctk.CTkFrame):
         return self.crypto_tools_view
 
     def _build_top_navbar(self):
-        from starvault.ui.icons_font import icon, icon_font
-        top_bar = ctk.CTkFrame(self, fg_color=BG_CARD, height=64, corner_radius=0, border_width=1, border_color=BORDER_COLOR)
-        top_bar.pack(fill="x")
+        """Builds the header: a top row (brand, search, actions) and a nav row.
 
-        # Brand / Logo — the real brand mark, matching the app icon
-        brand_frame = ctk.CTkFrame(top_bar, fg_color="transparent")
-        brand_frame.pack(side="left", padx=(18, 8), pady=12)
+        Two rows instead of one: the single row requested ~2490px in a 1240px
+        window, so every action button collapsed to 1px wide and the labels were
+        clipped. Splitting them gives the nav its own full-width line and leaves
+        the search bar the slack in row one.
+        """
+        from starvault.ui.icons_font import icon, icon_font
+
+        header = ctk.CTkFrame(self, fg_color=BG_CARD, corner_radius=0,
+                              border_width=1, border_color=BORDER_COLOR)
+        header.pack(fill="x")
+
+        # ---- Row 1: brand + search + actions -------------------------------
+        top_row = ctk.CTkFrame(header, fg_color="transparent", height=52)
+        top_row.pack(fill="x", padx=14, pady=(8, 4))
+
+        brand_frame = ctk.CTkFrame(top_row, fg_color="transparent")
+        brand_frame.pack(side="left", pady=4)
 
         try:
             from starvault.ui.branding import mark_image
@@ -438,11 +466,121 @@ class DashboardView(ctk.CTkFrame):
         ctk.CTkLabel(
             brand_frame,
             text="StarVault",
-            font=get_font(16, "bold"),
+            font=get_font(15, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left")
 
-        # Navigation Tabs Segmented Button (icon + label)
+        # Action & status area (packed before search so it always gets its width).
+        # padx leaves room for the window-chrome buttons in the title strip above.
+        actions_frame = ctk.CTkFrame(top_row, fg_color="transparent")
+        actions_frame.pack(side="right", pady=4, padx=(0, 4))
+
+        from starvault.ui.icons_font import icon as _ic
+
+        # Expiry Alert Pill (shown when items are expiring/expired)
+        self.expiry_pill = ctk.CTkButton(
+            actions_frame,
+            text="",
+            font=get_font(11, "bold"),
+            fg_color=COLOR_WARNING,
+            text_color="#000000",
+            hover_color=COLOR_DANGER,
+            height=30,
+            corner_radius=6,
+            command=self._on_expiry_pill_clicked,
+        )
+
+        # Clipboard Status Pill (hidden while idle — see _on_clipboard_status)
+        self.clipboard_pill = ctk.CTkLabel(
+            actions_frame,
+            text="",
+            font=get_font(11, "bold"),
+            fg_color=BG_INPUT,
+            text_color=COLOR_SUCCESS,
+            corner_radius=6,
+            padx=8,
+            pady=3,
+        )
+
+        # Auto-lock countdown
+        self.autolock_label = ctk.CTkLabel(
+            actions_frame,
+            text="",
+            font=get_mono_font(11),
+            text_color=TEXT_MUTED,
+        )
+        self.autolock_label.pack(side="left", padx=(0, 10))
+
+        def _icon_btn(glyph, tooltip, command, *, danger=False, accent=False, width=34):
+            """A compact icon-only button. Keeps the header inside its width."""
+            b = ctk.CTkButton(
+                actions_frame,
+                text=glyph,
+                font=icon_font(15),
+                width=width,
+                height=30,
+                corner_radius=6,
+                fg_color=BG_INPUT,
+                hover_color=COLOR_DANGER if danger else BORDER_COLOR,
+                text_color=COLOR_DANGER if danger else (ACCENT_PRIMARY if accent else TEXT_PRIMARY),
+                command=command,
+            )
+            b.pack(side="left", padx=2)
+            _attach_tooltip(b, tooltip)
+            return b
+
+        # Primary action keeps its label; everything else is icon-only so the
+        # row cannot overflow at the minimum window width.
+        self.new_entry_btn = ctk.CTkButton(
+            actions_frame,
+            text=f"{_ic('plus')}  New",
+            font=get_font(12, "bold"),
+            width=92,
+            height=30,
+            corner_radius=6,
+            fg_color=ACCENT_PRIMARY,
+            hover_color=ACCENT_HOVER,
+            text_color=TEXT_ON_ACCENT,
+            command=self._open_new_entry_dialog,
+        )
+        self.new_entry_btn.pack(side="left", padx=(0, 4))
+        _attach_tooltip(self.new_entry_btn, "New entry")
+
+        self.theme_btn = _icon_btn(_ic("palette"), f"Theme: {get_current_theme()}",
+                                   self._on_cycle_theme_clicked)
+        _icon_btn(_ic("key-round"), "API Key Studio", self._open_api_key_studio)
+        _icon_btn(_ic("wand-sparkles"), "Key Studio", self._open_key_studio)
+        _icon_btn(_ic("monitor-down"), "Install local keys", self._open_local_key_installer, accent=True)
+        _icon_btn(_ic("download"), "Export vault", self._open_vault_export_dialog)
+        _icon_btn(_ic("upload"), "Import vault", self._open_vault_import_dialog)
+        _icon_btn(_ic("settings"), "Settings", self._open_settings)
+        _icon_btn(_ic("lock"), "Lock vault (Ctrl+L)", self.on_lock_requested, danger=True)
+
+        # Central fuzzy search — takes the slack between brand and actions
+        self.search_container = ctk.CTkFrame(
+            top_row, fg_color=BG_INPUT, corner_radius=6,
+            border_width=1, border_color=BORDER_COLOR, height=34,
+        )
+        self.search_container.pack(side="left", fill="x", expand=True, padx=14, pady=6)
+
+        ctk.CTkLabel(self.search_container, text=icon("search"), font=icon_font(14),
+                     text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
+
+        self.search_entry = ctk.CTkEntry(
+            self.search_container,
+            placeholder_text="Search credentials, servers, domains, tags...",
+            font=get_font(12),
+            fg_color="transparent",
+            border_width=0,
+            text_color=TEXT_PRIMARY,
+        )
+        self.search_entry.pack(side="left", fill="x", expand=True, padx=4)
+        self.search_entry.bind("<KeyRelease>", lambda e: self._on_search_query_change())
+
+        # ---- Row 2: navigation tabs, full width -----------------------------
+        nav_row = ctk.CTkFrame(header, fg_color="transparent")
+        nav_row.pack(fill="x", padx=14, pady=(0, 8))
+
         self._nav_icon_labels = {
             "Credentials": f"{icon('layout-grid')}  Credentials",
             "Groups": f"{icon('folder-tree')}  Groups",
@@ -453,7 +591,7 @@ class DashboardView(ctk.CTkFrame):
         }
         self.nav_var = ctk.StringVar(value="Credentials")
         self.tab_selector = ctk.CTkSegmentedButton(
-            top_bar,
+            nav_row,
             values=list(self._nav_icon_labels.values()),
             variable=self.nav_var,
             command=self._on_nav_tab_changed,
@@ -463,124 +601,11 @@ class DashboardView(ctk.CTkFrame):
             unselected_color=BG_INPUT,
             unselected_hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
-            height=34,
+            height=32,
             corner_radius=6,
         )
         self.tab_selector.set(self._nav_icon_labels["Credentials"])
-        self.tab_selector.pack(side="left", padx=10, pady=14)
-
-        # Central Fuzzy Search Bar
-        self.search_container = ctk.CTkFrame(top_bar, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_COLOR, width=340, height=38)
-        self.search_container.pack(side="left", fill="x", expand=True, padx=(10, 16), pady=12)
-
-        ctk.CTkLabel(self.search_container, text=icon("search"), font=icon_font(15), text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
-
-        self.search_entry = ctk.CTkEntry(
-            self.search_container,
-            placeholder_text="Search credentials, servers, domains, tags...",
-            font=get_font(13),
-            fg_color="transparent",
-            border_width=0,
-            text_color=TEXT_PRIMARY,
-        )
-        self.search_entry.pack(side="left", fill="x", expand=True, padx=4)
-        self.search_entry.bind("<KeyRelease>", lambda e: self._on_search_query_change())
-
-        # Right Action & Status Area
-        actions_frame = ctk.CTkFrame(top_bar, fg_color="transparent")
-        actions_frame.pack(side="right", padx=16, pady=12)
-
-        from starvault.ui.icons_font import icon as _ic, icon_font as _if
-
-        # Expiry Alert Pill (shown when items are expiring/expired)
-        self.expiry_pill = ctk.CTkButton(
-            actions_frame,
-            text="",
-            font=get_font(11, "bold"),
-            fg_color=COLOR_WARNING,
-            text_color="#000000",
-            hover_color=COLOR_DANGER,
-            height=28,
-            corner_radius=6,
-            command=self._on_expiry_pill_clicked,
-        )
-
-        # Clipboard Status Pill
-        self.clipboard_pill = ctk.CTkLabel(
-            actions_frame,
-            text="",
-            font=get_font(11, "bold"),
-            fg_color=BG_INPUT,
-            text_color=COLOR_SUCCESS,
-            corner_radius=6,
-            padx=10,
-            pady=4,
-        )
-        self.clipboard_pill.pack(side="left", padx=(0, 8))
-
-        # Auto-lock indicator
-        self.autolock_label = ctk.CTkLabel(
-            actions_frame,
-            text="5:00",
-            font=get_mono_font(11),
-            text_color=TEXT_MUTED,
-        )
-        self.autolock_label.pack(side="left", padx=(0, 10))
-
-        # Action buttons — icon + short label for the primary actions, icon-only
-        # for the utility ones, each with a hover tooltip.
-        def _act(glyph, label, command, *, primary=False, accent=False):
-            txt = f"{glyph}  {label}" if label else glyph
-            b = ctk.CTkButton(
-                actions_frame,
-                text=txt,
-                font=get_font(12, "bold" if primary else "normal"),
-                fg_color=ACCENT_PRIMARY if primary else BG_INPUT,
-                hover_color=ACCENT_HOVER if primary else BORDER_COLOR,
-                text_color=TEXT_ON_ACCENT if primary else (ACCENT_PRIMARY if accent else TEXT_PRIMARY),
-                height=34,
-                corner_radius=6,
-                command=command,
-            )
-            b.pack(side="left", padx=3)
-            _attach_tooltip(b, label or txt)
-            return b
-
-        _act(_ic("plus"), "New Entry", self._open_new_entry_dialog, primary=True)
-        _act(_ic("key-round"), "API Studio", self._open_api_key_studio)
-        _act(_ic("wand-sparkles"), "Key Studio", self._open_key_studio)
-        _act(_ic("monitor-down"), "Local Keys", self._open_local_key_installer, accent=True)
-        _act(_ic("download"), "Export", self._open_vault_export_dialog)
-        _act(_ic("upload"), "Import", self._open_vault_import_dialog)
-        _act(_ic("settings"), "", self._open_settings)
-
-        self.theme_btn = ctk.CTkButton(
-            actions_frame,
-            text=f"{_ic('palette')}  {get_current_theme()}",
-            font=get_font(11, "bold"),
-            height=34,
-            corner_radius=6,
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_PRIMARY,
-            command=self._on_cycle_theme_clicked,
-        )
-        self.theme_btn.pack(side="left", padx=3)
-        _attach_tooltip(self.theme_btn, "Cycle theme")
-
-        lock_btn = ctk.CTkButton(
-            actions_frame,
-            text=f"{_ic('lock')}  Lock",
-            font=get_font(12, "bold"),
-            fg_color=BG_INPUT,
-            hover_color=COLOR_DANGER,
-            text_color=COLOR_DANGER,
-            height=34,
-            corner_radius=6,
-            command=self.on_lock_requested,
-        )
-        lock_btn.pack(side="left", padx=(3, 0))
-        _attach_tooltip(lock_btn, "Lock vault (Ctrl+L)")
+        self.tab_selector.pack(side="left")
 
     def _build_sidebar(self):
         # Category Filter Buttons
@@ -737,12 +762,12 @@ class DashboardView(ctk.CTkFrame):
     def _on_cycle_theme_clicked(self):
         new_theme = cycle_next_theme()
         if hasattr(self, "theme_btn"):
-            self.theme_btn.configure(text=f"Theme: {new_theme}")
+            _attach_tooltip(self.theme_btn, f"Theme: {new_theme}")
         self.reload_entries()
 
     def on_theme_changed(self, theme_name: str):
         if hasattr(self, "theme_btn"):
-            self.theme_btn.configure(text=f"Theme: {theme_name}")
+            _attach_tooltip(self.theme_btn, f"Theme: {theme_name}")
         self.reload_entries()
 
     def _on_search_query_change(self):
@@ -1515,7 +1540,7 @@ class DashboardView(ctk.CTkFrame):
 
         self.bulk_count_lbl = ctk.CTkLabel(
             self.bulk_inner,
-            text="Selected: 0 items",
+            text="Selected: 0",
             font=get_font(11, "bold"),
             text_color=ACCENT_PRIMARY,
         )
@@ -1526,6 +1551,7 @@ class DashboardView(ctk.CTkFrame):
             self.bulk_inner,
             text="Copy Users",
             font=get_font(11),
+            width=96,
             height=28,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1538,6 +1564,7 @@ class DashboardView(ctk.CTkFrame):
             self.bulk_inner,
             text="Copy Passwords",
             font=get_font(11),
+            width=118,
             height=28,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1550,6 +1577,7 @@ class DashboardView(ctk.CTkFrame):
             self.bulk_inner,
             text="Duplicate All",
             font=get_font(11),
+            width=100,
             height=28,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1562,6 +1590,7 @@ class DashboardView(ctk.CTkFrame):
             self.bulk_inner,
             text="Add Tag",
             font=get_font(11),
+            width=84,
             height=28,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1574,6 +1603,7 @@ class DashboardView(ctk.CTkFrame):
             self.bulk_inner,
             text="Delete All",
             font=get_font(11, "bold"),
+            width=92,
             height=28,
             fg_color=COLOR_DANGER,
             hover_color=BORDER_COLOR,
@@ -1586,6 +1616,7 @@ class DashboardView(ctk.CTkFrame):
             self.bulk_inner,
             text="Deselect",
             font=get_font(11),
+            width=86,
             height=28,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1597,7 +1628,7 @@ class DashboardView(ctk.CTkFrame):
         cnt = len(self.selected_entry_ids)
         if cnt > 0:
             if hasattr(self, "bulk_count_lbl"):
-                self.bulk_count_lbl.configure(text=f"Selected: {cnt} items")
+                self.bulk_count_lbl.configure(text=f"Selected: {cnt}")
             if hasattr(self, "bulk_toolbar") and not self.bulk_toolbar.winfo_ismapped():
                 self.bulk_toolbar.pack(fill="x", padx=12, pady=(0, 6), before=self.cards_scroll)
         else:
@@ -2175,26 +2206,42 @@ class DashboardView(ctk.CTkFrame):
         code_row = ctk.CTkFrame(frame, fg_color=BG_ROOT, corner_radius=6)
         code_row.pack(fill="x", pady=(2, 4))
 
-        ctk.CTkLabel(
-            code_row,
-            text=text_val,
-            font=get_mono_font(11),
-            text_color=TEXT_PRIMARY,
-            anchor="w",
-            wraplength=260,
-        ).pack(side="left", fill="x", expand=True, padx=8, pady=6)
-
+        # The Copy button is packed FIRST so the wrapping text gets the real
+        # remaining width; a fixed wraplength narrower than the panel broke
+        # commands mid-token.
         ctk.CTkButton(
             code_row,
             text="Copy",
-            width=50,
+            width=54,
             height=26,
             fg_color=BG_CARD,
             hover_color=BORDER_COLOR,
             font=get_font(11),
             text_color=ACCENT_PRIMARY,
             command=lambda v=text_val, l=label, s=is_sensitive: self._copy_val(v, f"{l} copied", is_sensitive=s),
-        ).pack(side="right", padx=6, pady=4)
+        ).pack(side="right", padx=6, pady=6)
+
+        lbl = ctk.CTkLabel(
+            code_row,
+            text=text_val,
+            font=get_mono_font(11),
+            text_color=TEXT_PRIMARY,
+            anchor="w",
+            justify="left",
+        )
+        lbl.pack(side="left", fill="x", expand=True, padx=8, pady=6)
+
+        # Re-wrap to the panel's real width on resize instead of a fixed value.
+        def _rewrap(_e=None, w=lbl, p=code_row):
+            try:
+                avail = p.winfo_width() - 80
+                if avail > 120:
+                    w.configure(wraplength=avail)
+            except Exception:
+                pass
+
+        code_row.bind("<Configure>", _rewrap)
+        self.after_idle(_rewrap)
 
     def _build_inspector_notes(self, entry: VaultEntry):
         if not entry.notes:
@@ -2726,17 +2773,23 @@ class DashboardView(ctk.CTkFrame):
                 self._add_inspector_field(box, k, v, copyable=True)
 
     def _build_inspector_timestamps(self, entry: VaultEntry):
-        """Displays Created and Modified UTC timestamps."""
+        """Displays Created and Modified UTC timestamps.
+
+        One label per line: the combined string needed ~440px and the inspector
+        is 380px wide, so the text was chopped ("Created" rendered as "eated").
+        """
         ts_frame = ctk.CTkFrame(self.inspector_panel, fg_color="transparent")
         ts_frame.pack(fill="x", padx=12, pady=(0, 12))
         c_ts = entry.created_at[:19].replace("T", " ") if entry.created_at else "Unknown"
         m_ts = entry.updated_at[:19].replace("T", " ") if entry.updated_at else "Unknown"
-        ctk.CTkLabel(
-            ts_frame,
-            text=f"Created: {c_ts} UTC  •  Modified: {m_ts} UTC",
-            font=get_font(10),
-            text_color=TEXT_MUTED,
-        ).pack(anchor="w")
+        for line in (f"Created:  {c_ts} UTC", f"Modified: {m_ts} UTC"):
+            ctk.CTkLabel(
+                ts_frame,
+                text=line,
+                font=get_font(10),
+                text_color=TEXT_MUTED,
+                anchor="w",
+            ).pack(anchor="w")
 
     def _toggle_favorite(self, entry: VaultEntry):
         new_fav = self.database.toggle_favorite(entry.id)

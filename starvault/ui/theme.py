@@ -12,7 +12,12 @@ import customtkinter as ctk
 
 _FONTS_INITIALIZED = False
 ACTIVE_UI_FONT = "Inter"
-ACTIVE_MONO_FONT = "JetBrains Mono"
+# Inconsolata is the default monospace face: measured against JetBrains Mono and
+# Cascadia Mono in the app's real 300px inspector card, it is the narrowest
+# (448px vs 560px for a credential subtitle) and wraps a cURL quick-string in
+# two lines instead of three. JetBrains Mono's wide advance was breaking
+# commands mid-token.
+ACTIVE_MONO_FONT = "Inconsolata"
 _FONT_LISTENERS: List[Callable[[], None]] = []
 
 
@@ -76,9 +81,10 @@ def get_available_ui_fonts() -> List[str]:
 def get_available_mono_fonts() -> List[str]:
     """Returns the bundled open-source monospace fonts (all OFL)."""
     return [
+        "Inconsolata",
+        "Cascadia Mono",
         "JetBrains Mono",
         "Fira Code",
-        "Inconsolata",
     ]
 
 
@@ -140,7 +146,12 @@ _FONT_CACHE: Dict[tuple, ctk.CTkFont] = {}
 
 # Global type scale. Bumping this raises every UI/mono size in one place, so
 # the whole app grows together instead of needing per-call edits.
-UI_FONT_SCALE = 1.18
+#
+# Kept modest on purpose: at 1.18 the six nav tabs plus the action row no longer
+# fitted the default window and CTk clipped the labels. The header is now split
+# into two rows, but 1.10 still reads clearly larger than the original while
+# leaving the entry cards room for their action buttons.
+UI_FONT_SCALE = 1.10
 
 
 def _scaled(size: int) -> int:

@@ -258,7 +258,7 @@ def run_capture():
     print(f"[+] Initialized demo vault at {demo_db_path}")
 
     app = StarVaultApp(db_path=demo_db_path)
-    app.geometry("1240x780")
+    app.geometry("1360x860")
     app.deiconify()
     app.update_idletasks()
     app.update()
@@ -283,8 +283,7 @@ def run_capture():
     print(f"[+] Captured: {path1}")
 
     # 2. Capture Vault Health & Auto-Organize Studio
-    dashboard.tab_selector.set("🛡️ Vault Health")
-    dashboard._on_nav_tab_changed("🛡️ Vault Health")
+    dashboard.switch_to_tab("Vault Health")
     app.update_idletasks()
     app.update()
     time.sleep(0.5)
@@ -295,8 +294,7 @@ def run_capture():
     print(f"[+] Captured: {path2}")
 
     # 3. Capture Crypto Tools Workbench
-    dashboard.tab_selector.set("⚡ Crypto Tools")
-    dashboard._on_nav_tab_changed("⚡ Crypto Tools")
+    dashboard.switch_to_tab("Crypto Tools")
     app.update_idletasks()
     app.update()
     time.sleep(0.5)
@@ -307,8 +305,7 @@ def run_capture():
     print(f"[+] Captured: {path3}")
 
     # 4. Capture Encrypted File Vault
-    dashboard.tab_selector.set("📁 File Vault")
-    dashboard._on_nav_tab_changed("📁 File Vault")
+    dashboard.switch_to_tab("File Vault")
     app.update_idletasks()
     app.update()
     time.sleep(0.5)
@@ -319,8 +316,7 @@ def run_capture():
     print(f"[+] Captured: {path4}")
 
     # 5. Capture Groups & Relational Tags
-    dashboard.tab_selector.set("🗂️ Groups")
-    dashboard._on_nav_tab_changed("🗂️ Groups")
+    dashboard.switch_to_tab("Groups")
     app.update_idletasks()
     app.update()
     time.sleep(0.5)

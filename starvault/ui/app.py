@@ -32,8 +32,8 @@ class StarVaultApp(ctk.CTk):
         apply_global_theme()
 
         self.title(f"{APP_NAME} v{APP_VERSION} - Credential & Key Vault")
-        self.geometry("1240x820")
-        self.minsize(980, 680)
+        self.geometry("1360x860")
+        self.minsize(1080, 700)
         self.configure(fg_color=BG_ROOT)
 
         # Set window icon (taskbar / alt-tab)

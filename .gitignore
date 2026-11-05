@@ -41,3 +41,7 @@ starvault_config.json
 .idea/
 *.swp
 *.swo
+
+# Installer build output (staged folders are rebuilt by make_installer.ps1)
+installer/stage-*/
+installer/out/

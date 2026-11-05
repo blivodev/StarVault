@@ -108,41 +108,34 @@ def render_tk_card(parent, entry, dashboard, is_selected: bool) -> tk.Frame:
     title.pack(side="left")
     title.bind("<Button-1>", lambda e, ent=entry: dashboard._on_card_clicked(e, ent))
 
-    # Tag chips
-    for tag in entry.tags[:3]:
-        tk.Label(
-            top,
-            text=f"#{tag}",
+    # Tag / group / service chips. These are packed to the RIGHT of a long
+    # title, so a wide tag ran past the card edge and was hard-clipped
+    # mid-word. Elide each label to a sane maximum instead.
+    def _chip(parent, text, fg, max_chars=18):
+        if len(text) > max_chars:
+            text = text[: max_chars - 1] + "\u2026"
+        lbl = tk.Label(
+            parent,
+            text=text,
             bg=BG_INPUT,
-            fg=TEXT_MUTED,
+            fg=fg,
             font=tk_font(9),
             padx=4,
             pady=1,
-        ).pack(side="left", padx=2)
+        )
+        lbl.pack(side="left", padx=2)
+        return lbl
+
+    for tag in entry.tags[:3]:
+        _chip(top, f"#{tag}", TEXT_MUTED)
 
     # Group chips
     for grp in getattr(entry, "groups", [])[:2]:
-        tk.Label(
-            top,
-            text=grp,
-            bg=BG_INPUT,
-            fg=ACCENT_INDIGO,
-            font=tk_font(9),
-            padx=4,
-            pady=1,
-        ).pack(side="left", padx=2)
+        _chip(top, grp, ACCENT_INDIGO, max_chars=16)
 
     # Service chips
     for srv in getattr(entry, "services", [])[:2]:
-        tk.Label(
-            top,
-            text=srv,
-            bg=BG_INPUT,
-            fg=ACCENT_PRIMARY,
-            font=tk_font(9),
-            padx=4,
-            pady=1,
-        ).pack(side="left", padx=2)
+        _chip(top, srv, ACCENT_PRIMARY, max_chars=16)
 
     # --- Subtitle row ---
     sub = tk.Label(

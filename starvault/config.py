@@ -5,7 +5,7 @@ import sys
 from pathlib import Path
 
 APP_NAME = "StarVault"
-APP_VERSION = "1.0.0"
+APP_VERSION = "1.1.0"
 APP_SUBTITLE = "Secure Credential & Key Vault for Homelabs & VPS"
 
 # Directory paths

@@ -860,7 +860,7 @@ body {
 }
 
 .card-user {
-  font-family: monospace;
+  font-family: "Inconsolata", "Cascadia Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   max-width: 220px;
   overflow: hidden;
   text-overflow: ellipsis;
@@ -1055,7 +1055,7 @@ body {
   border-radius: 4px;
   padding: 5px 8px;
   color: var(--accent);
-  font-family: monospace;
+  font-family: "Inconsolata", "Cascadia Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
 }
 
@@ -1075,7 +1075,7 @@ body {
 
 .drawer-body textarea {
   height: 45px;
-  font-family: monospace;
+  font-family: "Inconsolata", "Cascadia Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   resize: none;
 }
 
@@ -1186,7 +1186,7 @@ body {
   background-color: var(--bg-input);
   border: 1px dashed var(--accent);
   border-radius: 4px;
-  font-family: monospace;
+  font-family: "Inconsolata", "Cascadia Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
   font-size: 11px;
   color: var(--accent);
   word-break: break-all;
@@ -1273,7 +1273,7 @@ body {
 .neural-gauge-num {
   font-size: 26px;
   font-weight: 900;
-  font-family: monospace;
+  font-family: "Inconsolata", "Cascadia Mono", "JetBrains Mono", ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 .neural-gauge-label {
@@ -1366,3 +1366,38 @@ input, select, textarea, button { font-size: 12px; }
 .sv-ico svg { display: block; }
 .site-favicon { width: 16px; height: 16px; border-radius: 3px; display: block; }
 .btn-tool .sv-ico, .btn-action .sv-ico { margin-right: 4px; }
+
+
+/* ---------------------------------------------------------------------------
+   Typography pass (matches the desktop app)
+   - A real monospace stack: the bare `monospace` keyword resolves to Courier
+     New on Windows, which reads as dated next to the UI font.
+   - The 8-9px labels were below a comfortable reading size.
+--------------------------------------------------------------------------- */
+:root {
+  --font-mono: "Inconsolata", "Cascadia Mono", "JetBrains Mono", ui-monospace,
+               SFMono-Regular, Menlo, Consolas, monospace;
+}
+
+.card-user, .neural-entry-box, code, pre, kbd, samp,
+.drawer-body input[type="text"], .gen-output {
+  font-family: var(--font-mono);
+}
+
+/* Raise the smallest type to a readable floor. */
+.badge, .mini-badge, .chip, .field-label, .section-label,
+.sort-bar label, .neural-entry-box, .card-category {
+  font-size: 11px;
+}
+.card-user { font-size: 12px; }
+.gen-output, code, pre { font-size: 12px; line-height: 1.45; }
+
+/* Bundle the monospace face so the popup does not depend on the host having it
+   installed (Chrome extensions cannot reach the desktop app's font files). */
+@font-face {
+  font-family: "Inconsolata";
+  src: url("fonts/Inconsolata-Regular.ttf") format("truetype");
+  font-weight: 400;
+  font-style: normal;
+  font-display: swap;
+}
