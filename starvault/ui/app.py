@@ -53,7 +53,6 @@ class StarVaultApp(ctk.CTk):
             on_close=self._on_close_button_clicked,
         )
         self._title_bar = None
-        self._mark_image = None
 
         # App Configuration (Recent Vaults, Remember Me)
         self.app_config = AppConfigManager()
@@ -135,16 +134,10 @@ class StarVaultApp(ctk.CTk):
                 self._title_bar.destroy()
             except Exception:
                 pass
-        try:
-            from starvault.ui.branding import mark_image
-            self._mark_image = mark_image(22)
-        except Exception:
-            self._mark_image = None
         self._title_bar = build_title_bar(
             self,
             title_text=f"{APP_NAME}",
             chrome=self.chrome,
-            mark_image=self._mark_image,
         )
 
     def _show_initial_view(self):

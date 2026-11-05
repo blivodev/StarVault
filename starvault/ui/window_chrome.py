@@ -192,25 +192,22 @@ def build_title_bar(
     *,
     title_text: str,
     chrome: WindowChrome,
-    mark_image=None,
 ) -> ctk.CTkFrame:
-    """Builds the in-app title strip with brand mark and window controls."""
+    """Builds the in-app title strip: the window's name and its controls.
+
+    No brand mark here. The mark already sits on the navigation row directly
+    below, right beside the same word, and two copies of it stacked a few
+    pixels apart read as a mistake rather than as branding.
+    """
     bar = ctk.CTkFrame(parent, fg_color=BG_CARD, height=44, corner_radius=0,
                        border_width=1, border_color=BORDER_COLOR)
     bar.pack(fill="x")
 
-    # Brand mark (image if supplied, else the icon glyph)
+    # The window's name. This is the whole left side now.
     left = ctk.CTkFrame(bar, fg_color="transparent")
-    left.pack(side="left", padx=(12, 0), pady=6)
-    if mark_image is not None:
-        lbl = ctk.CTkLabel(left, text="", image=mark_image)
-        lbl.pack(side="left")
-    else:
-        ctk.CTkLabel(left, text=icon("shield-check"), font=icon_font(18),
-                     text_color=ACCENT_PRIMARY).pack(side="left")
-
+    left.pack(side="left", padx=(14, 0), pady=6)
     ctk.CTkLabel(left, text=title_text, font=get_font(13, "bold"),
-                 text_color=TEXT_PRIMARY).pack(side="left", padx=(8, 0))
+                 text_color=TEXT_PRIMARY).pack(side="left")
 
     # Window controls (icons)
     controls = ctk.CTkFrame(bar, fg_color="transparent")
