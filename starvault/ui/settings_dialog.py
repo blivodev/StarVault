@@ -78,7 +78,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             header,
-            text="⚙️ StarVault Settings",
+            text="\ue158 StarVault Settings",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left", padx=24, pady=16)
@@ -343,7 +343,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             dir_row,
-            text="📁 Browse...",
+            text="\ue0dc Browse...",
             width=90,
             height=36,
             fg_color=BG_INPUT,
@@ -356,7 +356,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             sync_btn_row,
-            text="🔄 Sync Snapshot Now",
+            text="\ue149 Sync Snapshot Now",
             width=150,
             height=32,
             fg_color=BG_INPUT,
@@ -367,7 +367,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             sync_btn_row,
-            text="✖ Disable Sync",
+            text="\ue1b2 Disable Sync",
             width=110,
             height=32,
             fg_color=BG_INPUT,
@@ -378,7 +378,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         self.sync_status_label = ctk.CTkLabel(
             sync_btn_row,
-            text="✓ Active" if self.backup_dir_var.get() else "Sync disabled",
+            text="\ue070 Active" if self.backup_dir_var.get() else "Sync disabled",
             font=get_font(11),
             text_color=COLOR_SUCCESS if self.backup_dir_var.get() else TEXT_MUTED,
         )
@@ -388,7 +388,7 @@ class SettingsDialog(ctk.CTkToplevel):
         gdrive_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         gdrive_card.pack(fill="x", pady=(0, 16), padx=4)
 
-        ctk.CTkLabel(gdrive_card, text="☁️ GOOGLE DRIVE CLOUD SYNC (LOG IN WITH GOOGLE)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
+        ctk.CTkLabel(gdrive_card, text="\ue08c GOOGLE DRIVE CLOUD SYNC (LOG IN WITH GOOGLE)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
 
         ctk.CTkLabel(
             gdrive_card,
@@ -410,7 +410,7 @@ class SettingsDialog(ctk.CTkToplevel):
         gd_user = gd_cfg.get("gdrive_user_email", "")
         gd_last = gd_cfg.get("gdrive_last_sync", "")
 
-        status_text = f"✓ Connected as {gd_user}" if is_gd_connected else "Status: Not connected to Google Drive"
+        status_text = f"\ue070 Connected as {gd_user}" if is_gd_connected else "Status: Not connected to Google Drive"
         if is_gd_connected and gd_last:
             status_text += f" (Last sync: {gd_last})"
 
@@ -430,7 +430,7 @@ class SettingsDialog(ctk.CTkToplevel):
         ret_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         ret_card.pack(fill="x", pady=(0, 16), padx=4)
 
-        ctk.CTkLabel(ret_card, text="📜 CREDENTIAL VERSION RETENTION & KEY LIFECYCLE", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
+        ctk.CTkLabel(ret_card, text="\ue464 CREDENTIAL VERSION RETENTION & KEY LIFECYCLE", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
 
         ctk.CTkLabel(
             ret_card,
@@ -517,7 +517,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             ret_btn_row,
-            text="🧹 Clean Stale Versions Now",
+            text="\ue28f Clean Stale Versions Now",
             width=180,
             height=32,
             fg_color=BG_INPUT,
@@ -528,7 +528,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             ret_btn_row,
-            text="🔍 Preview Pruning (Dry Run)",
+            text="\ue155 Preview Pruning (Dry Run)",
             width=180,
             height=32,
             fg_color=BG_INPUT,
@@ -561,7 +561,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             b_row,
-            text="💾 Save Copy (.db)",
+            text="\ue151 Save Copy (.db)",
             width=130,
             height=34,
             fg_color=BG_INPUT,
@@ -571,7 +571,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             b_row,
-            text="📤 Export Vault (.sve / .zip)...",
+            text="\ue19e Export Vault (.sve / .zip)...",
             width=180,
             height=34,
             font=get_font(11, "bold"),
@@ -583,7 +583,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             b_row,
-            text="📥 Import Package...",
+            text="\ue0b6 Import Package...",
             width=150,
             height=34,
             font=get_font(11, "bold"),
@@ -600,7 +600,7 @@ class SettingsDialog(ctk.CTkToplevel):
         csv_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         csv_card.pack(fill="x", pady=(0, 16), padx=4)
 
-        ctk.CTkLabel(csv_card, text="📊 CREDENTIAL EXPORT (CSV SPREADSHEET)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
+        ctk.CTkLabel(csv_card, text="\ue2a3 CREDENTIAL EXPORT (CSV SPREADSHEET)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
 
         ctk.CTkLabel(
             csv_card,
@@ -616,7 +616,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             csv_btn_row,
-            text="📤 Export to CSV...",
+            text="\ue19e Export to CSV...",
             font=get_font(12, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -632,7 +632,7 @@ class SettingsDialog(ctk.CTkToplevel):
         arch_card = ctk.CTkFrame(scroll, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         arch_card.pack(fill="x", pady=(0, 16), padx=4)
 
-        ctk.CTkLabel(arch_card, text="📦 FULL VAULT ARCHIVE EXPORT (ZIP / 7Z / EXTRACT ALL)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
+        ctk.CTkLabel(arch_card, text="\ue12d FULL VAULT ARCHIVE EXPORT (ZIP / 7Z / EXTRACT ALL)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 4))
 
         ctk.CTkLabel(
             arch_card,
@@ -694,7 +694,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             arch_act_row,
-            text="📦 Export Full Archive...",
+            text="\ue12d Export Full Archive...",
             font=get_font(12, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -740,7 +740,7 @@ class SettingsDialog(ctk.CTkToplevel):
             self.on_key_updated(new_key)
             self.new_pwd_entry.delete(0, "end")
             self.confirm_pwd_entry.delete(0, "end")
-            self.pwd_status_label.configure(text="✓ Master password successfully updated!", text_color=COLOR_SUCCESS)
+            self.pwd_status_label.configure(text="\ue070 Master password successfully updated!", text_color=COLOR_SUCCESS)
         except Exception as e:
             self.pwd_status_label.configure(text=f"Error: {str(e)}", text_color=COLOR_DANGER)
 
@@ -753,7 +753,7 @@ class SettingsDialog(ctk.CTkToplevel):
         if dest:
             try:
                 shutil.copyfile(str(self.database.db_path), dest)
-                self.backup_status_label.configure(text="✓ Backup saved successfully!")
+                self.backup_status_label.configure(text="\ue070 Backup saved successfully!")
             except Exception as e:
                 self.backup_status_label.configure(text=f"Backup error: {str(e)}", text_color=COLOR_DANGER)
 
@@ -762,7 +762,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
     def _open_vault_import_dialog(self):
         def on_done():
-            self.backup_status_label.configure(text="✓ Vault data successfully imported!", text_color=COLOR_SUCCESS)
+            self.backup_status_label.configure(text="\ue070 Vault data successfully imported!", text_color=COLOR_SUCCESS)
             if hasattr(self.master, "reload_entries"):
                 self.master.reload_entries()
 
@@ -778,7 +778,7 @@ class SettingsDialog(ctk.CTkToplevel):
         folder = filedialog.askdirectory(title="Select Passive Cloud Sync Folder (Google Drive, Dropbox, etc.)")
         if folder:
             self.backup_dir_var.set(folder)
-            self.sync_status_label.configure(text="✓ Active (Mirroring enabled)", text_color=COLOR_SUCCESS)
+            self.sync_status_label.configure(text="\ue070 Active (Mirroring enabled)", text_color=COLOR_SUCCESS)
 
     def _clear_backup_dir(self):
         self.backup_dir_var.set("")
@@ -794,7 +794,7 @@ class SettingsDialog(ctk.CTkToplevel):
         self.database.update_settings({"backup_dir": dir_val})
         dest = self.database.trigger_backup()
         if dest:
-            self.sync_status_label.configure(text="✓ Synced successfully!", text_color=COLOR_SUCCESS)
+            self.sync_status_label.configure(text="\ue070 Synced successfully!", text_color=COLOR_SUCCESS)
         else:
             self.sync_status_label.configure(text="Sync failed: check directory permissions", text_color=COLOR_DANGER)
 
@@ -808,7 +808,7 @@ class SettingsDialog(ctk.CTkToplevel):
         if not is_gd_connected:
             ctk.CTkButton(
                 self.gdrive_btn_row,
-                text="🔑 Log In with Google",
+                text="\ue102 Log In with Google",
                 font=get_font(12, "bold"),
                 fg_color=ACCENT_PRIMARY,
                 hover_color=ACCENT_HOVER,
@@ -819,7 +819,7 @@ class SettingsDialog(ctk.CTkToplevel):
         else:
             ctk.CTkButton(
                 self.gdrive_btn_row,
-                text="🔄 Sync Now (Upload)",
+                text="\ue149 Sync Now (Upload)",
                 font=get_font(11, "bold"),
                 fg_color=BG_INPUT,
                 hover_color=BORDER_COLOR,
@@ -829,7 +829,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
             ctk.CTkButton(
                 self.gdrive_btn_row,
-                text="⬇️ Pull from Drive",
+                text="\ue046 Pull from Drive",
                 font=get_font(11),
                 fg_color=BG_INPUT,
                 hover_color=BORDER_COLOR,
@@ -853,7 +853,7 @@ class SettingsDialog(ctk.CTkToplevel):
         def on_done(success, msg):
             def update():
                 if success:
-                    self.gdrive_status_lbl.configure(text=f"✓ {msg}", text_color=COLOR_SUCCESS)
+                    self.gdrive_status_lbl.configure(text=f"\ue070 {msg}", text_color=COLOR_SUCCESS)
                 else:
                     self.gdrive_status_lbl.configure(text=f"Login failed: {msg}", text_color=COLOR_DANGER)
                 self._render_gdrive_buttons()
@@ -949,7 +949,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             modal,
-            text="🔐 Authentication Required",
+            text="\ue536 Authentication Required",
             font=get_font(15, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(pady=(16, 4))
@@ -1049,7 +1049,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
             success, msg, count = export_vault_to_csv(self.database, pwd, Path(dest), keyfile_secret=kf)
             if success:
-                self.csv_status_label.configure(text=f"✓ Exported {count} credentials to '{Path(dest).name}'", text_color=COLOR_SUCCESS)
+                self.csv_status_label.configure(text=f"\ue070 Exported {count} credentials to '{Path(dest).name}'", text_color=COLOR_SUCCESS)
             else:
                 self.csv_status_label.configure(text=f"Export failed: {msg}", text_color=COLOR_DANGER)
 
@@ -1087,7 +1087,7 @@ class SettingsDialog(ctk.CTkToplevel):
                 def finish():
                     if success:
                         self.arch_status_label.configure(
-                            text=f"✓ Saved '{Path(dest).name}' ({summ.get('credentials_count', 0)} credentials, {summ.get('files_count', 0)} files, {summ.get('keys_count', 0)} keys)",
+                            text=f"\ue070 Saved '{Path(dest).name}' ({summ.get('credentials_count', 0)} credentials, {summ.get('files_count', 0)} files, {summ.get('keys_count', 0)} keys)",
                             text_color=COLOR_SUCCESS,
                         )
                     else:
@@ -1135,7 +1135,7 @@ class SettingsDialog(ctk.CTkToplevel):
 
             action = "Previewed" if dry_run else "Cleaned"
             status_text = (
-                f"✓ {action} {res.versions_deleted} versions across {res.entries_affected} entries."
+                f"\ue070 {action} {res.versions_deleted} versions across {res.entries_affected} entries."
             )
             if del_files:
                 status_text += f" {res.physical_files_deleted} physical key files."

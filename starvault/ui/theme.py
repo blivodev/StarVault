@@ -139,6 +139,15 @@ def register_font_listener(callback: Callable[[], None]) -> None:
 
 _FONT_CACHE: Dict[tuple, ctk.CTkFont] = {}
 
+# Global type scale. Bumping this raises every UI/mono size in one place, so
+# the whole app grows together instead of needing per-call edits.
+UI_FONT_SCALE = 1.18
+
+
+def _scaled(size: int) -> int:
+    """Applies the global type scale to a requested size."""
+    return max(8, int(round(size * UI_FONT_SCALE)))
+
 
 def get_font(size: int = 13, weight: str = "normal") -> ctk.CTkFont:
     """Returns application UI font using modern open-source typography.
@@ -146,6 +155,7 @@ def get_font(size: int = 13, weight: str = "normal") -> ctk.CTkFont:
     Fonts are cached: creating a fresh CTkFont per widget was a significant
     share of UI rebuild cost. Cached fonts are safe to share across widgets.
     """
+    size = _scaled(size)
     key = (ACTIVE_UI_FONT, size, weight)
     cached = _FONT_CACHE.get(key)
     if cached is not None:
@@ -157,6 +167,7 @@ def get_font(size: int = 13, weight: str = "normal") -> ctk.CTkFont:
 
 def get_mono_font(size: int = 12, weight: str = "normal") -> ctk.CTkFont:
     """Returns monospace font for credentials, code, tokens, and keys."""
+    size = _scaled(size)
     key = (ACTIVE_MONO_FONT, size, weight)
     cached = _FONT_CACHE.get(key)
     if cached is not None:
@@ -169,6 +180,21 @@ def get_mono_font(size: int = 12, weight: str = "normal") -> ctk.CTkFont:
 def clear_font_cache() -> None:
     """Drops cached fonts (called when the active font family changes)."""
     _FONT_CACHE.clear()
+
+
+def tk_font(size: int = 12, weight: str = "normal"):
+    """Returns a plain-tk font tuple using the app's open-source UI font.
+
+    The tk-widget hybrid rows (tk_cards.py, groups_view.py) cannot use CTkFont,
+    and falling back to "Segoe UI" there would bypass the bundled OFL font. This
+    keeps the hybrid rows on the same family as the rest of the app.
+    """
+    return (ACTIVE_UI_FONT, _scaled(size), weight)
+
+
+def tk_mono_font(size: int = 11, weight: str = "normal"):
+    """Plain-tk font tuple using the app's open-source monospace font."""
+    return (ACTIVE_MONO_FONT, _scaled(size), weight)
 
 
 # -----------------------------------------------------------------------------

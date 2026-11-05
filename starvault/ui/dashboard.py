@@ -59,8 +59,47 @@ from starvault.ui.theme import (
     get_current_theme,
     get_font,
     get_mono_font,
+    tk_font,
 )
 from starvault.ui.widgets import add_password_toggle
+
+
+def _attach_tooltip(widget, text: str) -> None:
+    """Attaches a lightweight hover tooltip to a widget (icon-only buttons)."""
+    if not text:
+        return
+    tip = {"win": None}
+
+    def show(_e=None):
+        if tip["win"] is not None:
+            return
+        try:
+            import tkinter as _tk
+            w = _tk.Toplevel(widget)
+            w.wm_overrideredirect(True)
+            w.attributes("-topmost", True)
+            x = widget.winfo_rootx() + widget.winfo_width() // 2
+            y = widget.winfo_rooty() + widget.winfo_height() + 6
+            w.wm_geometry(f"+{x}+{y}")
+            _tk.Label(
+                w, text=text, bg="#18181b", fg="#f4f4f5",
+                font=tk_font(10), padx=8, pady=4,
+                highlightbackground="#3f3f46", highlightthickness=1,
+            ).pack()
+            tip["win"] = w
+        except Exception:
+            tip["win"] = None
+
+    def hide(_e=None):
+        if tip["win"] is not None:
+            try:
+                tip["win"].destroy()
+            except Exception:
+                pass
+            tip["win"] = None
+
+    widget.bind("<Enter>", show, add="+")
+    widget.bind("<Leave>", hide, add="+")
 
 
 class DashboardView(ctk.CTkFrame):
@@ -176,7 +215,7 @@ class DashboardView(ctk.CTkFrame):
 
         self.inspector_toggle_btn = ctk.CTkButton(
             self.filter_header,
-            text="◀ Inspector",
+            text="\ue072 Inspector",
             width=90,
             height=28,
             font=get_font(11, "bold"),
@@ -373,19 +412,28 @@ class DashboardView(ctk.CTkFrame):
         return self.crypto_tools_view
 
     def _build_top_navbar(self):
+        from starvault.ui.icons_font import icon, icon_font
         top_bar = ctk.CTkFrame(self, fg_color=BG_CARD, height=64, corner_radius=0, border_width=1, border_color=BORDER_COLOR)
         top_bar.pack(fill="x")
 
-        # Brand / Logo
+        # Brand / Logo — the real brand mark, matching the app icon
         brand_frame = ctk.CTkFrame(top_bar, fg_color="transparent")
         brand_frame.pack(side="left", padx=(18, 8), pady=12)
 
-        ctk.CTkLabel(
-            brand_frame,
-            text="★",
-            font=ctk.CTkFont(size=22, weight="bold"),
-            text_color=ACCENT_PRIMARY,
-        ).pack(side="left", padx=(0, 6))
+        try:
+            from starvault.ui.branding import mark_image
+            _bm = mark_image(24)
+        except Exception:
+            _bm = None
+        if _bm is not None:
+            ctk.CTkLabel(brand_frame, text="", image=_bm).pack(side="left", padx=(0, 8))
+        else:
+            ctk.CTkLabel(
+                brand_frame,
+                text=icon("shield-check"),
+                font=icon_font(20),
+                text_color=ACCENT_PRIMARY,
+            ).pack(side="left", padx=(0, 6))
 
         ctk.CTkLabel(
             brand_frame,
@@ -394,11 +442,19 @@ class DashboardView(ctk.CTkFrame):
             text_color=TEXT_PRIMARY,
         ).pack(side="left")
 
-        # Navigation Tabs Segmented Button
+        # Navigation Tabs Segmented Button (icon + label)
+        self._nav_icon_labels = {
+            "Credentials": f"{icon('layout-grid')}  Credentials",
+            "Groups": f"{icon('folder-tree')}  Groups",
+            "2FA & QR": f"{icon('smartphone')}  2FA & QR",
+            "Vault Health": f"{icon('shield-check')}  Vault Health",
+            "File Vault": f"{icon('folder-lock')}  File Vault",
+            "Crypto Tools": f"{icon('key-round')}  Crypto Tools",
+        }
         self.nav_var = ctk.StringVar(value="Credentials")
         self.tab_selector = ctk.CTkSegmentedButton(
             top_bar,
-            values=["Credentials", "Groups", "2FA & QR", "Vault Health", "File Vault", "Crypto Tools"],
+            values=list(self._nav_icon_labels.values()),
             variable=self.nav_var,
             command=self._on_nav_tab_changed,
             font=get_font(11, "bold"),
@@ -410,13 +466,14 @@ class DashboardView(ctk.CTkFrame):
             height=34,
             corner_radius=6,
         )
+        self.tab_selector.set(self._nav_icon_labels["Credentials"])
         self.tab_selector.pack(side="left", padx=10, pady=14)
 
         # Central Fuzzy Search Bar
         self.search_container = ctk.CTkFrame(top_bar, fg_color=BG_INPUT, corner_radius=6, border_width=1, border_color=BORDER_COLOR, width=340, height=38)
         self.search_container.pack(side="left", fill="x", expand=True, padx=(10, 16), pady=12)
 
-        ctk.CTkLabel(self.search_container, text="⌕", font=get_font(14), text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
+        ctk.CTkLabel(self.search_container, text=icon("search"), font=icon_font(15), text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
 
         self.search_entry = ctk.CTkEntry(
             self.search_container,
@@ -432,6 +489,8 @@ class DashboardView(ctk.CTkFrame):
         # Right Action & Status Area
         actions_frame = ctk.CTkFrame(top_bar, fg_color="transparent")
         actions_frame.pack(side="right", padx=16, pady=12)
+
+        from starvault.ui.icons_font import icon as _ic, icon_font as _if
 
         # Expiry Alert Pill (shown when items are expiring/expired)
         self.expiry_pill = ctk.CTkButton(
@@ -468,94 +527,36 @@ class DashboardView(ctk.CTkFrame):
         )
         self.autolock_label.pack(side="left", padx=(0, 10))
 
-        # Action buttons
-        ctk.CTkButton(
-            actions_frame,
-            text="+ New Entry",
-            font=get_font(12, "bold"),
-            fg_color=ACCENT_PRIMARY,
-            hover_color=ACCENT_HOVER,
-            text_color=TEXT_ON_ACCENT,
-            height=34,
-            corner_radius=6,
-            command=self._open_new_entry_dialog,
-        ).pack(side="left", padx=3)
+        # Action buttons — icon + short label for the primary actions, icon-only
+        # for the utility ones, each with a hover tooltip.
+        def _act(glyph, label, command, *, primary=False, accent=False):
+            txt = f"{glyph}  {label}" if label else glyph
+            b = ctk.CTkButton(
+                actions_frame,
+                text=txt,
+                font=get_font(12, "bold" if primary else "normal"),
+                fg_color=ACCENT_PRIMARY if primary else BG_INPUT,
+                hover_color=ACCENT_HOVER if primary else BORDER_COLOR,
+                text_color=TEXT_ON_ACCENT if primary else (ACCENT_PRIMARY if accent else TEXT_PRIMARY),
+                height=34,
+                corner_radius=6,
+                command=command,
+            )
+            b.pack(side="left", padx=3)
+            _attach_tooltip(b, label or txt)
+            return b
 
-        ctk.CTkButton(
-            actions_frame,
-            text="API Studio",
-            font=get_font(12),
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_PRIMARY,
-            height=34,
-            corner_radius=6,
-            command=self._open_api_key_studio,
-        ).pack(side="left", padx=3)
-
-        ctk.CTkButton(
-            actions_frame,
-            text="Key Studio",
-            font=get_font(12),
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_PRIMARY,
-            height=34,
-            corner_radius=6,
-            command=self._open_key_studio,
-        ).pack(side="left", padx=3)
-
-        ctk.CTkButton(
-            actions_frame,
-            text="Local Keys",
-            font=get_font(12),
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=ACCENT_PRIMARY,
-            height=34,
-            corner_radius=6,
-            command=self._open_local_key_installer,
-        ).pack(side="left", padx=3)
-
-        ctk.CTkButton(
-            actions_frame,
-            text="Export",
-            font=get_font(12),
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_PRIMARY,
-            height=34,
-            corner_radius=6,
-            command=self._open_vault_export_dialog,
-        ).pack(side="left", padx=3)
-
-        ctk.CTkButton(
-            actions_frame,
-            text="Import",
-            font=get_font(12),
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_PRIMARY,
-            height=34,
-            corner_radius=6,
-            command=self._open_vault_import_dialog,
-        ).pack(side="left", padx=3)
-
-        ctk.CTkButton(
-            actions_frame,
-            text="Settings",
-            font=get_font(12),
-            height=34,
-            corner_radius=6,
-            fg_color=BG_INPUT,
-            hover_color=BORDER_COLOR,
-            text_color=TEXT_SECONDARY,
-            command=self._open_settings,
-        ).pack(side="left", padx=3)
+        _act(_ic("plus"), "New Entry", self._open_new_entry_dialog, primary=True)
+        _act(_ic("key-round"), "API Studio", self._open_api_key_studio)
+        _act(_ic("wand-sparkles"), "Key Studio", self._open_key_studio)
+        _act(_ic("monitor-down"), "Local Keys", self._open_local_key_installer, accent=True)
+        _act(_ic("download"), "Export", self._open_vault_export_dialog)
+        _act(_ic("upload"), "Import", self._open_vault_import_dialog)
+        _act(_ic("settings"), "", self._open_settings)
 
         self.theme_btn = ctk.CTkButton(
             actions_frame,
-            text=f"Theme: {get_current_theme()}",
+            text=f"{_ic('palette')}  {get_current_theme()}",
             font=get_font(11, "bold"),
             height=34,
             corner_radius=6,
@@ -565,10 +566,11 @@ class DashboardView(ctk.CTkFrame):
             command=self._on_cycle_theme_clicked,
         )
         self.theme_btn.pack(side="left", padx=3)
+        _attach_tooltip(self.theme_btn, "Cycle theme")
 
-        ctk.CTkButton(
+        lock_btn = ctk.CTkButton(
             actions_frame,
-            text="Lock",
+            text=f"{_ic('lock')}  Lock",
             font=get_font(12, "bold"),
             fg_color=BG_INPUT,
             hover_color=COLOR_DANGER,
@@ -576,7 +578,9 @@ class DashboardView(ctk.CTkFrame):
             height=34,
             corner_radius=6,
             command=self.on_lock_requested,
-        ).pack(side="left", padx=(3, 0))
+        )
+        lock_btn.pack(side="left", padx=(3, 0))
+        _attach_tooltip(lock_btn, "Lock vault (Ctrl+L)")
 
     def _build_sidebar(self):
         # Category Filter Buttons
@@ -588,23 +592,24 @@ class DashboardView(ctk.CTkFrame):
         ).pack(anchor="w", padx=16, pady=(16, 6))
 
         self.cat_buttons = {}
+        from starvault.ui.icons_font import icon as _icon
         categories = [
-            ("All", "All Entries"),
-            ("Favorites", "Favorites"),
-            ("Domains", "Domains & URLs"),
-            ("API Keys", "API Keys"),
-            ("Servers", "Servers & VPS"),
-            ("Services", "Services & DBs"),
-            ("Keys", "SSH & GPG Keys"),
+            ("All", "All Entries", "layout-grid"),
+            ("Favorites", "Favorites", "star"),
+            ("Domains", "Domains & URLs", "globe"),
+            ("API Keys", "API Keys", "key-round"),
+            ("Servers", "Servers & VPS", "server"),
+            ("Services", "Services & DBs", "package"),
+            ("Keys", "SSH & GPG Keys", "key"),
         ]
 
-        for cat_key, cat_label in categories:
+        for cat_key, cat_label, cat_icon in categories:
             btn = ctk.CTkButton(
                 self.sidebar,
-                text=cat_label,
+                text=f"  {_icon(cat_icon)}   {cat_label}",
                 font=get_font(12),
                 anchor="w",
-                height=34,
+                height=36,
                 corner_radius=6,
                 fg_color=BG_CARD if cat_key == self.selected_category else "transparent",
                 hover_color=BG_CARD_HOVER,
@@ -710,14 +715,14 @@ class DashboardView(ctk.CTkFrame):
 
         if expired_count > 0:
             self.expiry_pill.configure(
-                text=f"⚠️ {expired_count} Expired",
+                text=f"\ue193 {expired_count} Expired",
                 fg_color=COLOR_DANGER,
                 hover_color=COLOR_WARNING,
             )
             self.expiry_pill.pack(side="left", padx=(0, 8))
         elif expiring_count > 0:
             self.expiry_pill.configure(
-                text=f"⏳ {expiring_count} Expiring Soon",
+                text=f"\ue296 {expiring_count} Expiring Soon",
                 fg_color=COLOR_WARNING,
                 hover_color=COLOR_DANGER,
             )
@@ -726,8 +731,7 @@ class DashboardView(ctk.CTkFrame):
             self.expiry_pill.pack_forget()
 
     def _on_expiry_pill_clicked(self):
-        self.nav_var.set("Vault Health")
-        self.tab_selector.set("Vault Health")
+        self._set_nav_tab("Vault Health")
         self._on_nav_tab_changed("Vault Health")
 
     def _on_cycle_theme_clicked(self):
@@ -794,6 +798,17 @@ class DashboardView(ctk.CTkFrame):
         self._refresh_tags_sidebar()
         self._apply_filters()
 
+    def _plain_filter(self, choice: str) -> str:
+        """Strips any icon prefix from a filter label.
+
+        Filter labels carry a Lucide glyph prefix ("\ue121 Servers"). Callers —
+        including tests and restored preferences — may pass either the decorated
+        label or the bare name, so normalise before matching.
+        """
+        import re as _re
+        # Drop any leading private-use / symbol characters and whitespace.
+        return _re.sub(r"^[^\w]+", "", choice or "").strip()
+
     def _apply_filters(self):
         query = self.search_entry.get().strip()
         scored = search_entries(
@@ -805,17 +820,18 @@ class DashboardView(ctk.CTkFrame):
         candidates = [e for e, score in scored]
 
         # 1. Filter by Selected Entry Type / Favorites
-        if self.selected_type_filter in ("Domains", "🌐 Domains", "🔗 Domains"):
+        tf = self._plain_filter(self.selected_type_filter)
+        if tf == "Domains":
             candidates = [e for e in candidates if e.entry_type == "domain"]
-        elif self.selected_type_filter in ("Servers", "🖥️ Servers"):
+        elif tf == "Servers":
             candidates = [e for e in candidates if e.entry_type == "server"]
-        elif self.selected_type_filter in ("Services", "⚙️ Services", "🌐 Services"):
+        elif tf == "Services":
             candidates = [e for e in candidates if e.entry_type == "service"]
-        elif self.selected_type_filter in ("API Keys", "🔑 API Keys"):
+        elif tf in ("API Keys", "API"):
             candidates = [e for e in candidates if e.entry_type == "apikey"]
-        elif self.selected_type_filter in ("Keypairs", "Keys", "🛡️ Keys"):
+        elif tf in ("Keypairs", "Keys"):
             candidates = [e for e in candidates if e.entry_type == "keypair"]
-        elif self.selected_type_filter in ("Favorites", "⭐ Favorites"):
+        elif tf == "Favorites":
             candidates = [e for e in candidates if e.is_favorite]
 
         # 2. Filter by Status Chip
@@ -1028,8 +1044,9 @@ class DashboardView(ctk.CTkFrame):
         )
         chk.pack(side="left", padx=(0, 4))
 
-        # Favorite Star Toggle Button
-        star_icon = "★" if entry.is_favorite else "☆"
+        # Favorite Star Toggle Button — filled star when favourited, outline
+        # star otherwise, so the two states stay distinguishable.
+        star_icon = "\ue17a" if entry.is_favorite else "\ue2b0"
         star_color = COLOR_FAVORITE if entry.is_favorite else TEXT_MUTED
         ctk.CTkButton(
             top_row,
@@ -1479,10 +1496,10 @@ class DashboardView(ctk.CTkFrame):
         self.inspector_visible = not self.inspector_visible
         if self.inspector_visible:
             self.inspector_panel.pack(side="right", fill="both")
-            self.inspector_toggle_btn.configure(text="◀ Inspector")
+            self.inspector_toggle_btn.configure(text="\ue072 Inspector")
         else:
             self.inspector_panel.pack_forget()
-            self.inspector_toggle_btn.configure(text="▶ Inspector")
+            self.inspector_toggle_btn.configure(text="\ue073 Inspector")
 
     def _build_bulk_toolbar(self):
         self.bulk_toolbar = ctk.CTkFrame(
@@ -2003,7 +2020,7 @@ class DashboardView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 box,
-                text="💻 Install Key to Local System (~/.ssh)...",
+                text="\ue1cd Install Key to Local System (~/.ssh)...",
                 font=get_font(11, "bold"),
                 fg_color=BG_CARD,
                 hover_color=BORDER_COLOR,
@@ -2031,7 +2048,7 @@ class DashboardView(ctk.CTkFrame):
         ctk.CTkLabel(row, text=f"{target_entry.title}", font=get_font(12, "bold"), text_color=ACCENT_PRIMARY, anchor="w").pack(side="left", fill="x", expand=True, padx=4)
         ctk.CTkButton(
             row,
-            text="↗️",
+            text="\ue051",
             width=28,
             height=24,
             fg_color="transparent",
@@ -2054,7 +2071,7 @@ class DashboardView(ctk.CTkFrame):
         if copyable:
             ctk.CTkButton(
                 row,
-                text="📋",
+                text="\ue089",
                 width=28,
                 height=24,
                 fg_color="transparent",
@@ -2077,7 +2094,7 @@ class DashboardView(ctk.CTkFrame):
         # Reveal toggle button
         eye_btn = ctk.CTkButton(
             row,
-            text="👁" if not is_revealed else "🔒",
+            text="\ue0be" if not is_revealed else "\ue10f",
             width=28,
             height=24,
             fg_color="transparent",
@@ -2089,7 +2106,7 @@ class DashboardView(ctk.CTkFrame):
         # Copy button (30s wipe)
         ctk.CTkButton(
             row,
-            text="📋",
+            text="\ue089",
             width=28,
             height=24,
             fg_color="transparent",
@@ -2217,9 +2234,16 @@ class DashboardView(ctk.CTkFrame):
         self.clipboard_mgr.copy(val, label=label, is_sensitive=is_sensitive)
 
     def _on_clipboard_status(self, label: str, seconds_left: int):
+        # Keep the pill out of the layout entirely while idle — an empty
+        # rounded rectangle reads as a broken/blank button.
+        if not label:
+            self.clipboard_pill.pack_forget()
+            return
+        if not self.clipboard_pill.winfo_manager():
+            self.clipboard_pill.pack(side="left", padx=(0, 8))
         self.clipboard_pill.configure(text=label)
         if seconds_left == 0 and "cleared" in label.lower():
-            self.after(3000, lambda: self.clipboard_pill.configure(text=""))
+            self.after(3000, lambda: self._on_clipboard_status("", 0))
 
     def _schedule_autolock_ui_update(self):
         """Updates auto-lock countdown timer label every 1 second and checks idle timeout."""
@@ -2230,14 +2254,30 @@ class DashboardView(ctk.CTkFrame):
         rem = self.autolock_mgr.get_remaining_seconds()
         if rem >= 0:
             mins, secs = divmod(rem, 60)
-            self.autolock_label.configure(text=f"⏱️ {mins}:{secs:02d}")
+            self.autolock_label.configure(text=f"\ue1e0 {mins}:{secs:02d}")
         else:
-            self.autolock_label.configure(text="⏱️ Never")
+            self.autolock_label.configure(text="\ue1e0 Never")
 
         self.after(1000, self._schedule_autolock_ui_update)
 
+    def _plain_tab_name(self, tab_name: str) -> str:
+        """Maps an icon-prefixed nav label back to the plain tab name."""
+        labels = getattr(self, "_nav_icon_labels", {})
+        for plain, decorated in labels.items():
+            if tab_name == decorated or tab_name == plain:
+                return plain
+        # Fall back to keyword matching for legacy/emoji labels.
+        low = tab_name.lower()
+        for plain in ("Credentials", "Groups", "2FA & QR", "Vault Health", "File Vault", "Crypto Tools"):
+            if plain.lower() in low:
+                return plain
+        return tab_name
+
     def _on_nav_tab_changed(self, tab_name: str):
         self.autolock_mgr.record_activity()
+        # The segmented button now carries icon-prefixed labels; map back to
+        # the plain tab name so all downstream matching keeps working.
+        tab_name = self._plain_tab_name(tab_name)
         # Hide all active content frames
         self.body_frame.pack_forget()
         if self.groups_view:
@@ -2255,31 +2295,31 @@ class DashboardView(ctk.CTkFrame):
         if tab_name == "Credentials":
             self.body_frame.pack(fill="both", expand=True)
             self.search_container.pack(side="left", fill="x", expand=True, padx=(10, 16), pady=12)
-        elif tab_name in ("Groups", "🗂️ Groups"):
+        elif tab_name in ("Groups", "\ue340 Groups"):
             gv = self._get_groups_view()
             gv.pack(fill="both", expand=True)
             if "groups" in self._dirty_views:
                 gv.refresh() if hasattr(gv, "refresh") else gv.reload()
                 self._dirty_views.discard("groups")
-        elif tab_name in ("2FA & QR", "📱 2FA / QR", "2FA / QR"):
+        elif tab_name in ("2FA & QR", "\ue167 2FA / QR", "2FA / QR"):
             tv = self._get_totp_view()
             tv.pack(fill="both", expand=True)
             if "totp" in self._dirty_views:
                 tv.refresh() if hasattr(tv, "refresh") else tv.reload()
                 self._dirty_views.discard("totp")
-        elif tab_name in ("Vault Health", "🛡️ Vault Health"):
+        elif tab_name in ("Vault Health", "\ue1ff Vault Health"):
             hv = self._get_health_view()
             hv.pack(fill="both", expand=True)
             if "health" in self._dirty_views:
                 hv.refresh() if hasattr(hv, "refresh") else hv.reload()
                 self._dirty_views.discard("health")
-        elif tab_name in ("File Vault", "📁 File Vault", "Files"):
+        elif tab_name in ("File Vault", "\ue0dc File Vault", "Files"):
             fv = self._get_files_view()
             fv.pack(fill="both", expand=True)
             if "files" in self._dirty_views:
                 fv.refresh() if hasattr(fv, "refresh") else fv.reload()
                 self._dirty_views.discard("files")
-        elif tab_name in ("Crypto Tools", "⚡ Crypto Tools", "Crypto Studio"):
+        elif tab_name in ("Crypto Tools", "\ue1b4 Crypto Tools", "Crypto Studio"):
             ctv = self._get_crypto_tools_view()
             ctv.pack(fill="both", expand=True)
             if "crypto" in self._dirty_views:
@@ -2323,14 +2363,21 @@ class DashboardView(ctk.CTkFrame):
             else:
                 target = next((t for t in valid_tabs if t.lower() in tab_name.lower()), tab_name)
 
-        self.nav_var.set(target)
-        self.tab_selector.set(target)
+        self._set_nav_tab(target)
         self._on_nav_tab_changed(target)
+
+    def _set_nav_tab(self, plain_name: str) -> None:
+        """Sets the nav selector to `plain_name` using its icon-decorated label."""
+        decorated = getattr(self, "_nav_icon_labels", {}).get(plain_name, plain_name)
+        try:
+            self.nav_var.set(decorated)
+            self.tab_selector.set(decorated)
+        except Exception:
+            pass
 
     def switch_to_credentials_tab(self, entry_id: Optional[str] = None):
         """Switches to Credentials tab and highlights/selects the given entry."""
-        self.nav_var.set("Credentials")
-        self.tab_selector.set("Credentials")
+        self._set_nav_tab("Credentials")
         self._on_nav_tab_changed("Credentials")
         if entry_id:
             for ent in self.entries:
@@ -2700,7 +2747,7 @@ class DashboardView(ctk.CTkFrame):
         self.autolock_mgr.record_activity()
         servers = [e for e in self.entries if e.entry_type == "server"]
         domains = [e for e in self.entries if e.entry_type == "domain"]
-        def_type = "domain" if self.selected_category == "Domains" or self.selected_type_filter in ("🌐 Domains", "🔗 Domains") else "server"
+        def_type = "domain" if self.selected_category == "Domains" or self._plain_filter(self.selected_type_filter) == "Domains" else "server"
         EntryDialog(
             self,
             default_type=def_type,
@@ -2754,11 +2801,10 @@ class DashboardView(ctk.CTkFrame):
 
     def _open_key_studio(self):
         self.autolock_mgr.record_activity()
-        self.nav_var.set("⚡ Crypto Tools")
-        self.tab_selector.set("⚡ Crypto Tools")
-        self._on_nav_tab_changed("⚡ Crypto Tools")
+        self._set_nav_tab("Crypto Tools")
+        self._on_nav_tab_changed("Crypto Tools")
         if hasattr(self.crypto_tools_view, "switch_to_subtab"):
-            self.crypto_tools_view.switch_to_subtab("⚡ Key Generator")
+            self.crypto_tools_view.switch_to_subtab("\ue1b4 Key Generator")
 
     def _open_local_key_installer(self, preselected: Optional[VaultEntry] = None):
         self.autolock_mgr.record_activity()

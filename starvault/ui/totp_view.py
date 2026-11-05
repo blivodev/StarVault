@@ -148,7 +148,7 @@ class TotpView(ctk.CTkFrame):
         # Global countdown pill
         self.countdown_label = ctk.CTkLabel(
             toolbar,
-            text="⏱️ Refresh in 30s",
+            text="\ue1e0 Refresh in 30s",
             font=get_font(12, "bold"),
             text_color=COLOR_SUCCESS,
             fg_color=BG_INPUT,
@@ -215,7 +215,7 @@ class TotpView(ctk.CTkFrame):
             empty.pack(fill="x", pady=40, padx=20)
             ctk.CTkLabel(
                 empty,
-                text="📱 No 2FA Tokens Configured Yet",
+                text="\ue167 No 2FA Tokens Configured Yet",
                 font=get_font(15, "bold"),
                 text_color=TEXT_PRIMARY,
             ).pack(pady=(24, 6))
@@ -308,7 +308,7 @@ class TotpView(ctk.CTkFrame):
             return
 
         rem = get_totp_remaining_seconds()
-        self.countdown_label.configure(text=f"⏱️ Refresh in {rem}s")
+        self.countdown_label.configure(text=f"\ue1e0 Refresh in {rem}s")
         self.time_progress.set(rem / 30.0)
 
         # Color changes when time is low
@@ -393,7 +393,7 @@ class TotpView(ctk.CTkFrame):
 
         ctk.CTkButton(
             content,
-            text="📷 Scan QR Code Image File...",
+            text="\ue068 Scan QR Code Image File...",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,

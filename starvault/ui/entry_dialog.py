@@ -176,7 +176,7 @@ class EntryDialog(ctk.CTkToplevel):
             if self.database and self.session_key:
                 ctk.CTkButton(
                     bottom_bar,
-                    text="🕒 History / Rollback",
+                    text="\ue08b History / Rollback",
                     width=135,
                     height=34,
                     font=get_font(11),
@@ -247,7 +247,7 @@ class EntryDialog(ctk.CTkToplevel):
         # Multiple Groups
         col_groups = ctk.CTkFrame(row_groups_services, fg_color="transparent")
         col_groups.pack(side="left", fill="x", expand=True, padx=(0, 8))
-        ctk.CTkLabel(col_groups, text="🗂️ Groups (comma-separated, e.g. 'DevOps, Infra, Prod')", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
+        ctk.CTkLabel(col_groups, text="\ue340 Groups (comma-separated, e.g. 'DevOps, Infra, Prod')", font=get_font(12), text_color=TEXT_SECONDARY).pack(anchor="w")
         self.groups_entry = ctk.CTkEntry(
             col_groups,
             placeholder_text="Infrastructure, DevOps, Production",
@@ -646,7 +646,7 @@ class EntryDialog(ctk.CTkToplevel):
         # Registrar / Portal Credentials & Passwords
         ctk.CTkLabel(
             container,
-            text="🔐 REGISTRAR / PORTAL LOGIN & PASSWORDS",
+            text="\ue536 REGISTRAR / PORTAL LOGIN & PASSWORDS",
             font=get_font(11, "bold"),
             text_color=ACCENT_EMERALD,
         ).pack(anchor="w", padx=16, pady=(12, 4))
@@ -1206,7 +1206,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             row_frame,
-            text="✕",
+            text="\ue1b2",
             width=28,
             height=32,
             fg_color=BG_INPUT,
@@ -1314,7 +1314,7 @@ class EntryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_row,
-            text="🔄 Re-roll",
+            text="\ue149 Re-roll",
             width=100,
             command=generate_and_show,
             fg_color=BG_INPUT,

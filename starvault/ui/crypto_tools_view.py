@@ -1,12 +1,12 @@
 """Crypto Tools Swiss Army Knife & Kleopatra-Style Keyring Studio for StarVault.
 
 Unified cryptographic workbench providing:
-1. 🔑 Keyring & Certs (Kleopatra-style Key Manager: PGP, SSH, TLS Certs, WireGuard, Age)
-2. ⚡ Key Generator (Key Studio integrated: Ed25519, RSA4096, PGP, TLS Certs, WireGuard, Age)
-3. 🔐 Encrypt & Decrypt (Symmetric & Asymmetric: AES-256-GCM/CBC, ChaCha20, RSA OAEP, OpenPGP)
-4. ✍️ Sign & Verify (Asymmetric signatures: Ed25519, RSA-PSS, OpenPGP, ECDSA, HMAC)
-5. 📁 File Encryption (Single & Bulk file encryption with military-grade ciphers)
-6. #️⃣ Hashes & Encoders (SHA-224/256/384/512, SHA3, BLAKE2, MD5, RIPEMD160, Base64, Hex, URL, Binary)
+1. \ue102 Keyring & Certs (Kleopatra-style Key Manager: PGP, SSH, TLS Certs, WireGuard, Age)
+2. \ue1b4 Key Generator (Key Studio integrated: Ed25519, RSA4096, PGP, TLS Certs, WireGuard, Age)
+3. \ue536 Encrypt & Decrypt (Symmetric & Asymmetric: AES-256-GCM/CBC, ChaCha20, RSA OAEP, OpenPGP)
+4. \ue134 Sign & Verify (Asymmetric signatures: Ed25519, RSA-PSS, OpenPGP, ECDSA, HMAC)
+5. \ue0dc File Encryption (Single & Bulk file encryption with military-grade ciphers)
+6. # Hashes & Encoders (SHA-224/256/384/512, SHA3, BLAKE2, MD5, RIPEMD160, Base64, Hex, URL, Binary)
 """
 
 import base64
@@ -76,6 +76,7 @@ from starvault.ui.theme import (
     TEXT_SECONDARY,
     get_font,
     get_mono_font,
+    tk_font,
 )
 from starvault.ui.widgets import add_password_toggle
 
@@ -166,7 +167,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             title_box,
-            text="🛠️ Crypto Tools & Kleopatra Keyring Studio",
+            text="\ue1b1 Crypto Tools & Kleopatra Keyring Studio",
             font=get_font(17, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -179,7 +180,7 @@ class CryptoToolsView(ctk.CTkFrame):
         ).pack(anchor="w")
 
         # Mode Selector Segmented Button
-        self.nav_var = ctk.StringVar(value="🔑 Keyring & Certs")
+        self.nav_var = ctk.StringVar(value="\ue102 Keyring & Certs")
         self.mode_seg = ctk.CTkSegmentedButton(
             header,
             values=self.SUBTABS,
@@ -306,7 +307,7 @@ class CryptoToolsView(ctk.CTkFrame):
         tb_inner = ctk.CTkFrame(toolbar, fg_color="transparent")
         tb_inner.pack(fill="x", padx=12, pady=10)
 
-        ctk.CTkLabel(tb_inner, text="🔍", font=get_font(12), text_color=TEXT_MUTED).pack(side="left", padx=(4, 6))
+        ctk.CTkLabel(tb_inner, text="\ue155", font=get_font(12), text_color=TEXT_MUTED).pack(side="left", padx=(4, 6))
         self.key_search_entry = ctk.CTkEntry(
             tb_inner,
             placeholder_text="Search keys by label, fingerprint, algorithm, or comment...",
@@ -322,7 +323,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             tb_inner,
-            text="💻 Local Key Installer...",
+            text="\ue1cd Local Key Installer...",
             font=get_font(11, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -333,7 +334,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             tb_inner,
-            text="📥 Import Key / Cert...",
+            text="\ue0b6 Import Key / Cert...",
             font=get_font(11, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -344,18 +345,18 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             tb_inner,
-            text="⚡ Generate New...",
+            text="\ue1b4 Generate New...",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
             text_color=TEXT_PRIMARY,
             height=34,
-            command=lambda: self.switch_to_subtab("⚡ Key Generator"),
+            command=lambda: self.switch_to_subtab("\ue1b4 Key Generator"),
         ).pack(side="right", padx=4)
 
         ctk.CTkButton(
             tb_inner,
-            text="🔄 Refresh",
+            text="\ue149 Refresh",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -408,13 +409,13 @@ class CryptoToolsView(ctk.CTkFrame):
             box = tk.Frame(self.key_list_scroll, bg=self._key_bg())
             box.pack(pady=40)
             tk.Label(box, text="No keys or certificates found in vault keyring.", bg=self._key_bg(), fg=TEXT_MUTED,
-                     font=("Segoe UI", 12)).pack()
+                     font=tk_font(12)).pack()
             tk.Button(
                 box,
-                text="📥 Import Key from File or Clipboard",
+                text="\ue0b6 Import Key from File or Clipboard",
                 bg=ACCENT_PRIMARY, fg="#000000", relief="flat", bd=0, highlightthickness=0,
                 activebackground=ACCENT_PRIMARY, activeforeground="#000000",
-                font=("Segoe UI", 11, "bold"), cursor="hand2", padx=12, pady=4,
+                font=tk_font(11, "bold"), cursor="hand2", padx=12, pady=4,
                 command=self._open_import_key_dialog,
             ).pack(pady=10)
             return
@@ -465,10 +466,10 @@ class CryptoToolsView(ctk.CTkFrame):
         badge_color = ACCENT_PURPLE if kt in ("ED25519", "RSA4096") else (COLOR_WARNING if "GPG" in kt else ACCENT_PRIMARY)
         tk.Label(
             top,
-            text=f"🔑 {kt}",
+            text=f"\ue102 {kt}",
             bg=BG_INPUT,
             fg=badge_color,
-            font=("Segoe UI", 10, "bold"),
+            font=tk_font(10, "bold"),
             padx=6,
             pady=2,
         ).pack(side="left", padx=(0, 8))
@@ -478,19 +479,19 @@ class CryptoToolsView(ctk.CTkFrame):
             text=entry.title,
             bg=card["bg"],
             fg=TEXT_PRIMARY,
-            font=("Segoe UI", 13, "bold"),
+            font=tk_font(13, "bold"),
         ).pack(side="left")
 
         # Has Private Key indicator
         has_priv = bool(getattr(entry, "private_key", "").strip())
-        priv_badge = "🔒 Keypair (Priv+Pub)" if has_priv else "🌐 Public Key Only"
+        priv_badge = "\ue10f Keypair (Priv+Pub)" if has_priv else "\ue0eb Public Key Only"
         priv_color = COLOR_SUCCESS if has_priv else TEXT_MUTED
         tk.Label(
             top,
             text=priv_badge,
             bg=BG_INPUT,
             fg=priv_color,
-            font=("Segoe UI", 10),
+            font=tk_font(10),
             padx=6,
             pady=2,
         ).pack(side="right")
@@ -528,17 +529,17 @@ class CryptoToolsView(ctk.CTkFrame):
                 highlightthickness=0,
                 padx=8,
                 pady=2,
-                font=("Segoe UI", 9, "bold" if bold else "normal"),
+                font=tk_font(9, "bold" if bold else "normal"),
                 cursor="hand2",
                 command=command,
             )
             b.pack(side="left", padx=(0, 4))
             return b
 
-        gbtn("🔐 Use to Encrypt/Decrypt", ACCENT_PRIMARY, lambda ent=entry: self._use_key_for_encrypt_decrypt(ent), bold=True)
-        gbtn("✍️ Use to Sign/Verify", TEXT_PRIMARY, lambda ent=entry: self._use_key_for_sign_verify(ent))
-        gbtn("💻 Install...", ACCENT_PRIMARY, lambda ent=entry: self._open_local_key_installer(preselected=ent))
-        gbtn("📤 Export...", TEXT_SECONDARY, lambda ent=entry: self._open_export_key_dialog(ent))
+        gbtn("\ue536 Use to Encrypt/Decrypt", ACCENT_PRIMARY, lambda ent=entry: self._use_key_for_encrypt_decrypt(ent), bold=True)
+        gbtn("\ue134 Use to Sign/Verify", TEXT_PRIMARY, lambda ent=entry: self._use_key_for_sign_verify(ent))
+        gbtn("\ue1cd Install...", ACCENT_PRIMARY, lambda ent=entry: self._open_local_key_installer(preselected=ent))
+        gbtn("\ue19e Export...", TEXT_SECONDARY, lambda ent=entry: self._open_export_key_dialog(ent))
 
         return card
 
@@ -589,7 +590,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 scroll,
-                text="📋 Copy Public Key",
+                text="\ue089 Copy Public Key",
                 font=get_font(11),
                 fg_color=BG_INPUT,
                 hover_color=BORDER_COLOR,
@@ -600,14 +601,14 @@ class CryptoToolsView(ctk.CTkFrame):
 
         # Private Key status
         has_priv = bool(getattr(entry, "private_key", "").strip())
-        priv_text = "✓ Private Key Present (Stored Encrypted)" if has_priv else "✗ Private Key Not Stored"
+        priv_text = "\ue070 Private Key Present (Stored Encrypted)" if has_priv else "\ue1b2 Private Key Not Stored"
         priv_color = COLOR_SUCCESS if has_priv else TEXT_MUTED
         ctk.CTkLabel(scroll, text=priv_text, font=get_font(11, "bold"), text_color=priv_color).pack(anchor="w", pady=(4, 8))
 
         # Keyring actions
         ctk.CTkButton(
             scroll,
-            text="🔐 Encrypt / Decrypt with This Key",
+            text="\ue536 Encrypt / Decrypt with This Key",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -618,7 +619,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             scroll,
-            text="✍️ Sign / Verify with This Key",
+            text="\ue134 Sign / Verify with This Key",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -629,7 +630,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             scroll,
-            text="💻 Install to Local System (~/.ssh)...",
+            text="\ue1cd Install to Local System (~/.ssh)...",
             font=get_font(12, "bold"),
             fg_color=ACCENT_INDIGO,
             hover_color=ACCENT_HOVER,
@@ -640,7 +641,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             scroll,
-            text="📤 Export Armored Key File...",
+            text="\ue19e Export Armored Key File...",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -651,7 +652,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             scroll,
-            text="🗑️ Delete Key from Keyring",
+            text="\ue18e Delete Key from Keyring",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=COLOR_DANGER,
@@ -668,7 +669,7 @@ class CryptoToolsView(ctk.CTkFrame):
         modal.transient(self)
         modal.grab_set()
 
-        ctk.CTkLabel(modal, text="📥 Import Key or Certificate", font=get_font(16, "bold"), text_color=TEXT_PRIMARY).pack(pady=(16, 4))
+        ctk.CTkLabel(modal, text="\ue0b6 Import Key or Certificate", font=get_font(16, "bold"), text_color=TEXT_PRIMARY).pack(pady=(16, 4))
         ctk.CTkLabel(
             modal,
             text="Paste armored OpenPGP, SSH public/private, X.509 TLS certificate, WireGuard, or Age key.",
@@ -720,7 +721,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             btn_bar,
-            text="📂 Load from File...",
+            text="\ue247 Load from File...",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -751,7 +752,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             btn_bar,
-            text="✓ Save to Keyring",
+            text="\ue070 Save to Keyring",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -767,7 +768,7 @@ class CryptoToolsView(ctk.CTkFrame):
         modal.transient(self)
         modal.grab_set()
 
-        ctk.CTkLabel(modal, text=f"📤 Export: {entry.title}", font=get_font(15, "bold"), text_color=TEXT_PRIMARY).pack(pady=(16, 4))
+        ctk.CTkLabel(modal, text=f"\ue19e Export: {entry.title}", font=get_font(15, "bold"), text_color=TEXT_PRIMARY).pack(pady=(16, 4))
 
         has_priv = bool(getattr(entry, "private_key", "").strip())
         which_var = ctk.StringVar(value="public")
@@ -826,8 +827,8 @@ class CryptoToolsView(ctk.CTkFrame):
                     f.write(armored)
                 messagebox.showinfo("Export Successful", f"Key written to {p}")
 
-        ctk.CTkButton(act_bar, text="📋 Copy to Clipboard", font=get_font(11), fg_color=BG_INPUT, text_color=TEXT_PRIMARY, command=copy_armored).pack(side="left", padx=(0, 6))
-        ctk.CTkButton(act_bar, text="💾 Save to File...", font=get_font(11, "bold"), fg_color=ACCENT_PRIMARY, text_color="#000000", command=save_armored_file).pack(side="right")
+        ctk.CTkButton(act_bar, text="\ue089 Copy to Clipboard", font=get_font(11), fg_color=BG_INPUT, text_color=TEXT_PRIMARY, command=copy_armored).pack(side="left", padx=(0, 6))
+        ctk.CTkButton(act_bar, text="\ue151 Save to File...", font=get_font(11, "bold"), fg_color=ACCENT_PRIMARY, text_color="#000000", command=save_armored_file).pack(side="right")
 
     def _confirm_delete_key(self, entry: VaultEntry) -> None:
         ans = messagebox.askyesno("Confirm Deletion", f"Permanently delete key '{entry.title}' from the vault?\n\nThis cannot be undone.")
@@ -876,7 +877,7 @@ class CryptoToolsView(ctk.CTkFrame):
         gen_card = ctk.CTkFrame(self.generator_frame, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         gen_card.pack(fill="x", pady=(0, 16), padx=4)
 
-        ctk.CTkLabel(gen_card, text="⚡ ASYMMETRIC KEYPAIR & CERTIFICATE GENERATOR", font=get_font(12, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 6))
+        ctk.CTkLabel(gen_card, text="\ue1b4 ASYMMETRIC KEYPAIR & CERTIFICATE GENERATOR", font=get_font(12, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 6))
 
         # Algorithm Selection
         row_algo = ctk.CTkFrame(gen_card, fg_color="transparent")
@@ -910,7 +911,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         self.gen_submit_btn = ctk.CTkButton(
             act_row,
-            text="⚡ Generate New Keypair",
+            text="\ue1b4 Generate New Keypair",
             font=get_font(13, "bold"),
             height=40,
             fg_color=ACCENT_PRIMARY,
@@ -948,7 +949,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         self.gen_save_vault_btn = ctk.CTkButton(
             save_row,
-            text="💾 Save Directly to Vault Keyring",
+            text="\ue151 Save Directly to Vault Keyring",
             font=get_font(12, "bold"),
             fg_color=COLOR_SUCCESS,
             hover_color=ACCENT_HOVER,
@@ -960,7 +961,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             save_row,
-            text="📋 Copy Public Key",
+            text="\ue089 Copy Public Key",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -971,7 +972,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             save_row,
-            text="📋 Copy Private Key",
+            text="\ue089 Copy Private Key",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -984,7 +985,7 @@ class CryptoToolsView(ctk.CTkFrame):
         exp_row = ctk.CTkFrame(out_card, fg_color="transparent")
         exp_row.pack(fill="x", padx=16, pady=(0, 16))
 
-        ctk.CTkLabel(exp_row, text="💾 Export to Local PC:", font=get_font(11, "bold"), text_color=TEXT_SECONDARY).pack(side="left", padx=(0, 8))
+        ctk.CTkLabel(exp_row, text="\ue151 Export to Local PC:", font=get_font(11, "bold"), text_color=TEXT_SECONDARY).pack(side="left", padx=(0, 8))
 
         ctk.CTkButton(
             exp_row,
@@ -1010,7 +1011,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             exp_row,
-            text="📦 Export Keypair Bundle to Folder...",
+            text="\ue12d Export Keypair Bundle to Folder...",
             font=get_font(11, "bold"),
             fg_color=ACCENT_INDIGO,
             hover_color=ACCENT_HOVER,
@@ -1021,7 +1022,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             exp_row,
-            text="💻 Install to System (~/.ssh)...",
+            text="\ue1cd Install to System (~/.ssh)...",
             font=get_font(11, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -1119,7 +1120,7 @@ class CryptoToolsView(ctk.CTkFrame):
                 def update_ui():
                     self.current_generated_key = res
                     self.gen_submit_btn.configure(state="normal")
-                    self.gen_status_lbl.configure(text="✓ Keypair generated successfully!", text_color=COLOR_SUCCESS)
+                    self.gen_status_lbl.configure(text="\ue070 Keypair generated successfully!", text_color=COLOR_SUCCESS)
                     self.gen_pub_text.delete("1.0", "end")
                     self.gen_pub_text.insert("1.0", res.public_key)
                     self.gen_priv_text.delete("1.0", "end")
@@ -1344,7 +1345,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             in_hdr,
-            text="📥 Import File into Input...",
+            text="\ue0b6 Import File into Input...",
             font=get_font(10, "bold"),
             height=26,
             fg_color=BG_INPUT,
@@ -1362,7 +1363,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             action_row,
-            text="🔐 Encrypt",
+            text="\ue536 Encrypt",
             font=get_font(13, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -1374,7 +1375,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             action_row,
-            text="🔓 Decrypt",
+            text="\ue110 Decrypt",
             font=get_font(13, "bold"),
             fg_color=ACCENT_INDIGO,
             hover_color=ACCENT_HOVER,
@@ -1386,7 +1387,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             action_row,
-            text="📁 Encrypt File Directly...",
+            text="\ue0dc Encrypt File Directly...",
             font=get_font(11, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1397,7 +1398,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             action_row,
-            text="📁 Decrypt File Directly...",
+            text="\ue0dc Decrypt File Directly...",
             font=get_font(11, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1408,7 +1409,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             action_row,
-            text="🔄 Swap",
+            text="\ue149 Swap",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1419,7 +1420,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             action_row,
-            text="🧹 Clear",
+            text="\ue28f Clear",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1441,7 +1442,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             out_hdr,
-            text="📋 Copy Result",
+            text="\ue089 Copy Result",
             font=get_font(10, "bold"),
             width=100,
             height=26,
@@ -1453,7 +1454,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             out_hdr,
-            text="📤 Export Output to File...",
+            text="\ue19e Export Output to File...",
             font=get_font(10, "bold"),
             height=26,
             fg_color=BG_INPUT,
@@ -1477,7 +1478,7 @@ class CryptoToolsView(ctk.CTkFrame):
             self._use_key_for_encrypt_decrypt(match)
 
     def _use_key_for_encrypt_decrypt(self, entry: VaultEntry) -> None:
-        self.switch_to_subtab("🔐 Encrypt & Decrypt")
+        self.switch_to_subtab("\ue536 Encrypt & Decrypt")
         kt = getattr(entry, "key_type", "").lower()
         if "gpg" in kt or "pgp" in kt:
             self.crypt_algo_var.set("OpenPGP (GPG Armored)")
@@ -1527,7 +1528,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
             self.crypt_out_text.delete("1.0", "end")
             self.crypt_out_text.insert("1.0", res)
-            self.crypt_status_lbl.configure(text="✓ Encrypted successfully!", text_color=COLOR_SUCCESS)
+            self.crypt_status_lbl.configure(text="\ue070 Encrypted successfully!", text_color=COLOR_SUCCESS)
         except Exception as ex:
             self.crypt_status_lbl.configure(text=f"Encryption failed: {ex}", text_color=COLOR_DANGER)
 
@@ -1557,7 +1558,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
             self.crypt_out_text.delete("1.0", "end")
             self.crypt_out_text.insert("1.0", res)
-            self.crypt_status_lbl.configure(text="✓ Decrypted successfully!", text_color=COLOR_SUCCESS)
+            self.crypt_status_lbl.configure(text="\ue070 Decrypted successfully!", text_color=COLOR_SUCCESS)
         except Exception as ex:
             self.crypt_status_lbl.configure(text=f"Decryption failed: {ex}", text_color=COLOR_DANGER)
 
@@ -1583,7 +1584,7 @@ class CryptoToolsView(ctk.CTkFrame):
                 self.crypt_in_text.delete("1.0", "end")
                 self.crypt_in_text.insert("1.0", text_content)
                 self.crypt_status_lbl.configure(
-                    text=f"✓ Loaded text from '{file_p.name}' ({len(text_content)} chars)",
+                    text=f"\ue070 Loaded text from '{file_p.name}' ({len(text_content)} chars)",
                     text_color=COLOR_SUCCESS,
                 )
             except UnicodeDecodeError:
@@ -1592,7 +1593,7 @@ class CryptoToolsView(ctk.CTkFrame):
                 self.crypt_in_text.delete("1.0", "end")
                 self.crypt_in_text.insert("1.0", b64_content)
                 self.crypt_status_lbl.configure(
-                    text=f"✓ Loaded binary as Base64 from '{file_p.name}' ({len(raw_bytes)} bytes)",
+                    text=f"\ue070 Loaded binary as Base64 from '{file_p.name}' ({len(raw_bytes)} bytes)",
                     text_color=ACCENT_PRIMARY,
                 )
         except Exception as ex:
@@ -1663,7 +1664,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         try:
             written = encrypt_file(src_p, Path(dst), pwd, cipher=cipher)
-            self.crypt_status_lbl.configure(text=f"✓ Encrypted {src_p.name} ({written} bytes)", text_color=COLOR_SUCCESS)
+            self.crypt_status_lbl.configure(text=f"\ue070 Encrypted {src_p.name} ({written} bytes)", text_color=COLOR_SUCCESS)
             messagebox.showinfo("Encrypted Successfully", f"File encrypted:\n{dst}\n({written} bytes)")
         except Exception as ex:
             messagebox.showerror("Encryption Error", f"Failed to encrypt file:\n{ex}")
@@ -1692,7 +1693,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         try:
             written = decrypt_file(src_p, Path(dst), pwd)
-            self.crypt_status_lbl.configure(text=f"✓ Decrypted {src_p.name} ({written} bytes)", text_color=COLOR_SUCCESS)
+            self.crypt_status_lbl.configure(text=f"\ue070 Decrypted {src_p.name} ({written} bytes)", text_color=COLOR_SUCCESS)
             messagebox.showinfo("Decrypted Successfully", f"File decrypted:\n{dst}\n({written} bytes)")
         except Exception as ex:
             messagebox.showerror("Decryption Error", f"Failed to decrypt file:\n{ex}")
@@ -1778,7 +1779,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             sig_hdr,
-            text="📋 Copy Signature",
+            text="\ue089 Copy Signature",
             font=get_font(10),
             width=120,
             height=26,
@@ -1796,7 +1797,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             act_row,
-            text="✍️ Sign Message",
+            text="\ue134 Sign Message",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -1808,7 +1809,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             act_row,
-            text="✅ Verify Signature",
+            text="\ue226 Verify Signature",
             font=get_font(12, "bold"),
             fg_color=COLOR_SUCCESS,
             hover_color=ACCENT_HOVER,
@@ -1840,7 +1841,7 @@ class CryptoToolsView(ctk.CTkFrame):
             self._use_key_for_sign_verify(match)
 
     def _use_key_for_sign_verify(self, entry: VaultEntry) -> None:
-        self.switch_to_subtab("✍️ Sign & Verify")
+        self.switch_to_subtab("\ue134 Sign & Verify")
         kt = getattr(entry, "key_type", "").lower()
         if "ed25519" in kt:
             self.sign_algo_var.set("Ed25519 (EdDSA)")
@@ -1875,7 +1876,7 @@ class CryptoToolsView(ctk.CTkFrame):
                 sig = asym_sign(msg, key)
             self.sign_sig_text.delete("1.0", "end")
             self.sign_sig_text.insert("1.0", sig)
-            self.sign_result_badge.configure(text="✓ Message Signed Successfully", text_color=COLOR_SUCCESS, fg_color=BG_INPUT)
+            self.sign_result_badge.configure(text="\ue070 Message Signed Successfully", text_color=COLOR_SUCCESS, fg_color=BG_INPUT)
         except Exception as ex:
             self.sign_result_badge.configure(text=f"Signing Error: {ex}", text_color=COLOR_DANGER, fg_color=BG_INPUT)
 
@@ -1897,11 +1898,11 @@ class CryptoToolsView(ctk.CTkFrame):
                 is_valid = asym_verify(msg, sig, key)
 
             if is_valid:
-                self.sign_result_badge.configure(text="✓ VALID SIGNATURE (Authentic & Untampered)", text_color="#000000", fg_color=COLOR_SUCCESS)
+                self.sign_result_badge.configure(text="\ue070 VALID SIGNATURE (Authentic & Untampered)", text_color="#000000", fg_color=COLOR_SUCCESS)
             else:
-                self.sign_result_badge.configure(text="✗ INVALID SIGNATURE (Verification Failed)", text_color="#ffffff", fg_color=COLOR_DANGER)
+                self.sign_result_badge.configure(text="\ue1b2 INVALID SIGNATURE (Verification Failed)", text_color="#ffffff", fg_color=COLOR_DANGER)
         except Exception as ex:
-            self.sign_result_badge.configure(text=f"✗ Invalid: {ex}", text_color="#ffffff", fg_color=COLOR_DANGER)
+            self.sign_result_badge.configure(text=f"\ue1b2 Invalid: {ex}", text_color="#ffffff", fg_color=COLOR_DANGER)
 
     # -------------------------------------------------------------------------
     # 5. File & Bulk File Encryption Workbench
@@ -1914,14 +1915,14 @@ class CryptoToolsView(ctk.CTkFrame):
         f_card = ctk.CTkFrame(self.file_frame, fg_color=BG_CARD, corner_radius=10, border_width=1, border_color=BORDER_COLOR)
         f_card.pack(fill="x", pady=(0, 14), padx=4)
 
-        ctk.CTkLabel(f_card, text="📁 FILE SELECTION & QUEUE (SINGLE OR BULK)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 6))
+        ctk.CTkLabel(f_card, text="\ue0dc FILE SELECTION & QUEUE (SINGLE OR BULK)", font=get_font(11, "bold"), text_color=ACCENT_PRIMARY).pack(anchor="w", padx=16, pady=(12, 6))
 
         row_sel = ctk.CTkFrame(f_card, fg_color="transparent")
         row_sel.pack(fill="x", padx=16, pady=(0, 8))
 
         ctk.CTkButton(
             row_sel,
-            text="📥 Add / Import File(s)...",
+            text="\ue0b6 Add / Import File(s)...",
             font=get_font(11, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1932,7 +1933,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_sel,
-            text="📁 Add / Import Folder...",
+            text="\ue0dc Add / Import Folder...",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -1943,7 +1944,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         ctk.CTkButton(
             row_sel,
-            text="🧹 Clear Queue",
+            text="\ue28f Clear Queue",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -2017,7 +2018,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         self.f_encrypt_btn = ctk.CTkButton(
             act_row,
-            text="🔐 Encrypt Queued Files",
+            text="\ue536 Encrypt Queued Files",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -2029,7 +2030,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         self.f_decrypt_btn = ctk.CTkButton(
             act_row,
-            text="🔓 Decrypt Queued Files",
+            text="\ue110 Decrypt Queued Files",
             font=get_font(12, "bold"),
             fg_color=ACCENT_INDIGO,
             hover_color=ACCENT_HOVER,
@@ -2074,7 +2075,7 @@ class CryptoToolsView(ctk.CTkFrame):
             row = ctk.CTkFrame(self.f_queue_scroll, fg_color="transparent")
             row.pack(fill="x", pady=2, padx=4)
 
-            icon = "🔒" if fp.name.endswith(".enc") or fp.name.endswith(".svf") else "📄"
+            icon = "\ue10f" if fp.name.endswith(".enc") or fp.name.endswith(".svf") else "\ue0d0"
             ctk.CTkLabel(row, text=icon, font=get_font(12)).pack(side="left", padx=(0, 6))
 
             name_box = ctk.CTkLabel(row, text=fp.name, font=get_font(11, "bold"), text_color=TEXT_PRIMARY)
@@ -2088,7 +2089,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
             ctk.CTkButton(
                 row,
-                text="✕",
+                text="\ue1b2",
                 width=24,
                 height=22,
                 font=get_font(10, "bold"),
@@ -2121,7 +2122,7 @@ class CryptoToolsView(ctk.CTkFrame):
                     added += 1
             self._render_file_queue()
             if added:
-                self.f_log_text.insert("end", f"✓ Added {added} files from folder: {folder}\n")
+                self.f_log_text.insert("end", f"\ue070 Added {added} files from folder: {folder}\n")
 
     def _remove_file_from_queue(self, fp: Path) -> None:
         if fp in self.selected_files:
@@ -2160,7 +2161,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         self.f_encrypt_btn.configure(state="disabled")
         self.f_decrypt_btn.configure(state="disabled")
-        self.f_log_text.insert("end", f"\n🔐 Starting bulk encryption of {len(self.selected_files)} file(s)...\n")
+        self.f_log_text.insert("end", f"\n\ue536 Starting bulk encryption of {len(self.selected_files)} file(s)...\n")
 
         def worker():
             if dest_p:
@@ -2179,10 +2180,10 @@ class CryptoToolsView(ctk.CTkFrame):
             def done():
                 self.f_encrypt_btn.configure(state="normal")
                 self.f_decrypt_btn.configure(state="normal")
-                self.f_log_text.insert("end", f"✓ Finished encryption: {success_count} succeeded, {len(errors)} failed.\n")
+                self.f_log_text.insert("end", f"\ue070 Finished encryption: {success_count} succeeded, {len(errors)} failed.\n")
                 if errors:
                     for err in errors:
-                        self.f_log_text.insert("end", f"  ✗ {err}\n")
+                        self.f_log_text.insert("end", f"  \ue1b2 {err}\n")
                 messagebox.showinfo("Encryption Complete", f"Successfully encrypted {success_count} files.")
             self.after(0, done)
 
@@ -2216,7 +2217,7 @@ class CryptoToolsView(ctk.CTkFrame):
 
         self.f_encrypt_btn.configure(state="disabled")
         self.f_decrypt_btn.configure(state="disabled")
-        self.f_log_text.insert("end", f"\n🔓 Starting bulk decryption of {len(self.selected_files)} file(s)...\n")
+        self.f_log_text.insert("end", f"\n\ue110 Starting bulk decryption of {len(self.selected_files)} file(s)...\n")
 
         def worker():
             if dest_p:
@@ -2236,10 +2237,10 @@ class CryptoToolsView(ctk.CTkFrame):
             def done():
                 self.f_encrypt_btn.configure(state="normal")
                 self.f_decrypt_btn.configure(state="normal")
-                self.f_log_text.insert("end", f"✓ Finished decryption: {success_count} succeeded, {len(errors)} failed.\n")
+                self.f_log_text.insert("end", f"\ue070 Finished decryption: {success_count} succeeded, {len(errors)} failed.\n")
                 if errors:
                     for err in errors:
-                        self.f_log_text.insert("end", f"  ✗ {err}\n")
+                        self.f_log_text.insert("end", f"  \ue1b2 {err}\n")
                 messagebox.showinfo("Decryption Complete", f"Successfully decrypted {success_count} files.")
             self.after(0, done)
 
@@ -2291,7 +2292,7 @@ class CryptoToolsView(ctk.CTkFrame):
             ctk.CTkLabel(r, text=f"{algo}:", font=get_font(11, "bold"), text_color=TEXT_SECONDARY, width=80, anchor="w").pack(side="left")
             ent = ctk.CTkEntry(r, font=get_mono_font(10), fg_color=BG_INPUT, border_color=BORDER_COLOR, height=28)
             ent.pack(side="left", fill="x", expand=True, padx=(0, 6))
-            ctk.CTkButton(r, text="📋", width=28, height=28, fg_color=BG_INPUT, hover_color=BORDER_COLOR, text_color=TEXT_PRIMARY, command=lambda e=ent: self.clipboard_mgr.copy(e.get(), "Hash copied")).pack(side="right")
+            ctk.CTkButton(r, text="\ue089", width=28, height=28, fg_color=BG_INPUT, hover_color=BORDER_COLOR, text_color=TEXT_PRIMARY, command=lambda e=ent: self.clipboard_mgr.copy(e.get(), "Hash copied")).pack(side="right")
             self.hash_labels[algo] = ent
 
         # Encoder Result Box

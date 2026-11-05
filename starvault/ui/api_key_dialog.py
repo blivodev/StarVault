@@ -9,7 +9,7 @@ Generates tokens across all major industry formats:
 - JWT Simulation tokens
 - Custom prefixed tokens
 
-Features a direct '⚡ Use this Key' button that immediately populates the active
+Features a direct '\ue1b4 Use this Key' button that immediately populates the active
 vault entry or launches a New Entry dialog pre-filled with the generated key!
 """
 
@@ -72,7 +72,7 @@ class ApiKeyStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             header,
-            text="⚡ API Key Studio & Generator",
+            text="\ue1b4 API Key Studio & Generator",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left", padx=24, pady=16)
@@ -156,7 +156,7 @@ class ApiKeyStudioDialog(ctk.CTkToplevel):
         # Re-roll button
         ctk.CTkButton(
             preview_card,
-            text="🔄 Re-roll / Generate New",
+            text="\ue149 Re-roll / Generate New",
             font=get_font(12, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -181,7 +181,7 @@ class ApiKeyStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             bottom,
-            text="📋 Copy Key",
+            text="\ue089 Copy Key",
             width=110,
             height=38,
             fg_color=BG_INPUT,
@@ -193,7 +193,7 @@ class ApiKeyStudioDialog(ctk.CTkToplevel):
         # Prominent 'Use this Key' or 'Use' button
         ctk.CTkButton(
             bottom,
-            text="⚡ Use this Key",
+            text="\ue1b4 Use this Key",
             width=140,
             height=38,
             fg_color=ACCENT_PRIMARY,

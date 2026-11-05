@@ -50,16 +50,16 @@ def get_file_icon(filename: str) -> str:
     """Selects an intuitive emoji based on file extension."""
     ext = Path(filename).suffix.lower()
     if ext in (".pem", ".key", ".pub", ".crt", ".cer"):
-        return "🔑"
+        return "\ue102"
     elif ext in (".ovpn", ".conf", ".cfg"):
-        return "🌐"
+        return "\ue0eb"
     elif ext in (".yml", ".yaml", ".json", ".toml", ".env", ".xml"):
-        return "⚙️"
+        return "\ue158"
     elif ext in (".zip", ".tar", ".gz", ".7z", ".rar"):
-        return "📦"
+        return "\ue12d"
     elif ext in (".sh", ".bash", ".ps1", ".py"):
-        return "📜"
-    return "📄"
+        return "\ue464"
+    return "\ue0d0"
 
 
 class FilesView(ctk.CTkFrame):
@@ -175,7 +175,7 @@ class FilesView(ctk.CTkFrame):
             empty_card.pack(fill="x", pady=20)
             ctk.CTkLabel(
                 empty_card,
-                text="📂 No Encrypted Files Stored",
+                text="\ue247 No Encrypted Files Stored",
                 font=get_font(15, "bold"),
                 text_color=TEXT_PRIMARY,
             ).pack(pady=(24, 4))
@@ -271,7 +271,7 @@ class FilesView(ctk.CTkFrame):
         # Extract / Save to Disk button
         ctk.CTkButton(
             btn_box,
-            text="📤 Extract",
+            text="\ue19e Extract",
             width=80,
             height=30,
             font=get_font(11, "bold"),
@@ -283,7 +283,7 @@ class FilesView(ctk.CTkFrame):
         # Delete button
         ctk.CTkButton(
             btn_box,
-            text="🗑️",
+            text="\ue18e",
             width=32,
             height=30,
             fg_color=BG_INPUT,
@@ -427,7 +427,7 @@ class FilesView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             top,
-            text=f"📄 {vault_file.filename}  ({format_bytes(len(raw_bytes))})",
+            text=f"\ue0d0 {vault_file.filename}  ({format_bytes(len(raw_bytes))})",
             font=get_font(14, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left", padx=16, pady=12)
@@ -435,7 +435,7 @@ class FilesView(ctk.CTkFrame):
         if is_text:
             def copy_contents():
                 pyperclip.copy(text_content)
-                copy_btn.configure(text="✓ Copied!", fg_color=COLOR_SUCCESS)
+                copy_btn.configure(text="\ue070 Copied!", fg_color=COLOR_SUCCESS)
                 popup.after(1500, lambda: copy_btn.configure(text="Copy All", fg_color=ACCENT_PRIMARY))
 
             copy_btn = ctk.CTkButton(
@@ -464,7 +464,7 @@ class FilesView(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 bin_frame,
-                text="📦 Binary Data",
+                text="\ue12d Binary Data",
                 font=get_font(18, "bold"),
                 text_color=TEXT_PRIMARY,
             ).pack(pady=(40, 10))

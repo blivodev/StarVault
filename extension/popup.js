@@ -41,10 +41,28 @@ let searchDebounceTimer = null;
 
 document.addEventListener("DOMContentLoaded", async () => {
   initTheme();
+  hydrateStaticIcons();
   setupEventListeners();
+  setupSiteBanner();
   await detectActiveTab();
   await checkBridgeStatus();
 });
+
+// Replaces the data-icon placeholder on static buttons with an inline SVG so
+// the toolbar uses the same Lucide set as the rest of the UI (no emoji).
+function hydrateStaticIcons() {
+  document.querySelectorAll("[data-icon]").forEach((el) => {
+    const name = el.getAttribute("data-icon");
+    const label = el.textContent.trim();
+    el.textContent = "";
+    el.appendChild(svgIconNode(name, 13));
+    if (label) {
+      const span = document.createElement("span");
+      span.textContent = label;
+      el.appendChild(span);
+    }
+  });
+}
 
 // =============================================================================
 // Theme Management
@@ -129,6 +147,7 @@ function setupEventListeners() {
   // Sorting
   const sortSelect = document.getElementById("sortSelect");
   const sortDirBtn = document.getElementById("sortDirBtn");
+  sortDirBtn.innerHTML = svgIcon("chevron-up", 12);
 
   sortSelect.addEventListener("change", () => {
     currentSortBy = sortSelect.value;
@@ -137,7 +156,7 @@ function setupEventListeners() {
 
   sortDirBtn.addEventListener("click", () => {
     currentSortReverse = !currentSortReverse;
-    sortDirBtn.textContent = currentSortReverse ? "▼" : "▲";
+    sortDirBtn.innerHTML = svgIcon(currentSortReverse ? "chevron-down" : "chevron-up", 12);
     triggerSearch();
   });
 
@@ -191,7 +210,7 @@ function setupPasswordEyeToggles() {
     btn.addEventListener("click", () => {
       const isPassword = input.type === "password";
       input.type = isPassword ? "text" : "password";
-      btn.textContent = isPassword ? "🔒" : "👁";
+      btn.innerHTML = svgIcon(isPassword ? "lock" : "eye", 13);
     });
   });
 }
@@ -411,7 +430,7 @@ function setupOrganizeDrawer() {
       const data = await res.json();
       if (data.success) {
         box.innerHTML = `
-          <strong>✓ Vault Organized!</strong><br>
+          <strong>${svgIcon("circle-check",12)} Vault Organized!</strong><br>
           • Categories Updated: ${data.categories_updated}<br>
           • Tags Added: ${data.tags_added}<br>
           • Titles Normalized: ${data.titles_normalized}
@@ -438,7 +457,7 @@ function setupOrganizeDrawer() {
       });
       const data = await res.json();
       if (data.success) {
-        box.innerHTML = `<strong>✓ Deduplication Complete!</strong><br>• Merged Duplicates: ${data.merged_count}`;
+        box.innerHTML = `<strong>${svgIcon("circle-check",12)} Deduplication Complete!</strong><br>• Merged Duplicates: ${data.merged_count}`;
         showToast("Deduplication complete!");
         triggerSearch();
       } else {
@@ -604,7 +623,7 @@ function setupImportModal() {
 
       if (data.success) {
         statusBox.style.color = "#10B981";
-        statusBox.textContent = `✓ Import successful! ${data.count || 0} items imported.`;
+        statusBox.innerHTML = `${svgIcon("circle-check",12)} Import successful! ${data.count || 0} items imported.`;
         showToast("Vault Import Complete!");
         triggerSearch();
         setTimeout(() => {
@@ -672,7 +691,7 @@ function setupExportModal() {
         URL.revokeObjectURL(url);
 
         statusBox.style.color = "#10B981";
-        statusBox.textContent = `✓ Exported ${data.count} credentials!`;
+        statusBox.innerHTML = `${svgIcon("circle-check",12)} Exported ${data.count} credentials!`;
         showToast("CSV Downloaded!");
         setTimeout(() => {
           exportModal.classList.add("hidden");
@@ -770,6 +789,61 @@ async function detectActiveTab() {
     }
   } catch (e) {
     console.error("Tab detection failed:", e);
+  }
+  updateSiteBanner();
+}
+
+// Shows the detected site and how many saved logins match it.
+async function updateSiteBanner() {
+  const banner = document.getElementById("siteBanner");
+  if (!banner) return;
+  const hostEl = document.getElementById("siteHost");
+  const subEl = document.getElementById("siteSub");
+  const iconEl = document.getElementById("siteIcon");
+
+  if (!currentTabDomain) {
+    banner.classList.add("hidden");
+    return;
+  }
+  banner.classList.remove("hidden");
+  hostEl.textContent = currentTabDomain;
+  // Site favicon, falling back to a shield icon when the tab is not a URL.
+  iconEl.innerHTML = `<img class="site-favicon" alt="" src="https://icons.duckduckgo.com/ip3/${encodeURIComponent(currentTabDomain)}.ico" onerror="this.replaceWith(Object.assign(document.createElement('span'),{innerHTML:svgIcon('shield',14)}))">`;
+
+  try {
+    const res = await fetch(`${BRIDGE_URL}/api/search`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ query: "", url: currentTabUrl }),
+    });
+    if (!res.ok) throw new Error("offline");
+    const data = await res.json();
+    const n = (data.matches || []).length;
+    subEl.textContent = n === 1 ? "1 matching login" : `${n} matching logins`;
+  } catch (e) {
+    subEl.textContent = "Bridge offline";
+  }
+}
+
+function setupSiteBanner() {
+  const fill = document.getElementById("siteFillBtn");
+  const add = document.getElementById("siteAddBtn");
+  if (fill) {
+    fill.addEventListener("click", async () => {
+      try {
+        const tabs = await chrome.tabs.query({ active: true, currentWindow: true });
+        if (tabs && tabs[0]) chrome.tabs.sendMessage(tabs[0].id, { action: "starvault_fill_page" });
+        showToast("Filling credentials…");
+      } catch (e) {
+        showToast("Could not fill this page");
+      }
+    });
+  }
+  if (add) {
+    add.addEventListener("click", () => {
+      const btn = document.getElementById("openSaveBtn");
+      if (btn) btn.click();
+    });
   }
 }
 
@@ -933,7 +1007,7 @@ function renderLogins(items) {
     card.innerHTML = `
       <div class="card-top-row">
         <div class="card-title-group">
-          <span class="fav-star ${item.is_favorite ? "active" : ""}" title="Toggle Favorite">★</span>
+          <span class="fav-star ${item.is_favorite ? "active" : ""}" title="Toggle Favorite">${svgIcon(item.is_favorite ? "star-filled" : "star",12)}</span>
           <span class="type-pill ${typeClass}">${typeText}</span>
           <span class="login-title" title="${escapeHtml(item.title)}">${escapeHtml(item.title)}</span>
         </div>
@@ -996,7 +1070,7 @@ function renderLogins(items) {
           return;
         }
         nBox.classList.remove("hidden");
-        nBox.innerHTML = '<div style="font-size: 9px; color: var(--text-muted); padding: 4px;">🧠 Analyzing neural vector...</div>';
+        nBox.innerHTML = '<div style="font-size: 9px; color: var(--text-muted); padding: 4px;">${svgIcon("brain",11)} Analyzing neural vector...</div>';
         try {
           const res = await fetch(`${BRIDGE_URL}/api/neural_analyze_entry`, {
             method: "POST",
@@ -1017,7 +1091,7 @@ function renderLogins(items) {
           }
           nBox.innerHTML = `
             <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 2px;">
-              <span style="font-weight: 700; font-size: 10px; color: var(--text-primary);">🧠 Safety: ${nData.safety_score}/100</span>
+              <span style="font-weight: 700; font-size: 10px; color: var(--text-primary);">${svgIcon("brain",11)} Safety: ${nData.safety_score}/100</span>
               <span class="mini-badge ${riskBadgeClass}">Risk ${nData.risk_score} • ${escapeHtml(nData.predicted_class)}</span>
             </div>
             ${recs}
@@ -1037,7 +1111,7 @@ function renderLogins(items) {
         if (!box.classList.contains("hidden")) {
           box.classList.add("hidden");
           box.textContent = "";
-          revealBtn.textContent = "👁";
+          revealBtn.innerHTML = svgIcon("eye", 12);
           if (hideTimer) clearTimeout(hideTimer);
           return;
         }
@@ -1052,11 +1126,11 @@ function renderLogins(items) {
           if (creds.password) {
             box.textContent = `Password: ${creds.password}`;
             box.classList.remove("hidden");
-            revealBtn.textContent = "🔒";
+            revealBtn.innerHTML = svgIcon("lock", 12);
             hideTimer = setTimeout(() => {
               box.classList.add("hidden");
               box.textContent = "";
-              revealBtn.textContent = "👁";
+              revealBtn.innerHTML = svgIcon("eye", 12);
             }, 15000);
           } else {
             showToast("No password stored");

@@ -131,13 +131,13 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             title_row,
-            text="💻 Local Key Installer & Manager",
+            text="\ue1cd Local Key Installer & Manager",
             font=get_font(17, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left")
 
         # OS badge
-        os_label = "🪟 Windows (NTFS ACL)" if self.env_info.os_type == "windows" else f"🐧 {self.env_info.os_type.capitalize()} (chmod 0600)"
+        os_label = "\ue42b Windows (NTFS ACL)" if self.env_info.os_type == "windows" else f"\ue185 {self.env_info.os_type.capitalize()} (chmod 0600)"
         ctk.CTkLabel(
             title_row,
             text=os_label,
@@ -160,14 +160,14 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
         nav_frame = ctk.CTkFrame(header, fg_color="transparent")
         nav_frame.pack(side="right", padx=16, pady=12)
 
-        self.mode_var = ctk.StringVar(value="🚀 Install to System")
+        self.mode_var = ctk.StringVar(value="\ue286 Install to System")
         mode_seg = ctk.CTkSegmentedButton(
             nav_frame,
             values=[
-                "🚀 Install to System",
-                "📥 Import Local Keys",
-                "📤 Bulk Export",
-                "🩺 Diagnostics",
+                "\ue286 Install to System",
+                "\ue0b6 Import Local Keys",
+                "\ue19e Bulk Export",
+                "\ue2f1 Diagnostics",
             ],
             variable=self.mode_var,
             command=self._on_mode_switched,
@@ -201,7 +201,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
             self._render_diagnostics_mode()
 
     # -------------------------------------------------------------------------
-    # Mode 1: 🚀 Install to System
+    # Mode 1: \ue286 Install to System
     # -------------------------------------------------------------------------
 
     def _render_install_mode(self):
@@ -442,7 +442,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
         # Action Button & Progress
         self.install_btn = ctk.CTkButton(
             self.right_scroll,
-            text=f"⚡ Install & Check Selected Keys ({len(self.selected_key_ids)})",
+            text=f"\ue1b4 Install & Check Selected Keys ({len(self.selected_key_ids)})",
             font=get_font(13, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -613,7 +613,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         # Private key indicator
         has_priv = bool(getattr(entry, "private_key", "").strip())
-        priv_badge = "🔒 Priv+Pub" if has_priv else "🌐 Pub Only"
+        priv_badge = "\ue10f Priv+Pub" if has_priv else "\ue0eb Pub Only"
         priv_col = COLOR_SUCCESS if has_priv else TEXT_MUTED
         ctk.CTkLabel(
             top_row,
@@ -654,7 +654,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
         if hasattr(self, "count_badge_label"):
             self.count_badge_label.configure(text=f"Selected: {count} / {total}")
         if hasattr(self, "install_btn"):
-            self.install_btn.configure(text=f"⚡ Install & Check Selected Keys ({count})")
+            self.install_btn.configure(text=f"\ue1b4 Install & Check Selected Keys ({count})")
 
     # -------------------------------------------------------------------------
     # Installation Execution & Live Audit
@@ -696,7 +696,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
             finally:
                 self.after(0, lambda: self.install_btn.configure(
                     state="normal",
-                    text=f"⚡ Install & Check Selected Keys ({len(self.selected_key_ids)})"
+                    text=f"\ue1b4 Install & Check Selected Keys ({len(self.selected_key_ids)})"
                 ))
 
         threading.Thread(target=run_thread, daemon=True).start()
@@ -728,7 +728,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
             head = ctk.CTkFrame(card, fg_color="transparent")
             head.pack(fill="x", padx=10, pady=(8, 4))
 
-            status_icon = "✅" if res.success and not res.has_warnings else ("⚠️" if res.has_warnings else "❌")
+            status_icon = "\ue226" if res.success and not res.has_warnings else ("\ue193" if res.has_warnings else "\ue088")
             ctk.CTkLabel(head, text=f"{status_icon} {res.key_title}", font=get_font(11, "bold"), text_color=TEXT_PRIMARY).pack(side="left")
             ctk.CTkLabel(head, text=res.key_type.upper(), font=get_font(9), text_color=TEXT_MUTED).pack(side="right")
 
@@ -742,7 +742,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
             chk_frame.pack(fill="x", padx=10, pady=(0, 8))
 
             for c in res.checks:
-                c_icon = "🟢" if c.status == "OK" else ("🟡" if c.status == "WARNING" else ("🔴" if c.status == "ERROR" else "⚪"))
+                c_icon = "\ue07a" if c.status == "OK" else ("\ue07a" if c.status == "WARNING" else ("\ue07a" if c.status == "ERROR" else "\ue07a"))
                 c_row = ctk.CTkFrame(chk_frame, fg_color="transparent")
                 c_row.pack(fill="x", pady=1)
 
@@ -750,7 +750,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
                 ctk.CTkLabel(c_row, text=c.message, font=get_font(10), text_color=TEXT_PRIMARY if c.status == "OK" else COLOR_WARNING, anchor="w").pack(side="left", fill="x", expand=True)
 
     # -------------------------------------------------------------------------
-    # Mode 2: 📥 Import Local Keys (Scanner & File Loader)
+    # Mode 2: \ue0b6 Import Local Keys (Scanner & File Loader)
     # -------------------------------------------------------------------------
 
     def _render_import_mode(self):
@@ -766,14 +766,14 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             tb_inner,
-            text="📥 Discover & Import Local Keys into Vault",
+            text="\ue0b6 Discover & Import Local Keys into Vault",
             font=get_font(13, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left")
 
         ctk.CTkButton(
             tb_inner,
-            text="📋 Paste Raw Key...",
+            text="\ue089 Paste Raw Key...",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -784,7 +784,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             tb_inner,
-            text="📂 Load from Files...",
+            text="\ue247 Load from Files...",
             font=get_font(11),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -795,7 +795,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             tb_inner,
-            text="🔍 Scan ~/.ssh & System Dirs",
+            text="\ue155 Scan ~/.ssh & System Dirs",
             font=get_font(11, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -830,7 +830,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             bot_inner,
-            text="📥 Save Selected to Vault Keyring",
+            text="\ue0b6 Save Selected to Vault Keyring",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -856,7 +856,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             box,
-            text="🔍 Scan ~/.ssh Directory Now",
+            text="\ue155 Scan ~/.ssh Directory Now",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -932,7 +932,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
             if k.already_in_vault:
                 ctk.CTkLabel(
                     top,
-                    text="✓ In Vault",
+                    text="\ue070 In Vault",
                     font=get_font(9, "bold"),
                     text_color=TEXT_MUTED,
                     fg_color=BG_INPUT,
@@ -943,7 +943,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
             else:
                 ctk.CTkLabel(
                     top,
-                    text="✨ New Key",
+                    text="\ue417 New Key",
                     font=get_font(9, "bold"),
                     text_color=COLOR_SUCCESS,
                     fg_color=BG_INPUT,
@@ -1064,10 +1064,10 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
         btn_row = ctk.CTkFrame(modal, fg_color="transparent")
         btn_row.pack(fill="x", padx=20, pady=(4, 16))
         ctk.CTkButton(btn_row, text="Cancel", fg_color=BG_INPUT, text_color=TEXT_PRIMARY, command=modal.destroy).pack(side="left")
-        ctk.CTkButton(btn_row, text="✓ Save to Vault", font=get_font(12, "bold"), fg_color=ACCENT_PRIMARY, text_color="#000000", command=do_save).pack(side="right")
+        ctk.CTkButton(btn_row, text="\ue070 Save to Vault", font=get_font(12, "bold"), fg_color=ACCENT_PRIMARY, text_color="#000000", command=do_save).pack(side="right")
 
     # -------------------------------------------------------------------------
-    # Mode 3: 📤 Bulk Export
+    # Mode 3: \ue19e Bulk Export
     # -------------------------------------------------------------------------
 
     def _render_export_mode(self):
@@ -1103,7 +1103,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
                     export_selected_ids.discard(kid)
 
             ctk.CTkCheckBox(cin, text="", variable=v, width=24, command=tog, fg_color=ACCENT_PRIMARY, checkmark_color="#000000").pack(side="left", padx=(0, 6))
-            ctk.CTkLabel(cin, text=f"🔑 {k.title}", font=get_font(11, "bold"), text_color=TEXT_PRIMARY).pack(side="left")
+            ctk.CTkLabel(cin, text=f"\ue102 {k.title}", font=get_font(11, "bold"), text_color=TEXT_PRIMARY).pack(side="left")
             ctk.CTkLabel(cin, text=getattr(k, "key_type", "").upper(), font=get_font(9), text_color=TEXT_MUTED).pack(side="right")
 
         # Right: Export Options
@@ -1156,7 +1156,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             right,
-            text="💾 Export Selected Keys",
+            text="\ue151 Export Selected Keys",
             font=get_font(13, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -1166,7 +1166,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
         ).pack(fill="x", padx=14, pady=(20, 10))
 
     # -------------------------------------------------------------------------
-    # Mode 4: 🩺 System Diagnostics & Permission Repair
+    # Mode 4: \ue2f1 System Diagnostics & Permission Repair
     # -------------------------------------------------------------------------
 
     def _render_diagnostics_mode(self):
@@ -1179,7 +1179,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
         hin = ctk.CTkFrame(header_box, fg_color="transparent")
         hin.pack(fill="x", padx=14, pady=12)
 
-        ctk.CTkLabel(hin, text="🩺 Local System Key Security & Environment Audit", font=get_font(13, "bold"), text_color=TEXT_PRIMARY).pack(side="left")
+        ctk.CTkLabel(hin, text="\ue2f1 Local System Key Security & Environment Audit", font=get_font(13, "bold"), text_color=TEXT_PRIMARY).pack(side="left")
 
         def run_perm_fix():
             cnt, logs = fix_all_ssh_permissions()
@@ -1188,7 +1188,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             hin,
-            text="🛡️ Fix ~/.ssh Permissions",
+            text="\ue15c Fix ~/.ssh Permissions",
             font=get_font(11, "bold"),
             fg_color=COLOR_WARNING,
             hover_color=BORDER_COLOR,
@@ -1209,7 +1209,7 @@ class LocalKeyInstallerDialog(ctk.CTkToplevel):
             cin = ctk.CTkFrame(card, fg_color="transparent")
             cin.pack(fill="x", padx=12, pady=10)
 
-            c_icon = "🟢" if item.status == "OK" else ("🟡" if item.status == "WARNING" else ("🔴" if item.status == "ERROR" else "ℹ️"))
+            c_icon = "\ue07a" if item.status == "OK" else ("\ue07a" if item.status == "WARNING" else ("\ue07a" if item.status == "ERROR" else "ℹ"))
             top = ctk.CTkFrame(cin, fg_color="transparent")
             top.pack(fill="x")
 

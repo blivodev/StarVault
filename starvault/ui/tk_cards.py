@@ -29,6 +29,7 @@ from starvault.ui.theme import (
     TEXT_MUTED,
     TEXT_PRIMARY,
     TEXT_SECONDARY,
+    tk_font,
 )
 
 
@@ -69,13 +70,15 @@ def render_tk_card(parent, entry, dashboard, is_selected: bool) -> tk.Frame:
     top.pack(fill="x")
     top.bind("<Button-1>", lambda e, ent=entry: dashboard._on_card_clicked(e, ent))
 
-    # Favorite star (clickable label)
+    # Favorite star (clickable label) — uses the Lucide icon font so the glyph
+    # renders regardless of the active UI font.
+    from starvault.ui.icons_font import icon_tk_font as _icon_tk
     star = tk.Label(
         top,
-        text="★" if entry.is_favorite else "☆",
+        text="\ue17a" if entry.is_favorite else "\ue2b0",
         bg=card["bg"],
         fg=COLOR_FAVORITE if entry.is_favorite else TEXT_MUTED,
-        font=("Segoe UI", 14),
+        font=_icon_tk(14),
         cursor="hand2",
     )
     star.pack(side="left", padx=(0, 6))
@@ -88,7 +91,7 @@ def render_tk_card(parent, entry, dashboard, is_selected: bool) -> tk.Frame:
         text=badge_text,
         bg=BG_INPUT,
         fg=badge_color,
-        font=("Segoe UI", 9, "bold"),
+        font=tk_font(9, "bold"),
         padx=6,
         pady=1,
     ).pack(side="left", padx=(0, 8))
@@ -99,7 +102,7 @@ def render_tk_card(parent, entry, dashboard, is_selected: bool) -> tk.Frame:
         text=entry.title,
         bg=card["bg"],
         fg=TEXT_PRIMARY,
-        font=("Segoe UI", 13, "bold"),
+        font=tk_font(13, "bold"),
         anchor="w",
     )
     title.pack(side="left")
@@ -112,7 +115,7 @@ def render_tk_card(parent, entry, dashboard, is_selected: bool) -> tk.Frame:
             text=f"#{tag}",
             bg=BG_INPUT,
             fg=TEXT_MUTED,
-            font=("Segoe UI", 9),
+            font=tk_font(9),
             padx=4,
             pady=1,
         ).pack(side="left", padx=2)
@@ -124,7 +127,7 @@ def render_tk_card(parent, entry, dashboard, is_selected: bool) -> tk.Frame:
             text=grp,
             bg=BG_INPUT,
             fg=ACCENT_INDIGO,
-            font=("Segoe UI", 9),
+            font=tk_font(9),
             padx=4,
             pady=1,
         ).pack(side="left", padx=2)
@@ -136,7 +139,7 @@ def render_tk_card(parent, entry, dashboard, is_selected: bool) -> tk.Frame:
             text=srv,
             bg=BG_INPUT,
             fg=ACCENT_PRIMARY,
-            font=("Segoe UI", 9),
+            font=tk_font(9),
             padx=4,
             pady=1,
         ).pack(side="left", padx=2)
@@ -209,26 +212,57 @@ def _preview(entry) -> str:
     return ""
 
 
-def _btn(parent, text, fg, bg, command, bold=False, danger=False):
-    """Creates a flat tk button styled like a CTk button."""
-    b = tk.Button(
-        parent,
-        text=text,
-        bg=BG_INPUT,
-        fg=fg,
-        activebackground=BG_INPUT,
-        activeforeground=fg,
-        relief="flat",
-        bd=0,
-        highlightthickness=0,
-        padx=8,
-        pady=2,
-        font=("Segoe UI", 9, "bold" if bold else "normal"),
-        cursor="hand2",
-        command=command,
-    )
-    b.pack(side="left", padx=2)
-    return b
+def _btn(parent, text, fg, bg, command, bold=False, danger=False, icon_name=None):
+    """Creates a flat clickable button with an optional Lucide icon + text.
+
+    A single tk.Button cannot render a Lucide glyph and Latin text together
+    (one font per widget), so this builds a small clickable frame holding an
+    icon label and a text label. Still plain-tk, so creation stays cheap.
+    """
+    from starvault.ui.icons_font import ICON_FAMILY, icon as _icon
+
+    glyph = _icon(icon_name) if icon_name else ""
+
+    holder = tk.Frame(parent, bg=BG_INPUT, highlightthickness=0, bd=0)
+    holder.pack(side="left", padx=2)
+
+    def _hover_on(_e=None):
+        try:
+            holder.configure(bg=BG_CARD)
+            for w in holder.winfo_children():
+                w.configure(bg=BG_CARD)
+        except Exception:
+            pass
+
+    def _hover_off(_e=None):
+        try:
+            holder.configure(bg=BG_INPUT)
+            for w in holder.winfo_children():
+                w.configure(bg=BG_INPUT)
+        except Exception:
+            pass
+
+    def _click(_e=None):
+        command()
+
+    widgets = []
+    if glyph:
+        ic = tk.Label(holder, text=glyph, bg=BG_INPUT, fg=fg, font=(ICON_FAMILY, 11),
+                      padx=0, pady=2, cursor="hand2")
+        ic.pack(side="left", padx=(7, 2))
+        widgets.append(ic)
+    if text:
+        tx = tk.Label(holder, text=text, bg=BG_INPUT, fg=fg,
+                      font=tk_font(9, "bold" if bold else "normal"),
+                      padx=0, pady=2, cursor="hand2")
+        tx.pack(side="left", padx=(2 if glyph else 7, 7))
+        widgets.append(tx)
+
+    for w in [holder] + widgets:
+        w.bind("<Button-1>", _click)
+        w.bind("<Enter>", _hover_on)
+        w.bind("<Leave>", _hover_off)
+    return holder
 
 
 def _render_actions(actions, entry, dashboard, bg):
@@ -237,50 +271,52 @@ def _render_actions(actions, entry, dashboard, bg):
 
     if t == "server":
         if entry.hostname:
-            _btn(actions, "Copy IP", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.hostname, "IP address copied"))
-        _btn(actions, "SSH", ACCENT_PRIMARY, bg, lambda: dashboard._copy_val(_ssh(entry), "SSH command copied"), bold=True)
+            _btn(actions, "IP", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.hostname, "IP address copied"), icon_name="network")
+        _btn(actions, "SSH", ACCENT_PRIMARY, bg, lambda: dashboard._copy_val(_ssh(entry), "SSH command copied"), bold=True, icon_name="terminal")
         if entry.password:
-            _btn(actions, "Password", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.password, "Password copied (30s wipe)", is_sensitive=True))
+            _btn(actions, "Password", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.password, "Password copied (30s wipe)", is_sensitive=True), icon_name="key-round")
 
     elif t == "domain":
         dom_val = entry.domain_name or entry.url or entry.title
         if dom_val:
             clean = dom_val if dom_val.startswith(("http://", "https://")) else f"https://{dom_val}"
-            _btn(actions, "Domain", TEXT_PRIMARY, bg, lambda u=clean: dashboard._copy_val(u, "Domain URL copied"))
+            _btn(actions, "Domain", TEXT_PRIMARY, bg, lambda u=clean: dashboard._copy_val(u, "Domain URL copied"), icon_name="globe")
         if getattr(entry, "username", ""):
-            _btn(actions, "User", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.username, "Username copied"))
+            _btn(actions, "User", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.username, "Username copied"), icon_name="user")
         if getattr(entry, "password", ""):
-            _btn(actions, "Password", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.password, "Password copied (30s wipe)", is_sensitive=True))
+            _btn(actions, "Password", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.password, "Password copied (30s wipe)", is_sensitive=True), icon_name="key-round")
         if getattr(entry, "registrar", ""):
-            _btn(actions, "Registrar", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.registrar, "Registrar copied"))
+            _btn(actions, "Registrar", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.registrar, "Registrar copied"), icon_name="building-2")
         if getattr(entry, "auth_code", ""):
-            _btn(actions, "Auth Code", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.auth_code, "Auth code copied (30s wipe)", is_sensitive=True))
-        _btn(actions, "+ Attach", ACCENT_PRIMARY, bg, lambda: dashboard._create_linked_item_for_domain(entry), bold=True)
+            _btn(actions, "Auth Code", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.auth_code, "Auth code copied (30s wipe)", is_sensitive=True), icon_name="key-round")
+        _btn(actions, "Attach", ACCENT_PRIMARY, bg, lambda: dashboard._create_linked_item_for_domain(entry), bold=True, icon_name="link-2")
 
     elif t == "service":
         if entry.url or entry.hostname:
-            _btn(actions, "URL", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.url or entry.hostname, "URL copied"))
+            _btn(actions, "URL", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.url or entry.hostname, "URL copied"), icon_name="globe")
         if any(x in (entry.service_type or "") for x in ("postgres", "mysql", "redis")):
-            _btn(actions, "DB URL", COLOR_WARNING, bg, lambda: dashboard._copy_val(_dburl(entry), "DB URL copied (30s wipe)", is_sensitive=True), bold=True)
+            _btn(actions, "DB URL", COLOR_WARNING, bg, lambda: dashboard._copy_val(_dburl(entry), "DB URL copied (30s wipe)", is_sensitive=True), bold=True, icon_name="database")
         if entry.api_token:
-            _btn(actions, "Token", COLOR_SUCCESS, bg, lambda: dashboard._copy_val(entry.api_token, "API token copied (30s wipe)", is_sensitive=True))
+            _btn(actions, "Token", COLOR_SUCCESS, bg, lambda: dashboard._copy_val(entry.api_token, "API token copied (30s wipe)", is_sensitive=True), icon_name="key-round")
         elif entry.password:
-            _btn(actions, "Password", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.password, "Password copied (30s wipe)", is_sensitive=True))
+            _btn(actions, "Password", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.password, "Password copied (30s wipe)", is_sensitive=True), icon_name="key-round")
+        if entry.username:
+            _btn(actions, "User", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.username, "Username copied"), icon_name="user")
 
     elif t == "apikey":
         if entry.api_token:
-            _btn(actions, "Copy Key", ACCENT_INDIGO, bg, lambda: dashboard._copy_val(entry.api_token, "API key copied (30s wipe)", is_sensitive=True), bold=True)
+            _btn(actions, "Copy Key", ACCENT_INDIGO, bg, lambda: dashboard._copy_val(entry.api_token, "API key copied (30s wipe)", is_sensitive=True), bold=True, icon_name="key-round")
         if entry.api_key_secret:
-            _btn(actions, "Secret", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.api_key_secret, "API secret copied (30s wipe)", is_sensitive=True))
+            _btn(actions, "Secret", COLOR_WARNING, bg, lambda: dashboard._copy_val(entry.api_key_secret, "API secret copied (30s wipe)", is_sensitive=True), icon_name="lock")
         if entry.totp_secret:
             from starvault.totp import generate_totp
-            _btn(actions, "2FA Code", COLOR_SUCCESS, bg, lambda: dashboard._copy_val(generate_totp(entry.totp_secret), "2FA code copied (30s wipe)", is_sensitive=True))
+            _btn(actions, "2FA", COLOR_SUCCESS, bg, lambda: dashboard._copy_val(generate_totp(entry.totp_secret), "2FA code copied (30s wipe)", is_sensitive=True), icon_name="smartphone")
 
     elif t == "keypair":
         if entry.public_key:
-            _btn(actions, "Public", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.public_key, "Public key copied"))
+            _btn(actions, "Public", TEXT_PRIMARY, bg, lambda: dashboard._copy_val(entry.public_key, "Public key copied"), icon_name="key")
         if entry.private_key:
-            _btn(actions, "Private", COLOR_DANGER, bg, lambda: dashboard._copy_val(entry.private_key, "Private key copied (30s wipe)", is_sensitive=True))
+            _btn(actions, "Private", COLOR_DANGER, bg, lambda: dashboard._copy_val(entry.private_key, "Private key copied (30s wipe)", is_sensitive=True), icon_name="key-round")
 
 
 def _ssh(entry) -> str:

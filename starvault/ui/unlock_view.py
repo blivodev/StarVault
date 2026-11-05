@@ -100,13 +100,20 @@ class UnlockView(ctk.CTkFrame):
 
         pad_x, pad_y = 36, 28
 
-        # Header Badge / Icon
-        logo_label = ctk.CTkLabel(
-            self.card,
-            text="★",
-            font=ctk.CTkFont(size=36, weight="bold"),
-            text_color=ACCENT_PRIMARY,
-        )
+        # Header Badge / Icon — the real brand mark (same geometry as the app
+        # icon and the title-bar mark, so branding never drifts).
+        from starvault.ui.branding import mark_image
+        _mark = mark_image(48)
+        if _mark is not None:
+            logo_label = ctk.CTkLabel(self.card, text="", image=_mark)
+        else:
+            from starvault.ui.icons_font import icon, icon_font
+            logo_label = ctk.CTkLabel(
+                self.card,
+                text=icon("shield-check"),
+                font=icon_font(34),
+                text_color=ACCENT_PRIMARY,
+            )
         logo_label.pack(pady=(pad_y, 4))
 
         title_text = "StarVault" if self.is_initialized else "Create Your StarVault"
@@ -148,14 +155,14 @@ class UnlockView(ctk.CTkFrame):
         db_name = self.database.db_path.name
         ctk.CTkLabel(
             v_inner,
-            text=f"📁 Vault: {db_name}",
+            text=f"\ue0dc Vault: {db_name}",
             font=get_font(11, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left")
 
         recents = self.app_config.get_recent_vaults() if self.app_config else []
         if len(recents) > 1:
-            recent_options = [p.name for p in recents] + ["📂 Open File..."]
+            recent_options = [p.name for p in recents] + ["\ue247 Open File..."]
             self.recent_combo = ctk.CTkComboBox(
                 v_inner,
                 values=recent_options,
@@ -169,7 +176,7 @@ class UnlockView(ctk.CTkFrame):
         else:
             ctk.CTkButton(
                 v_inner,
-                text="📂 Switch...",
+                text="\ue247 Switch...",
                 width=75,
                 height=24,
                 font=get_font(10, "bold"),
@@ -208,7 +215,7 @@ class UnlockView(ctk.CTkFrame):
 
         self.toggle_eye_btn = ctk.CTkButton(
             entry_row,
-            text="👁",
+            text="\ue0be",
             width=40,
             height=40,
             fg_color=BG_INPUT,
@@ -243,7 +250,7 @@ class UnlockView(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 chk_box,
-                text="⚠️ Reduces local security: stores derived master credential in OS keychain.",
+                text="\ue193 Reduces local security: stores derived master credential in OS keychain.",
                 font=get_font(10),
                 text_color=TEXT_MUTED,
                 wraplength=420,
@@ -280,7 +287,7 @@ class UnlockView(ctk.CTkFrame):
 
         ctk.CTkButton(
             bottom_row,
-            text="🔄 Restore from Backup (.db)...",
+            text="\ue149 Restore from Backup (.db)...",
             font=get_font(11),
             fg_color="transparent",
             hover_color=BG_INPUT,
@@ -302,7 +309,7 @@ class UnlockView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             h_row,
-            text="🛡️ TRUE LOCAL 2FA KEYFILE",
+            text="\ue15c TRUE LOCAL 2FA KEYFILE",
             font=get_font(10, "bold"),
             text_color=ACCENT_PURPLE,
         ).pack(side="left")
@@ -324,7 +331,7 @@ class UnlockView(ctk.CTkFrame):
 
         ctk.CTkButton(
             picker_row,
-            text="📁 Select QR Keyfile...",
+            text="\ue0dc Select QR Keyfile...",
             font=get_font(12, "bold"),
             height=34,
             fg_color=BG_INPUT,
@@ -344,7 +351,7 @@ class UnlockView(ctk.CTkFrame):
 
         self.clear_keyfile_btn = ctk.CTkButton(
             picker_row,
-            text="✖",
+            text="\ue1b2",
             width=28,
             height=28,
             fg_color="transparent",
@@ -435,7 +442,7 @@ class UnlockView(ctk.CTkFrame):
 
         self.btn_gen_qr = ctk.CTkButton(
             btn_row,
-            text="💾 Generate & Save QR Keyfile (.png)",
+            text="\ue151 Generate & Save QR Keyfile (.png)",
             font=get_font(11, "bold"),
             height=32,
             fg_color=BG_INPUT,
@@ -470,7 +477,7 @@ class UnlockView(ctk.CTkFrame):
                 save_qr_image(token, dest)
                 self.setup_keyfile_token = token
                 self.setup_qr_status.configure(
-                    text=f"✓ Saved: {Path(dest).name}",
+                    text=f"\ue070 Saved: {Path(dest).name}",
                     text_color=COLOR_SUCCESS,
                 )
             except Exception as e:
@@ -495,7 +502,7 @@ class UnlockView(ctk.CTkFrame):
             self.loaded_keyfile_token = token
             self.loaded_keyfile_name = Path(path).name
             self.keyfile_name_label.configure(
-                text=f"✓ {self.loaded_keyfile_name}",
+                text=f"\ue070 {self.loaded_keyfile_name}",
                 text_color=COLOR_SUCCESS,
             )
             self.keyfile_badge.configure(text="LOADED", text_color=COLOR_SUCCESS)
@@ -535,7 +542,7 @@ class UnlockView(ctk.CTkFrame):
                 self.is_initialized = self.database.is_initialized()
                 self._build_ui()
                 self.error_label.configure(
-                    text="✓ Vault successfully restored from backup! Please unlock.",
+                    text="\ue070 Vault successfully restored from backup! Please unlock.",
                     text_color=COLOR_SUCCESS,
                 )
             else:
@@ -549,7 +556,7 @@ class UnlockView(ctk.CTkFrame):
         self.pwd_entry.configure(show=show_char)
         if hasattr(self, "confirm_entry"):
             self.confirm_entry.configure(show=show_char)
-        self.toggle_eye_btn.configure(text="🔒" if self._show_password else "👁")
+        self.toggle_eye_btn.configure(text="\ue10f" if self._show_password else "\ue0be")
 
     def _on_password_typing(self, event=None):
         pwd = self.pwd_entry.get()
@@ -585,7 +592,7 @@ class UnlockView(ctk.CTkFrame):
             )
 
     def _on_recent_vault_selected(self, choice: str):
-        if choice == "📂 Open File...":
+        if choice == "\ue247 Open File...":
             self._choose_different_vault()
             return
         if self.app_config and self.on_switch_vault:

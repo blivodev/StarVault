@@ -1,12 +1,13 @@
 {
   "manifest_version": 3,
   "name": "StarVault - Secure Credential Companion",
-  "version": "2.0.0",
+  "version": "2.1.0",
   "description": "Zero-knowledge auto-fill, credential lookup, and password generator powered by your local StarVault.",
   "permissions": [
     "activeTab",
     "storage",
-    "clipboardWrite"
+    "clipboardWrite",
+    "contextMenus"
   ],
   "host_permissions": [
     "http://127.0.0.1:8088/*",

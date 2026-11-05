@@ -5,7 +5,7 @@ Scans the decrypted vault in memory and provides actionable security insights:
 - Weak passwords
 - Stale credentials (>180 / >365 days)
 - Expiring API keys, tokens, and certificates
-- One-click automated remediation (⚡ Auto-Fix)
+- One-click automated remediation (\ue1b4 Auto-Fix)
 - Expiry notifications and alerts
 - Optional AI / LLM Security & Hygiene Advisor (OpenAI, Gemini, Claude, OpenRouter, DeepInfra, Fireworks, Ollama)
 """
@@ -190,7 +190,7 @@ class HealthView(ctk.CTkFrame):
 
         ctk.CTkLabel(
             org_header,
-            text="🗂️ Auto-Organize & Smart Vault Studio",
+            text="\ue340 Auto-Organize & Smart Vault Studio",
             font=get_font(13, "bold"),
             text_color=ACCENT_PRIMARY,
         ).pack(side="left")
@@ -336,7 +336,7 @@ class HealthView(ctk.CTkFrame):
 
         self.ai_expand_btn = ctk.CTkButton(
             ai_header,
-            text="⚙️ Cloud AI Providers",
+            text="\ue158 Cloud AI Providers",
             width=150,
             height=30,
             font=get_font(11),
@@ -484,7 +484,7 @@ class HealthView(ctk.CTkFrame):
             return
 
         self.ai_result = result
-        self.status_banner.configure(text="✓ AI Security Audit complete!", text_color=COLOR_SUCCESS)
+        self.status_banner.configure(text="\ue070 AI Security Audit complete!", text_color=COLOR_SUCCESS)
         self._render_ai_results(result)
 
     def _render_ai_results(self, result: AIAnalysisResult) -> None:
@@ -562,12 +562,12 @@ class HealthView(ctk.CTkFrame):
 
     def _handle_run_neural_scan(self) -> None:
         """Executes instant 100% offline neural network security and hygiene audit."""
-        self.status_banner.configure(text="🧠 Running local neural security inference...", text_color=ACCENT_INDIGO)
+        self.status_banner.configure(text="\ue3ca Running local neural security inference...", text_color=ACCENT_INDIGO)
         entries = self.database.get_all_entries(self.encryption_key)
         advisor = AIAdvisor(provider="neural")
         result = advisor.analyze_neural(entries)
         self.ai_result = result
-        self.status_banner.configure(text="✓ Neural Security Audit complete (100% offline)!", text_color=COLOR_SUCCESS)
+        self.status_banner.configure(text="\ue070 Neural Security Audit complete (100% offline)!", text_color=COLOR_SUCCESS)
         self._render_ai_results(result)
 
     def refresh(self) -> None:
@@ -661,7 +661,7 @@ class HealthView(ctk.CTkFrame):
 
             ctk.CTkLabel(
                 n_badge,
-                text="🧠 NEURAL SAFETY",
+                text="\ue3ca NEURAL SAFETY",
                 font=get_font(9, "bold"),
                 text_color=ACCENT_INDIGO,
             ).pack(pady=(10, 0))
@@ -684,7 +684,7 @@ class HealthView(ctk.CTkFrame):
         # 2. Expiry alert banner
         if report.expiring_keys_count > 0:
             self.expiry_alert_lbl.configure(
-                text=f"⚠️ ATTENTION: {report.expiring_keys_count} credential(s) or API key(s) have expired or expire soon! Review and auto-extend them below."
+                text=f"\ue193 ATTENTION: {report.expiring_keys_count} credential(s) or API key(s) have expired or expire soon! Review and auto-extend them below."
             )
             self.expiry_alert_frame.pack(fill="x", pady=(0, 14))
         else:
@@ -705,7 +705,7 @@ class HealthView(ctk.CTkFrame):
             empty_card.pack(fill="x", pady=10)
             ctk.CTkLabel(
                 empty_card,
-                text="🎉 All Clear!",
+                text="\ue347 All Clear!",
                 font=get_font(16, "bold"),
                 text_color=COLOR_SUCCESS,
             ).pack(pady=(20, 4))
@@ -772,11 +772,11 @@ class HealthView(ctk.CTkFrame):
         btn_box = ctk.CTkFrame(header, fg_color="transparent")
         btn_box.pack(side="right")
 
-        # ⚡ Auto-Fix Button (One-click remediation!)
+        # \ue1b4 Auto-Fix Button (One-click remediation!)
         if issue.remediation_action:
             ctk.CTkButton(
                 btn_box,
-                text="⚡ Auto-Fix",
+                text="\ue1b4 Auto-Fix",
                 font=get_font(11, "bold"),
                 width=95,
                 height=28,
@@ -820,7 +820,7 @@ class HealthView(ctk.CTkFrame):
         rec_row.pack(anchor="w", pady=(6, 0))
         ctk.CTkLabel(
             rec_row,
-            text="💡 Remediation: ",
+            text="\ue1c2 Remediation: ",
             font=get_font(11, "bold"),
             text_color=COLOR_WARNING,
         ).pack(side="left")
@@ -836,7 +836,7 @@ class HealthView(ctk.CTkFrame):
     def _handle_auto_fix(self, issue: HealthIssue) -> None:
         success, msg = fix_health_issue(issue, self.database, self.encryption_key)
         if success:
-            self._notify_update(f"✓ Auto-Fix Applied: {msg}")
+            self._notify_update(f"\ue070 Auto-Fix Applied: {msg}")
         else:
             self.status_banner.configure(text=f"Auto-Fix Error: {msg}", text_color=COLOR_DANGER)
 
@@ -853,32 +853,32 @@ class HealthView(ctk.CTkFrame):
     def _handle_auto_organize_all(self) -> None:
         summary = auto_organize_vault(self.database, self.encryption_key, override_categories=False)
         self._notify_update(
-            f"✓ Auto-Organized Vault: {summary.categories_updated} categories assigned, "
+            f"\ue070 Auto-Organized Vault: {summary.categories_updated} categories assigned, "
             f"{summary.tags_added} tags enriched, {summary.titles_normalized} titles normalized."
         )
 
     def _handle_auto_group(self) -> None:
         summary = auto_organize_vault(self.database, self.encryption_key, override_categories=True)
-        self._notify_update(f"✓ Auto-Group complete: {summary.categories_updated} categories assigned.")
+        self._notify_update(f"\ue070 Auto-Group complete: {summary.categories_updated} categories assigned.")
 
     def _handle_auto_tag(self) -> None:
         summary = auto_organize_vault(self.database, self.encryption_key, override_categories=False)
-        self._notify_update(f"✓ Auto-Tag complete: {summary.tags_added} smart tags added across entries.")
+        self._notify_update(f"\ue070 Auto-Tag complete: {summary.tags_added} smart tags added across entries.")
 
     def _handle_merge_duplicates(self) -> None:
         res = deduplicate_vault(self.database, self.encryption_key, auto_merge=True)
         if res["merged_count"] > 0:
-            self._notify_update(f"✓ Merged {res['merged_count']} redundant duplicate entries into primary records.")
+            self._notify_update(f"\ue070 Merged {res['merged_count']} redundant duplicate entries into primary records.")
         else:
             self.status_banner.configure(text="No duplicate entry clusters detected.", text_color=TEXT_MUTED)
 
     def _handle_purge_ghosts(self) -> None:
         res = purge_ghost_entries(self.database, self.encryption_key)
-        self._notify_update(f"✓ Cleaned: purged {res['purged_ghosts']} empty records and repaired {res['fixed_orphans']} orphan references.")
+        self._notify_update(f"\ue070 Cleaned: purged {res['purged_ghosts']} empty records and repaired {res['fixed_orphans']} orphan references.")
 
     def _handle_auto_organize_files(self) -> None:
         res = auto_organize_files(self.database, self.encryption_key)
-        self._notify_update(f"✓ Auto-Organized Files: {res['files_updated']} vault attachments tagged and filed by type.")
+        self._notify_update(f"\ue070 Auto-Organized Files: {res['files_updated']} vault attachments tagged and filed by type.")
 
     def _handle_apply_sort(self) -> None:
         choice = self.sort_combo.get()
@@ -893,7 +893,7 @@ class HealthView(ctk.CTkFrame):
         strategy = mapping.get(choice, "category")
         entries = self.database.get_all_entries(self.encryption_key)
         sorted_list = sort_entries(entries, sort_by=strategy)
-        self._notify_update(f"✓ Auto-sorted {len(sorted_list)} entries by {choice}.")
+        self._notify_update(f"\ue070 Auto-sorted {len(sorted_list)} entries by {choice}.")
 
     def _handle_apply_ai_action(self, action: AIRemediationAction) -> None:
         entry = self.database.get_entry(action.entry_id, self.encryption_key)
@@ -904,7 +904,7 @@ class HealthView(ctk.CTkFrame):
         if action.action_type == "set_category" and action.suggested_value:
             entry.category = action.suggested_value
             self.database.save_entry(entry, self.encryption_key)
-            self._notify_update(f"✓ Set category for '{entry.title}' to [{action.suggested_value}].")
+            self._notify_update(f"\ue070 Set category for '{entry.title}' to [{action.suggested_value}].")
 
         elif action.action_type == "assign_groups" and action.suggested_value:
             new_grps = [g.strip() for g in action.suggested_value.split(",") if g.strip()]
@@ -912,13 +912,13 @@ class HealthView(ctk.CTkFrame):
             if new_grps:
                 entry.category = new_grps[0]
             self.database.save_entry(entry, self.encryption_key)
-            self._notify_update(f"✓ Assigned groups to '{entry.title}': {action.suggested_value}")
+            self._notify_update(f"\ue070 Assigned groups to '{entry.title}': {action.suggested_value}")
 
         elif action.action_type == "assign_services" and action.suggested_value:
             new_srvs = [s.strip() for s in action.suggested_value.split(",") if s.strip()]
             entry.services = new_srvs
             self.database.save_entry(entry, self.encryption_key)
-            self._notify_update(f"✓ Assigned services to '{entry.title}': {action.suggested_value}")
+            self._notify_update(f"\ue070 Assigned services to '{entry.title}': {action.suggested_value}")
 
         elif action.action_type == "update_tags" and action.suggested_value:
             tags_to_add = [t.strip().lower() for t in action.suggested_value.split(",") if t.strip()]
@@ -926,18 +926,18 @@ class HealthView(ctk.CTkFrame):
             cur_tags.update(tags_to_add)
             entry.tags = sorted(list(cur_tags))
             self.database.save_entry(entry, self.encryption_key)
-            self._notify_update(f"✓ Updated tags for '{entry.title}'.")
+            self._notify_update(f"\ue070 Updated tags for '{entry.title}'.")
 
         elif action.action_type == "normalize_title" and action.suggested_value:
             entry.title = action.suggested_value
             self.database.save_entry(entry, self.encryption_key)
-            self._notify_update(f"✓ Normalized title to '{entry.title}'.")
+            self._notify_update(f"\ue070 Normalized title to '{entry.title}'.")
 
         elif action.action_type == "merge_duplicate":
             res = deduplicate_vault(self.database, self.encryption_key, auto_merge=True)
-            self._notify_update(f"✓ Merged {res['merged_count']} duplicates.")
+            self._notify_update(f"\ue070 Merged {res['merged_count']} duplicates.")
 
         elif action.action_type == "purge_ghost":
             self.database.delete_entry(action.entry_id)
-            self._notify_update(f"✓ Purged ghost entry '{entry.title}'.")
+            self._notify_update(f"\ue070 Purged ghost entry '{entry.title}'.")
 

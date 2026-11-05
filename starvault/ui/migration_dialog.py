@@ -66,7 +66,7 @@ class MigrationDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             header,
-            text="🛡️ Upgrade to True Local 2FA",
+            text="\ue15c Upgrade to True Local 2FA",
             font=get_font(18, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(side="left", padx=24, pady=16)
@@ -132,7 +132,7 @@ class MigrationDialog(ctk.CTkToplevel):
 
         self.save_btn = ctk.CTkButton(
             btn_row,
-            text="💾 Save QR Code Image (.png)...",
+            text="\ue151 Save QR Code Image (.png)...",
             font=get_font(12, "bold"),
             height=36,
             fg_color=ACCENT_PRIMARY,
@@ -172,7 +172,7 @@ class MigrationDialog(ctk.CTkToplevel):
 
         self.upgrade_btn = ctk.CTkButton(
             mig_card,
-            text="🚀 Upgrade & Re-Encrypt Vault Now",
+            text="\ue286 Upgrade & Re-Encrypt Vault Now",
             font=get_font(13, "bold"),
             height=42,
             fg_color=BG_INPUT,
@@ -209,7 +209,7 @@ class MigrationDialog(ctk.CTkToplevel):
                 save_qr_image(self.token, dest)
                 self.keyfile_saved_path = dest
                 self.save_status_label.configure(
-                    text="✓ QR Keyfile saved securely!",
+                    text="\ue070 QR Keyfile saved securely!",
                     text_color=COLOR_SUCCESS,
                 )
                 self.upgrade_btn.configure(
@@ -240,7 +240,7 @@ class MigrationDialog(ctk.CTkToplevel):
             self.on_migration_success(new_key)
             self.destroy()
         except Exception as e:
-            self.upgrade_btn.configure(state="normal", text="🚀 Upgrade & Re-Encrypt Vault Now")
+            self.upgrade_btn.configure(state="normal", text="\ue286 Upgrade & Re-Encrypt Vault Now")
             self.save_status_label.configure(
                 text=f"Migration error: {str(e)}",
                 text_color=COLOR_DANGER,

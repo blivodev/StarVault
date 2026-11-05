@@ -79,7 +79,7 @@ class VaultImportDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             title_box,
-            text="📥 Import Data into StarVault",
+            text="\ue0b6 Import Data into StarVault",
             font=get_font(17, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -111,7 +111,7 @@ class VaultImportDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             btn_row,
-            text="📂 Choose File...",
+            text="\ue247 Choose File...",
             font=get_font(12, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -166,7 +166,7 @@ class VaultImportDialog(ctk.CTkToplevel):
 
         self.unlock_btn = ctk.CTkButton(
             p_row,
-            text="🔓 Unlock & Inspect",
+            text="\ue110 Unlock & Inspect",
             font=get_font(11, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -269,7 +269,7 @@ class VaultImportDialog(ctk.CTkToplevel):
 
         self.execute_btn = ctk.CTkButton(
             bottom_bar,
-            text="📥 Execute Import into Vault",
+            text="\ue0b6 Execute Import into Vault",
             font=get_font(12, "bold"),
             fg_color=COLOR_SUCCESS,
             hover_color=ACCENT_HOVER,
@@ -324,7 +324,7 @@ class VaultImportDialog(ctk.CTkToplevel):
 
         # Successfully inspected
         self.inspected_metadata = meta
-        self.status_lbl.configure(text="✓ Package verified and ready to import", text_color=COLOR_SUCCESS)
+        self.status_lbl.configure(text="\ue070 Package verified and ready to import", text_color=COLOR_SUCCESS)
         self.execute_btn.configure(state="normal")
         self._render_preview_details(meta)
 
@@ -338,13 +338,13 @@ class VaultImportDialog(ctk.CTkToplevel):
 
         ft = meta.get("file_type", "unknown")
         fmt_map = {
-            "database": "🗄️ StarVault Database Backup (.db)",
-            "encrypted_package": "🔒 Encrypted StarVault Package (.sve)",
-            "zip_archive": "📦 Portable ZIP Archive (.zip)",
-            "csv": "📄 CSV Spreadsheet (.csv)",
-            "json": "📋 JSON Vault Export (.json)",
+            "database": "\ue0b1 StarVault Database Backup (.db)",
+            "encrypted_package": "\ue10f Encrypted StarVault Package (.sve)",
+            "zip_archive": "\ue12d Portable ZIP Archive (.zip)",
+            "csv": "\ue0d0 CSV Spreadsheet (.csv)",
+            "json": "\ue089 JSON Vault Export (.json)",
         }
-        fmt_name = fmt_map.get(ft, "📄 Data Import Package")
+        fmt_name = fmt_map.get(ft, "\ue0d0 Data Import Package")
         ctk.CTkLabel(row1, text=fmt_name, font=get_font(13, "bold"), text_color=ACCENT_PRIMARY).pack(side="left")
 
         if "created_at" in meta and meta["created_at"]:
@@ -362,10 +362,10 @@ class VaultImportDialog(ctk.CTkToplevel):
         grid.pack(fill="x", pady=4)
 
         metrics = [
-            ("🔑 Credentials", meta.get("credentials_count", 0)),
-            ("⚡ Keys & Certs", meta.get("keys_count", 0)),
-            ("📁 Files", meta.get("files_count", 0)),
-            ("📜 Versions", meta.get("versions_count", 0)),
+            ("\ue102 Credentials", meta.get("credentials_count", 0)),
+            ("\ue1b4 Keys & Certs", meta.get("keys_count", 0)),
+            ("\ue0dc Files", meta.get("files_count", 0)),
+            ("\ue464 Versions", meta.get("versions_count", 0)),
         ]
 
         for i, (label, cnt) in enumerate(metrics):
@@ -394,7 +394,7 @@ class VaultImportDialog(ctk.CTkToplevel):
             try:
                 success = self.database.restore_from_backup(self.selected_file_path)
                 if success:
-                    messagebox.showinfo("Restore Successful", "✓ Vault successfully restored from database backup!")
+                    messagebox.showinfo("Restore Successful", "\ue070 Vault successfully restored from database backup!")
                     if self.on_import_completed:
                         self.on_import_completed()
                     self.destroy()
@@ -418,7 +418,7 @@ class VaultImportDialog(ctk.CTkToplevel):
             def on_complete():
                 self.execute_btn.configure(state="normal")
                 if success:
-                    self.status_lbl.configure(text="✓ Import completed!", text_color=COLOR_SUCCESS)
+                    self.status_lbl.configure(text="\ue070 Import completed!", text_color=COLOR_SUCCESS)
                     messagebox.showinfo("Import Successful", msg)
                     if self.on_import_completed:
                         self.on_import_completed()

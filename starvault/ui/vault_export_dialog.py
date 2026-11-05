@@ -74,7 +74,7 @@ class VaultExportDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             title_box,
-            text="📤 Export StarVault Vault",
+            text="\ue19e Export StarVault Vault",
             font=get_font(17, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -106,7 +106,7 @@ class VaultExportDialog(ctk.CTkToplevel):
         # Radio 1: Encrypted Container
         r1 = ctk.CTkRadioButton(
             fmt_card,
-            text="🔒 Encrypted StarVault Container (.sve) [RECOMMENDED]",
+            text="\ue10f Encrypted StarVault Container (.sve) [RECOMMENDED]",
             variable=self.format_var,
             value="sve",
             font=get_font(12, "bold"),
@@ -125,7 +125,7 @@ class VaultExportDialog(ctk.CTkToplevel):
         # Radio 2: Compressed Archive
         r2 = ctk.CTkRadioButton(
             fmt_card,
-            text="📦 Portable ZIP Archive (.zip)",
+            text="\ue12d Portable ZIP Archive (.zip)",
             variable=self.format_var,
             value="zip",
             font=get_font(12, "bold"),
@@ -144,7 +144,7 @@ class VaultExportDialog(ctk.CTkToplevel):
         # Radio 3: Plain CSV
         r3 = ctk.CTkRadioButton(
             fmt_card,
-            text="📄 Plaintext CSV (.csv)",
+            text="\ue0d0 Plaintext CSV (.csv)",
             variable=self.format_var,
             value="csv",
             font=get_font(12, "bold"),
@@ -174,7 +174,7 @@ class VaultExportDialog(ctk.CTkToplevel):
         self.inc_creds_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
             scope_card,
-            text="🔑 Passwords & Server Credentials",
+            text="\ue102 Passwords & Server Credentials",
             variable=self.inc_creds_var,
             font=get_font(12),
         ).pack(anchor="w", padx=16, pady=4)
@@ -182,7 +182,7 @@ class VaultExportDialog(ctk.CTkToplevel):
         self.inc_keys_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
             scope_card,
-            text="⚡ Cryptographic Keys & Certificates (SSH, PGP, TLS, WireGuard, Age)",
+            text="\ue1b4 Cryptographic Keys & Certificates (SSH, PGP, TLS, WireGuard, Age)",
             variable=self.inc_keys_var,
             font=get_font(12),
         ).pack(anchor="w", padx=16, pady=4)
@@ -190,7 +190,7 @@ class VaultExportDialog(ctk.CTkToplevel):
         self.inc_files_var = ctk.BooleanVar(value=True)
         ctk.CTkCheckBox(
             scope_card,
-            text="📁 Attached Files & Documents (Configs, Certificates, Keyrings)",
+            text="\ue0dc Attached Files & Documents (Configs, Certificates, Keyrings)",
             variable=self.inc_files_var,
             font=get_font(12),
         ).pack(anchor="w", padx=16, pady=4)
@@ -198,7 +198,7 @@ class VaultExportDialog(ctk.CTkToplevel):
         self.inc_versions_var = ctk.BooleanVar(value=True)
         self.versions_chk = ctk.CTkCheckBox(
             scope_card,
-            text="📜 Historical Snapshot Versions & Change Logs",
+            text="\ue464 Historical Snapshot Versions & Change Logs",
             variable=self.inc_versions_var,
             font=get_font(12),
         )
@@ -261,7 +261,7 @@ class VaultExportDialog(ctk.CTkToplevel):
 
         self.export_btn = ctk.CTkButton(
             act_card,
-            text="📤 Export to File...",
+            text="\ue19e Export to File...",
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -381,7 +381,7 @@ class VaultExportDialog(ctk.CTkToplevel):
             def on_complete():
                 self.export_btn.configure(state="normal")
                 if success:
-                    self.status_lbl.configure(text="✓ Export completed successfully", text_color=COLOR_SUCCESS)
+                    self.status_lbl.configure(text="\ue070 Export completed successfully", text_color=COLOR_SUCCESS)
                     messagebox.showinfo(
                         "Export Complete",
                         f"{msg}\n\nFile saved to:\n{target_path}",

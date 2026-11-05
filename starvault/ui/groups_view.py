@@ -40,6 +40,7 @@ from starvault.ui.theme import (
     TEXT_SECONDARY,
     get_font,
     get_mono_font,
+    tk_font,
 )
 
 
@@ -123,7 +124,7 @@ class GroupsView(ctk.CTkFrame):
         search_box = ctk.CTkFrame(filter_bar, fg_color=BG_INPUT, corner_radius=8, border_width=1, border_color=BORDER_COLOR)
         search_box.pack(side="left", fill="x", expand=True, padx=(0, 12))
 
-        ctk.CTkLabel(search_box, text="🔍", font=get_font(12), text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
+        ctk.CTkLabel(search_box, text="\ue155", font=get_font(12), text_color=TEXT_MUTED).pack(side="left", padx=(10, 4))
         self.search_entry = ctk.CTkEntry(
             search_box,
             placeholder_text="Filter items across all groups...",
@@ -359,7 +360,7 @@ class GroupsView(ctk.CTkFrame):
 
         tk.Button(
             header_card,
-            text=f"{'▼' if is_expanded else '▶'}  {group_name}  ({len(items)})",
+            text=f"{'▼' if is_expanded else '\ue073'}  {group_name}  ({len(items)})",
             bg=BG_CARD,
             fg=ACCENT_PRIMARY if is_expanded else TEXT_PRIMARY,
             activebackground=BG_CARD_HOVER,
@@ -368,7 +369,7 @@ class GroupsView(ctk.CTkFrame):
             bd=0,
             highlightthickness=0,
             anchor="w",
-            font=("Segoe UI", 13, "bold"),
+            font=tk_font(13, "bold"),
             cursor="hand2",
             command=lambda g=group_name: self._toggle_group(g),
         ).pack(fill="x", padx=6, pady=6)
@@ -412,7 +413,7 @@ class GroupsView(ctk.CTkFrame):
             text=badge_text,
             bg=BG_CARD,
             fg=badge_color,
-            font=("Segoe UI", 9, "bold"),
+            font=tk_font(9, "bold"),
             padx=6,
             pady=2,
             width=9,
@@ -427,7 +428,7 @@ class GroupsView(ctk.CTkFrame):
             text=entry.title,
             bg=BG_INPUT,
             fg=TEXT_PRIMARY,
-            font=("Segoe UI", 12, "bold"),
+            font=tk_font(12, "bold"),
             anchor="w",
         ).pack(fill="x")
 
@@ -450,7 +451,7 @@ class GroupsView(ctk.CTkFrame):
                 text=sub_text,
                 bg=BG_INPUT,
                 fg=TEXT_MUTED,
-                font=("Segoe UI", 10),
+                font=tk_font(10),
                 anchor="w",
             ).pack(fill="x")
 
@@ -471,7 +472,7 @@ class GroupsView(ctk.CTkFrame):
                 highlightthickness=0,
                 padx=8,
                 pady=2,
-                font=("Segoe UI", 9, "bold" if bold else "normal"),
+                font=tk_font(9, "bold" if bold else "normal"),
                 cursor="hand2",
                 command=command,
             )
@@ -517,7 +518,7 @@ class GroupsView(ctk.CTkFrame):
 
         # 6. View in Credentials Inspector
         if self.on_select_entry:
-            gbtn("↗️", ACCENT_PRIMARY, lambda eid=entry.id: self.on_select_entry(eid))
+            gbtn("↗", ACCENT_PRIMARY, lambda eid=entry.id: self.on_select_entry(eid))
 
         return row
 

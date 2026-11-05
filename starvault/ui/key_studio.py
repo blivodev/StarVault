@@ -88,7 +88,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             header,
-            text="💻 Local Key Installer...",
+            text="\ue1cd Local Key Installer...",
             font=get_font(11, "bold"),
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -303,7 +303,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
     def _on_generation_complete(self, result: GeneratedKeyResult):
         self.current_key = result
         self.gen_btn.configure(state="normal", text="Generate Keypair")
-        self.gen_status_label.configure(text=f"✓ Successfully generated {result.algorithm_name}", text_color=COLOR_SUCCESS)
+        self.gen_status_label.configure(text=f"\ue070 Successfully generated {result.algorithm_name}", text_color=COLOR_SUCCESS)
 
         self._private_revealed = False
         self._populate_inspector(result)
@@ -355,7 +355,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             fp_row,
-            text="📋 Copy",
+            text="\ue089 Copy",
             width=60,
             height=26,
             fg_color="transparent",
@@ -445,7 +445,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.export_ppk_btn = ctk.CTkButton(
             export_row,
-            text="💾 Save PuTTY .ppk",
+            text="\ue151 Save PuTTY .ppk",
             height=34,
             fg_color=BG_INPUT,
             hover_color=BORDER_COLOR,
@@ -467,7 +467,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
 
         self.install_local_btn = ctk.CTkButton(
             export_row,
-            text="💻 Install to System (~/.ssh)...",
+            text="\ue1cd Install to System (~/.ssh)...",
             font=get_font(11, "bold"),
             height=34,
             fg_color=ACCENT_PRIMARY,
@@ -516,24 +516,24 @@ class KeyStudioDialog(ctk.CTkToplevel):
         # Update export buttons labels & availability based on key algorithm
         kt = key.key_type.lower()
         if "tls" in kt:
-            self.export_pub_btn.configure(text="💾 Save Cert (.crt)", state="normal")
-            self.export_pem_btn.configure(text="💾 Save Key (.key)", state="normal")
+            self.export_pub_btn.configure(text="\ue151 Save Cert (.crt)", state="normal")
+            self.export_pem_btn.configure(text="\ue151 Save Key (.key)", state="normal")
             self.export_ppk_btn.pack_forget()
         elif "wireguard" in kt:
-            self.export_pub_btn.configure(text="💾 Save .wg.pub", state="normal")
-            self.export_pem_btn.configure(text="💾 Save .wg.key", state="normal")
+            self.export_pub_btn.configure(text="\ue151 Save .wg.pub", state="normal")
+            self.export_pem_btn.configure(text="\ue151 Save .wg.key", state="normal")
             self.export_ppk_btn.pack_forget()
         elif "age" in kt:
-            self.export_pub_btn.configure(text="💾 Save .recipient.txt", state="normal")
-            self.export_pem_btn.configure(text="💾 Save .key", state="normal")
+            self.export_pub_btn.configure(text="\ue151 Save .recipient.txt", state="normal")
+            self.export_pem_btn.configure(text="\ue151 Save .key", state="normal")
             self.export_ppk_btn.pack_forget()
         elif "gpg" in kt:
-            self.export_pub_btn.configure(text="💾 Save Public (.asc)", state="normal")
-            self.export_pem_btn.configure(text="💾 Save Private (.asc)", state="normal")
+            self.export_pub_btn.configure(text="\ue151 Save Public (.asc)", state="normal")
+            self.export_pem_btn.configure(text="\ue151 Save Private (.asc)", state="normal")
             self.export_ppk_btn.pack_forget()
         else:
-            self.export_pub_btn.configure(text="💾 Save .pub", state="normal")
-            self.export_pem_btn.configure(text="💾 Save .pem", state="normal")
+            self.export_pub_btn.configure(text="\ue151 Save .pub", state="normal")
+            self.export_pem_btn.configure(text="\ue151 Save .pem", state="normal")
             self.export_ppk_btn.pack(side="left", padx=(0, 6))
             self.export_bundle_btn.pack(side="left")
 
@@ -649,7 +649,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
             with open(path, "w", encoding="utf-8") as f:
                 f.write(content)
             self.gen_status_label.configure(
-                text=f"✓ Exported to {path.split('/')[-1]}",
+                text=f"\ue070 Exported to {path.split('/')[-1]}",
                 text_color=COLOR_SUCCESS,
             )
 
@@ -686,7 +686,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
         priv_path.write_text(self.current_key.private_key, encoding="utf-8")
 
         self.gen_status_label.configure(
-            text=f"✓ Keypair exported to folder {folder_p.name}",
+            text=f"\ue070 Keypair exported to folder {folder_p.name}",
             text_color=COLOR_SUCCESS,
         )
         messagebox.showinfo(
@@ -713,7 +713,7 @@ class KeyStudioDialog(ctk.CTkToplevel):
         if self.on_save_to_vault:
             self.on_save_to_vault(entry)
             self.gen_status_label.configure(
-                text="✓ Saved keypair directly to StarVault entries!",
+                text="\ue070 Saved keypair directly to StarVault entries!",
                 text_color=COLOR_SUCCESS,
             )
 

@@ -78,7 +78,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             title_box,
-            text=f"🕒 Version History — {self.entry.title}",
+            text=f"\ue08b Version History — {self.entry.title}",
             font=get_font(16, "bold"),
             text_color=TEXT_PRIMARY,
         ).pack(anchor="w")
@@ -227,7 +227,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
                 f_row.pack(fill="x", padx=8, pady=(0, 6))
                 ctk.CTkLabel(
                     f_row,
-                    text=f"📁 {len(ver.associated_files)} key file(s) linked",
+                    text=f"\ue0dc {len(ver.associated_files)} key file(s) linked",
                     font=get_font(10),
                     text_color=COLOR_WARNING,
                 ).pack(side="left")
@@ -301,7 +301,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             act_row,
-            text="🔄 Restore / Rollback to v" + str(ver.version_num),
+            text="\ue149 Restore / Rollback to v" + str(ver.version_num),
             font=get_font(12, "bold"),
             fg_color=ACCENT_PRIMARY,
             hover_color=ACCENT_HOVER,
@@ -312,7 +312,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
 
         ctk.CTkButton(
             act_row,
-            text="🗑️ Delete This Snapshot",
+            text="\ue18e Delete This Snapshot",
             font=get_font(12),
             fg_color=BG_INPUT,
             hover_color=COLOR_DANGER,
@@ -336,7 +336,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
         if not diff_entries:
             ctk.CTkLabel(
                 diff_card,
-                text="✓ Identical to current live entry (no secret or configuration differences).",
+                text="\ue070 Identical to current live entry (no secret or configuration differences).",
                 font=get_font(11),
                 text_color=COLOR_SUCCESS,
             ).pack(anchor="w", padx=14, pady=(0, 10))
@@ -360,7 +360,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
 
                 ctk.CTkLabel(
                     d_row,
-                    text=f"Snapshot: {disp_old}  ➔  Live: {disp_live}",
+                    text=f"Snapshot: {disp_old}  \ue04d  Live: {disp_live}",
                     font=get_mono_font(11),
                     text_color=COLOR_WARNING,
                     anchor="w",
@@ -441,7 +441,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
                 f_row = ctk.CTkFrame(files_card, fg_color="transparent")
                 f_row.pack(fill="x", padx=14, pady=3)
 
-                status_icon = "✓" if exists else "⚠️"
+                status_icon = "\ue070" if exists else "\ue193"
                 status_color = COLOR_SUCCESS if exists else COLOR_DANGER
 
                 ctk.CTkLabel(
@@ -462,7 +462,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
 
                 ctk.CTkButton(
                     f_row,
-                    text="📋 Copy Path",
+                    text="\ue089 Copy Path",
                     width=75,
                     height=24,
                     font=get_font(10),
@@ -524,7 +524,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
         if copyable:
             ctk.CTkButton(
                 row,
-                text="📋 Copy",
+                text="\ue089 Copy",
                 width=60,
                 height=24,
                 font=get_font(10),
@@ -547,7 +547,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
         else:
             self.clipboard_clear()
             self.clipboard_append(text)
-        self.status_lbl.configure(text=f"✓ {label}", text_color=COLOR_SUCCESS)
+        self.status_lbl.configure(text=f"\ue070 {label}", text_color=COLOR_SUCCESS)
         self.after(3000, lambda: self.status_lbl.configure(text=""))
 
     def _compute_live_diff(self, snapshot_data: Dict[str, Any]) -> Dict[str, tuple]:
@@ -598,7 +598,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
                 self.on_restored(restored)
 
             self.status_lbl.configure(
-                text=f"✓ Successfully restored to Version {ver.version_num}!",
+                text=f"\ue070 Successfully restored to Version {ver.version_num}!",
                 text_color=COLOR_SUCCESS,
             )
             self._load_versions()
@@ -630,7 +630,7 @@ class VersionHistoryDialog(ctk.CTkToplevel):
 
         success = self.database.delete_entry_version(ver.id, delete_physical_files=del_files)
         if success:
-            self.status_lbl.configure(text=f"✓ Deleted Version {ver.version_num} snapshot.", text_color=COLOR_SUCCESS)
+            self.status_lbl.configure(text=f"\ue070 Deleted Version {ver.version_num} snapshot.", text_color=COLOR_SUCCESS)
             self.selected_version = None
             self._load_versions()
         else:

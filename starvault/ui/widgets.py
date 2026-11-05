@@ -21,21 +21,21 @@ def add_password_toggle(
     side: str = "right",
     padx: tuple = (4, 0),
 ) -> ctk.CTkButton:
-    """Attaches an interactive Show/Hide password toggle button (👁 / 🔒) to an entry widget."""
+    """Attaches an interactive Show/Hide password toggle button (\ue0be / \ue10f) to an entry widget."""
     is_revealed = [False]
 
     def _toggle():
         is_revealed[0] = not is_revealed[0]
         if is_revealed[0]:
             entry_widget.configure(show="")
-            btn.configure(text="🔒", text_color=ACCENT_PRIMARY)
+            btn.configure(text="\ue10f", text_color=ACCENT_PRIMARY)
         else:
             entry_widget.configure(show=mask_char)
-            btn.configure(text="👁", text_color=TEXT_SECONDARY)
+            btn.configure(text="\ue0be", text_color=TEXT_SECONDARY)
 
     btn = ctk.CTkButton(
         parent_frame,
-        text="👁",
+        text="\ue0be",
         width=width,
         height=height,
         fg_color=BG_INPUT,

@@ -9,7 +9,7 @@
   <!-- Global Top Header -->
   <div class="header">
     <div class="logo">
-      <span class="star-icon">★</span>
+      <img class="brand-mark" src="icons/icon48.png" alt="StarVault">
       <span class="brand-text">StarVault</span>
     </div>
     <div class="header-right">
@@ -70,9 +70,24 @@
           <option value="category">Category</option>
           <option value="risk">Security Risk (Highest)</option>
         </select>
-        <button id="sortDirBtn" class="sort-dir-btn" title="Toggle Sort Direction">▲</button>
+        <button id="sortDirBtn" class="sort-dir-btn" title="Toggle Sort Direction"></button>
       </div>
       <span id="itemsCountBadge" class="count-badge">0 items</span>
+    </div>
+  </div>
+
+  <!-- Contextual site banner: shows the detected site and quick actions -->
+  <div id="siteBanner" class="site-banner hidden">
+    <div class="site-info">
+      <span class="site-icon" id="siteIcon"></span>
+      <div class="site-text">
+        <span class="site-host" id="siteHost">—</span>
+        <span class="site-sub" id="siteSub">Detecting site…</span>
+      </div>
+    </div>
+    <div class="site-actions">
+      <button id="siteFillBtn" class="btn-site" title="Fill this site's login">Fill</button>
+      <button id="siteAddBtn" class="btn-site" title="Save a login for this site">Save</button>
     </div>
   </div>
 
@@ -99,11 +114,11 @@
 
   <!-- Action Bar -->
   <div class="bottom-bar">
-    <button id="tabFillBtn" class="btn-tool" title="Auto-fill login fields on page">Fill Page</button>
-    <button id="openGenBtn" class="btn-tool" title="Generate Passwords, API Keys, SSH & WireGuard Keys">Key Studio</button>
-    <button id="openCryptoBtn" class="btn-tool" title="Crypto, Hashing, Encoders, TLS Certs">Crypto</button>
-    <button id="openOrganizeBtn" class="btn-tool" title="Smart Auto-Organize & Deduplicate">Organize</button>
-    <button id="openSaveBtn" class="btn-tool" title="Save New Login">+ Save</button>
+    <button id="tabFillBtn" class="btn-tool" title="Auto-fill login fields on page" data-icon="wand">Fill Page</button>
+    <button id="openGenBtn" class="btn-tool" title="Generate Passwords, API Keys, SSH & WireGuard Keys" data-icon="key-round">Key Studio</button>
+    <button id="openCryptoBtn" class="btn-tool" title="Crypto, Hashing, Encoders, TLS Certs" data-icon="lock">Crypto</button>
+    <button id="openOrganizeBtn" class="btn-tool" title="Smart Auto-Organize & Deduplicate" data-icon="folder">Organize</button>
+    <button id="openSaveBtn" class="btn-tool" title="Save New Login" data-icon="plus">Save</button>
   </div>
 
   <!-- Generator & Key Studio Drawer -->
@@ -422,6 +437,7 @@
   <!-- Notification Toast -->
   <div id="toast" class="toast hidden"></div>
 
+  <script src="icons.js"></script>
   <script src="popup.js"></script>
 </body>
 </html>

@@ -21,6 +21,7 @@ from starvault.ui.key_studio import KeyStudioDialog
 from starvault.ui.migration_dialog import MigrationDialog
 from starvault.ui.theme import BG_ROOT, apply_global_theme, register_font_listener, register_theme_listener
 from starvault.ui.unlock_view import UnlockView
+from starvault.ui.window_chrome import WindowChrome, build_title_bar
 
 
 class StarVaultApp(ctk.CTk):
@@ -35,13 +36,24 @@ class StarVaultApp(ctk.CTk):
         self.minsize(980, 680)
         self.configure(fg_color=BG_ROOT)
 
-        # Set window icon
+        # Set window icon (taskbar / alt-tab)
+        self._tk_icon = None
         try:
             icon_img = generate_vault_icon_image(64)
             self._tk_icon = ImageTk.PhotoImage(icon_img)
             self.iconphoto(False, self._tk_icon)
         except Exception:
             pass
+
+        # Frameless window chrome: the native title bar is replaced by an
+        # in-app strip (brand + window controls) so the app reads as one piece.
+        self.chrome = WindowChrome(
+            self,
+            on_minimize=self.minimize_to_tray,
+            on_close=self._on_close_button_clicked,
+        )
+        self._title_bar = None
+        self._mark_image = None
 
         # App Configuration (Recent Vaults, Remember Me)
         self.app_config = AppConfigManager()
@@ -88,6 +100,12 @@ class StarVaultApp(ctk.CTk):
         register_theme_listener(self._on_theme_changed)
         register_font_listener(self._on_font_changed)
 
+        # Build the in-app title strip (replaces the native title bar) and a
+        # host frame that all views pack into, below it.
+        self._build_title_bar()
+        self.view_host = ctk.CTkFrame(self, fg_color=BG_ROOT, corner_radius=0)
+        self.view_host.pack(fill="both", expand=True)
+
         # Window event bindings
         self.protocol("WM_DELETE_WINDOW", self._on_close_button_clicked)
         self.bind("<Unmap>", self._on_window_unmap)
@@ -104,8 +122,30 @@ class StarVaultApp(ctk.CTk):
         # Initial View
         self._show_initial_view()
 
+        # Now that the window exists and is mapped, drop the native title bar.
+        self.after(10, self.chrome.enable)
+
         if start_minimized:
             self.withdraw()
+
+    def _build_title_bar(self):
+        """Creates (or recreates) the in-app title strip."""
+        if self._title_bar is not None:
+            try:
+                self._title_bar.destroy()
+            except Exception:
+                pass
+        try:
+            from starvault.ui.branding import mark_image
+            self._mark_image = mark_image(22)
+        except Exception:
+            self._mark_image = None
+        self._title_bar = build_title_bar(
+            self,
+            title_text=f"{APP_NAME}",
+            chrome=self.chrome,
+            mark_image=self._mark_image,
+        )
 
     def _show_initial_view(self):
         """Displays UnlockView if locked or DashboardView if unlocked."""
@@ -128,7 +168,7 @@ class StarVaultApp(ctk.CTk):
 
         if self.session.is_unlocked:
             self.current_view = DashboardView(
-                self,
+                self.view_host,
                 database=self.db,
                 session_key=self.session.key,
                 clipboard_mgr=self.clipboard_mgr,
@@ -139,7 +179,7 @@ class StarVaultApp(ctk.CTk):
             self.current_view.pack(fill="both", expand=True)
         else:
             self.current_view = UnlockView(
-                self,
+                self.view_host,
                 is_initialized=self.db.is_initialized(),
                 on_unlock_success=self.on_unlock_success,
                 on_initialize_success=self.on_unlock_success,

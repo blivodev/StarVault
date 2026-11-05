@@ -81,7 +81,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
 
         ctk.CTkLabel(
             search_row,
-            text="🔍",
+            text="\ue155",
             font=get_font(18),
             text_color=ACCENT_PRIMARY,
         ).pack(side="left", padx=(0, 10))
@@ -494,7 +494,7 @@ class QuickSearchHUD(ctk.CTkToplevel):
 
     def _copy_val(self, val: str, label: str, is_sensitive: bool = False):
         self.clipboard_mgr.copy(val, label=label, is_sensitive=is_sensitive)
-        self.toast_label.configure(text=f"✓ {label}")
+        self.toast_label.configure(text=f"\ue070 {label}")
         # Automatically clear toast after 3s
         self.after(3000, lambda: self.toast_label.configure(text=""))
 
